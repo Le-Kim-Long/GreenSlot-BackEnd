@@ -3,6 +3,7 @@ package swp490.greeenslot.entity;
 import jakarta.persistence.*;
 import java.util.HashSet;
 import java.util.Set;
+import org.hibernate.annotations.Nationalized;
 
 @Entity
 @Table(name = "users",
@@ -19,8 +20,11 @@ public class User {
     private String email;
     private String password;
     
+    @Nationalized
     private String fullName;
     private String phone;
+    
+    @Nationalized
     private String address;
 
     @ManyToMany(fetch = FetchType.LAZY)
