@@ -1,12 +1,14 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 spring:
   datasource:
-    url: jdbc:sqlserver://localhost:1433;databaseName=GreenSlotDB;encrypt=true;trustServerCertificate=true
-    username: sa
-    password: 12345
-    driverClassName: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    # --- CẤU HÌNH LOCAL: SQL Server (chạy máy cá nhân) ---
+    # Khi deploy lên Render, set các biến môi trường bên dưới để ghi đè sang PostgreSQL
+    url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=GreenSlotDB;encrypt=true;trustServerCertificate=true}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:12345}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.microsoft.sqlserver.jdbc.SQLServerDriver}
   jpa:
     hibernate:
       ddl-auto: update
@@ -14,9 +16,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.SQLServerDialect
+        dialect: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.SQLServerDialect}
 
 greeenslot:
   app:
-    jwtSecret: "======================GreenSlot=Spring=Boot=Secret=Key=For=JWT=Generation=Must=Be=Long======================"
-    jwtExpirationMs: 86400000 # 24 hours
+    jwtSecret: ${JWT_SECRET:======================GreenSlot=Spring=Boot=Secret=Key=For=JWT=Generation=Must=Be=Long======================}
+    jwtExpirationMs: ${JWT_EXPIRATION_MS:86400000} # 24 hours
+
