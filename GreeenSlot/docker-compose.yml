@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: greenslot_db
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=GreenSlotPassword123!
+      - MSSQL_PID=Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "GreenSlotPassword123!", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: greenslot_db_init
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: /bin/bash -c "/opt/mssql-tools/bin/sqlcmd -S db -U sa -P 'GreenSlotPassword123!' -Q \"IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'GreenSlotDB') CREATE DATABASE GreenSlotDB\""
+
+  web:
+    build: .
+    container_name: greenslot_backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:sqlserver://db:1433;databaseName=GreenSlotDB;encrypt=true;trustServerCertificate=true
+      - SPRING_DATASOURCE_USERNAME=sa
+      - SPRING_DATASOURCE_PASSWORD=GreenSlotPassword123!
+
+volumes:
+  mssql_data:
