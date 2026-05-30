@@ -13,6 +13,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import swp490.greeenslot.service.TokenBlacklistService;
 import swp490.greeenslot.service.impl.UserDetailsServiceImpl;
 
 import java.io.IOException;
@@ -25,6 +26,9 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     @Autowired
     private UserDetailsServiceImpl userDetailsService;
 
+    @Autowired
+    private TokenBlacklistService tokenBlacklistService;
+
     private static final Logger logger = LoggerFactory.getLogger(AuthTokenFilter.class);
 
     @Override
@@ -32,7 +36,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         try {
             String jwt = parseJwt(request);
-            if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
+            if (jwt != null && jwtUtils.validateJwtToken(jwt) && !tokenBlacklistService.isBlacklisted(jwt)) {
                 String username = jwtUtils.getUserNameFromJwtToken(jwt);
 
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);

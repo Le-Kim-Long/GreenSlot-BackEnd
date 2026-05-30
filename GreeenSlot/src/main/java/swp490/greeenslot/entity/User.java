@@ -1,6 +1,7 @@
 package swp490.greeenslot.entity;
 
 import jakarta.persistence.*;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 import org.hibernate.annotations.Nationalized;
@@ -26,6 +27,12 @@ public class User {
     
     @Nationalized
     private String address;
+
+    @Column(name = "reset_token")
+    private String resetToken;
+
+    @Column(name = "reset_token_expiry")
+    private Instant resetTokenExpiry;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "user_roles",
@@ -109,5 +116,26 @@ public class User {
 
     public void setRoles(Set<Role> roles) {
         this.roles = roles;
+    }
+
+    public String getResetToken() {
+        return resetToken;
+    }
+
+    public void setResetToken(String resetToken) {
+        this.resetToken = resetToken;
+    }
+
+    public Instant getResetTokenExpiry() {
+        return resetTokenExpiry;
+    }
+
+    public void setResetTokenExpiry(Instant resetTokenExpiry) {
+        this.resetTokenExpiry = resetTokenExpiry;
+    }
+
+    public void clearResetToken() {
+        this.resetToken = null;
+        this.resetTokenExpiry = null;
     }
 }
