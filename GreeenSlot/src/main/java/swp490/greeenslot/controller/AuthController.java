@@ -28,11 +28,6 @@ public class AuthController {
         return ResponseEntity.ok(jwtResponse);
     }
 
-    @PostMapping("/signup")
-    public ResponseEntity<?> signup(@Valid @RequestBody SignupRequestDTO signUpRequest) {
-        return register(signUpRequest);
-    }
-
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody SignupRequestDTO signUpRequest) {
         try {
