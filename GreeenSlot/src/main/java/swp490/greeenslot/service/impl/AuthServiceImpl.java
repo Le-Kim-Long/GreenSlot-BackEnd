@@ -1,6 +1,7 @@
 package swp490.greeenslot.service.impl;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -11,9 +12,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import swp490.greeenslot.config.JwtUtils;
+import swp490.greeenslot.dto.ForgotPasswordRequestDTO;
 import swp490.greeenslot.dto.JwtResponseDTO;
 import swp490.greeenslot.dto.LoginRequestDTO;
+import swp490.greeenslot.dto.ResetPasswordRequestDTO;
 import swp490.greeenslot.dto.SignupRequestDTO;
+import swp490.greeenslot.service.EmailService;
+import swp490.greeenslot.service.TokenBlacklistService;
 import swp490.greeenslot.entity.ERole;
 import swp490.greeenslot.entity.Role;
 import swp490.greeenslot.entity.User;
@@ -21,9 +26,11 @@ import swp490.greeenslot.repository.RoleRepository;
 import swp490.greeenslot.repository.UserRepository;
 import swp490.greeenslot.service.AuthService;
 
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -43,6 +50,15 @@ public class AuthServiceImpl implements AuthService {
 
     @Autowired
     private JwtUtils jwtUtils;
+
+    @Autowired
+    private TokenBlacklistService tokenBlacklistService;
+
+    @Autowired
+    private EmailService emailService;
+
+    @Value("${greeenslot.app.resetTokenExpirationMs:3600000}")
+    private long resetTokenExpirationMs;
 
     @Override
     public JwtResponseDTO authenticateUser(LoginRequestDTO loginRequest) {
@@ -118,6 +134,43 @@ public class AuthServiceImpl implements AuthService {
         }
 
         user.setRoles(roles);
+        userRepository.save(user);
+    }
+
+    @Override
+    public void logout(String jwt) {
+        if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
+            tokenBlacklistService.blacklist(jwt);
+        }
+        SecurityContextHolder.clearContext();
+    }
+
+    @Override
+    @Transactional
+    public void forgotPassword(ForgotPasswordRequestDTO request) {
+        userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
+            String token = UUID.randomUUID().toString();
+            user.setResetToken(token);
+            user.setResetTokenExpiry(Instant.now().plusMillis(resetTokenExpirationMs));
+            userRepository.save(user);
+            emailService.sendPasswordResetEmail(user.getEmail(), token);
+        });
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(ResetPasswordRequestDTO request) {
+        User user = userRepository.findByResetToken(request.getToken())
+                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired reset token."));
+
+        if (user.getResetTokenExpiry() == null || user.getResetTokenExpiry().isBefore(Instant.now())) {
+            user.clearResetToken();
+            userRepository.save(user);
+            throw new IllegalArgumentException("Invalid or expired reset token.");
+        }
+
+        user.setPassword(encoder.encode(request.getNewPassword()));
+        user.clearResetToken();
         userRepository.save(user);
     }
 }
