@@ -13,12 +13,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import swp490.greeenslot.config.JwtUtils;
 import swp490.greeenslot.dto.ForgotPasswordRequestDTO;
+import swp490.greeenslot.dto.ForgotPasswordResponseDTO;
 import swp490.greeenslot.dto.JwtResponseDTO;
 import swp490.greeenslot.dto.LoginRequestDTO;
 import swp490.greeenslot.dto.ResetPasswordRequestDTO;
 import swp490.greeenslot.dto.SignupRequestDTO;
 import swp490.greeenslot.service.EmailService;
-import swp490.greeenslot.service.TokenBlacklistService;
 import swp490.greeenslot.entity.ERole;
 import swp490.greeenslot.entity.Role;
 import swp490.greeenslot.entity.User;
@@ -50,9 +50,6 @@ public class AuthServiceImpl implements AuthService {
 
     @Autowired
     private JwtUtils jwtUtils;
-
-    @Autowired
-    private TokenBlacklistService tokenBlacklistService;
 
     @Autowired
     private EmailService emailService;
@@ -138,35 +135,48 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void logout(String jwt) {
-        if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
-            tokenBlacklistService.blacklist(jwt);
-        }
-        SecurityContextHolder.clearContext();
-    }
-
-    @Override
     @Transactional
-    public void forgotPassword(ForgotPasswordRequestDTO request) {
-        userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
-            String token = UUID.randomUUID().toString();
-            user.setResetToken(token);
-            user.setResetTokenExpiry(Instant.now().plusMillis(resetTokenExpirationMs));
-            userRepository.save(user);
-            emailService.sendPasswordResetEmail(user.getEmail(), token);
-        });
+    public ForgotPasswordResponseDTO forgotPassword(ForgotPasswordRequestDTO request) {
+        return userRepository.findByEmail(request.getEmail().trim())
+                .map(user -> {
+                    String token = UUID.randomUUID().toString();
+                    user.setResetToken(token);
+                    user.setResetTokenExpiry(Instant.now().plusMillis(resetTokenExpirationMs));
+                    userRepository.save(user);
+
+                    boolean emailSent = emailService.sendPasswordResetEmail(user.getEmail(), token);
+                    if (emailSent) {
+                        return new ForgotPasswordResponseDTO(
+                                "If an account with that email exists, a password reset link has been sent.",
+                                null);
+                    }
+                    return new ForgotPasswordResponseDTO(
+                            "Email is not configured. Use resetToken below in POST /api/auth/reset-password (valid 1 hour).",
+                            token);
+                })
+                .orElse(new ForgotPasswordResponseDTO(
+                        "If an account with that email exists, a password reset link has been sent.",
+                        null));
     }
 
     @Override
     @Transactional
     public void resetPassword(ResetPasswordRequestDTO request) {
-        User user = userRepository.findByResetToken(request.getToken())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired reset token."));
+        String token = request.getToken() == null ? "" : request.getToken().trim();
+        if (token.isEmpty() || "string".equalsIgnoreCase(token)) {
+            throw new IllegalArgumentException(
+                    "Invalid reset token. Call POST /api/auth/forgot-password first, then copy resetToken from the response (not Swagger placeholder 'string').");
+        }
+
+        User user = userRepository.findByResetToken(token)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Reset token not found. Request a new token via forgot-password (tokens expire after 1 hour)."));
 
         if (user.getResetTokenExpiry() == null || user.getResetTokenExpiry().isBefore(Instant.now())) {
             user.clearResetToken();
             userRepository.save(user);
-            throw new IllegalArgumentException("Invalid or expired reset token.");
+            throw new IllegalArgumentException(
+                    "Reset token has expired. Call POST /api/auth/forgot-password again to get a new token.");
         }
 
         user.setPassword(encoder.encode(request.getNewPassword()));
