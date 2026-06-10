@@ -2,5 +2,8 @@ package swp490.greeenslot.service;
 
 public interface EmailService {
 
-    void sendPasswordResetEmail(String toEmail, String resetToken);
+    /**
+     * @return true if email was sent, false if only logged (mail not configured)
+     */
+    boolean sendPasswordResetEmail(String toEmail, String resetToken);
 }

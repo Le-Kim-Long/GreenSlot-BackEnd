@@ -37,6 +37,8 @@ springdoc:
     path: /swagger-ui.html
 
 greeenslot:
+  iot:
+    api-key: ${IOT_API_KEY:GreenSlot-IoT-Dev-Key}
   app:
     jwtSecret: ${JWT_SECRET:======================GreenSlot=Spring=Boot=Secret=Key=For=JWT=Generation=Must=Be=Long======================}
     jwtExpirationMs: ${JWT_EXPIRATION_MS:86400000} # 24 hours
