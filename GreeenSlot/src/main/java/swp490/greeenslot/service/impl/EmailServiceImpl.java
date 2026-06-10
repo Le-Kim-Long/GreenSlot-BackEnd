@@ -24,7 +24,7 @@ public class EmailServiceImpl implements EmailService {
     private String mailFrom;
 
     @Override
-    public void sendPasswordResetEmail(String toEmail, String resetToken) {
+    public boolean sendPasswordResetEmail(String toEmail, String resetToken) {
         String resetLink = frontendResetUrl + "?token=" + resetToken;
         String subject = "GreenSlot - Password Reset";
         String body = "You requested a password reset. Use the link below (valid for a limited time):\n\n"
@@ -32,8 +32,9 @@ public class EmailServiceImpl implements EmailService {
                 + "If you did not request this, please ignore this email.";
 
         if (mailSender == null || mailFrom == null || mailFrom.isBlank()) {
-            logger.warn("Mail is not configured. Password reset link for {}: {}", toEmail, resetLink);
-            return;
+            logger.warn("Mail is not configured. Password reset token for {}: {}", toEmail, resetToken);
+            logger.warn("Reset link: {}", resetLink);
+            return false;
         }
 
         SimpleMailMessage message = new SimpleMailMessage();
@@ -43,5 +44,6 @@ public class EmailServiceImpl implements EmailService {
         message.setText(body);
         mailSender.send(message);
         logger.info("Password reset email sent to {}", toEmail);
+        return true;
     }
 }
