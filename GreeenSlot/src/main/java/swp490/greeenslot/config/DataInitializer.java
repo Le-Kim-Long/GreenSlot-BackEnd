@@ -69,7 +69,7 @@ public class DataInitializer {
         user.setRoles(Set.of(role));
 
         userRepository.save(user);
-        System.out.println("[DataInitializer] Tao tai khoan: " + username + " | password: " + rawPassword + " | role: "
-                + eRole.name());
+        // SECURITY FIX: Never log raw passwords. Only log username and role.
+        System.out.println("[DataInitializer] Created account: " + username + " | role: " + eRole.name());
     }
 }

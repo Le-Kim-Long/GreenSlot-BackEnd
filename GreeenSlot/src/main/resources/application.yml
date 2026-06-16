@@ -3,16 +3,18 @@ server:
 
 spring:
   datasource:
-    # --- CẤU HÌNH LOCAL: SQL Server (chạy máy cá nhân) ---
-    # Khi deploy lên Render, set các biến môi trường bên dưới để ghi đè sang PostgreSQL
+    # --- CẤU HÌNH DATABASE ---
+    # SECURITY: All credentials MUST be provided via environment variables.
+    # Local dev: set SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD
+    # Production: set via Render/Docker environment config
     url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=GreenSlotDB;encrypt=true;trustServerCertificate=true}
-    username: ${SPRING_DATASOURCE_USERNAME:sa}
-    password: ${SPRING_DATASOURCE_PASSWORD:12345}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.microsoft.sqlserver.jdbc.SQLServerDriver}
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: ${SHOW_SQL:false}
     properties:
       hibernate:
         format_sql: true
@@ -38,9 +40,11 @@ springdoc:
 
 greeenslot:
   iot:
-    api-key: ${IOT_API_KEY:GreenSlot-IoT-Dev-Key}
+    # SECURITY: IoT API key MUST be set via environment variable
+    api-key: ${IOT_API_KEY}
   app:
-    jwtSecret: ${JWT_SECRET:======================GreenSlot=Spring=Boot=Secret=Key=For=JWT=Generation=Must=Be=Long======================}
+    # SECURITY: JWT secret MUST be set via environment variable — no fallback
+    jwtSecret: ${JWT_SECRET}
     jwtExpirationMs: ${JWT_EXPIRATION_MS:86400000} # 24 hours
     frontendResetUrl: ${FRONTEND_RESET_URL:http://localhost:3000/reset-password}
     resetTokenExpirationMs: ${RESET_TOKEN_EXPIRATION_MS:3600000} # 1 hour

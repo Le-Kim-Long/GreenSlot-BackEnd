@@ -97,38 +97,12 @@ public class AuthServiceImpl implements AuthService {
                 signUpRequest.getPhone(),
                 signUpRequest.getAddress());
 
-        Set<String> strRoles = signUpRequest.getRoles();
+        // SECURITY FIX: Always assign ROLE_CUSTOMER for self-registration.
+        // Admin/Manager roles must be assigned by an existing admin via a separate admin API.
         Set<Role> roles = new HashSet<>();
-
-        if (strRoles == null) {
-            Role userRole = roleRepository.findByName(ERole.ROLE_CUSTOMER)
-                    .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-            roles.add(userRole);
-        } else {
-            strRoles.forEach(role -> {
-                switch (role.toLowerCase()) {
-                    case "admin":
-                        Role adminRole = roleRepository.findByName(ERole.ROLE_ADMIN)
-                                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-                        roles.add(adminRole);
-                        break;
-                    case "manager":
-                        Role managerRole = roleRepository.findByName(ERole.ROLE_MANAGER)
-                                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-                        roles.add(managerRole);
-                        break;
-                    case "farmer":
-                        Role farmerRole = roleRepository.findByName(ERole.ROLE_FARMER)
-                                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-                        roles.add(farmerRole);
-                        break;
-                    default:
-                        Role customerRole = roleRepository.findByName(ERole.ROLE_CUSTOMER)
-                                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-                        roles.add(customerRole);
-                }
-            });
-        }
+        Role customerRole = roleRepository.findByName(ERole.ROLE_CUSTOMER)
+                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+        roles.add(customerRole);
 
         user.setRoles(roles);
         userRepository.save(user);
@@ -145,14 +119,11 @@ public class AuthServiceImpl implements AuthService {
                     userRepository.save(user);
 
                     boolean emailSent = emailService.sendPasswordResetEmail(user.getEmail(), token);
-                    if (emailSent) {
-                        return new ForgotPasswordResponseDTO(
-                                "If an account with that email exists, a password reset link has been sent.",
-                                null);
-                    }
+                    // SECURITY FIX: Never return the reset token in the API response.
+                    // The token must only be delivered via email.
                     return new ForgotPasswordResponseDTO(
-                            "Email is not configured. Use resetToken below in POST /api/auth/reset-password (valid 1 hour).",
-                            token);
+                            "If an account with that email exists, a password reset link has been sent.",
+                            null);
                 })
                 .orElse(new ForgotPasswordResponseDTO(
                         "If an account with that email exists, a password reset link has been sent.",
