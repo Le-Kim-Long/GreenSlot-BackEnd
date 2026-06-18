@@ -23,8 +23,8 @@ public class DashboardController {
     }
 
     @GetMapping("/staff")
-    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_FARMER')")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_GARDEN_STAFF')")
     public String staffAccess() {
-        return "Trang danh rieng cho nhan vien (Admin, Manager, Farmer).";
+        return "Trang danh rieng cho nhan vien (Admin, Manager, Garden Staff).";
     }
 }

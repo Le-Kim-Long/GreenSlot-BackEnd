@@ -3,6 +3,7 @@ package swp490.greeenslot.entity;
 public enum ERole {
     ROLE_ADMIN,
     ROLE_MANAGER,
-    ROLE_CUSTOMER,
-    ROLE_FARMER
+    ROLE_LOCATION_MANAGER,
+    ROLE_GARDEN_STAFF,
+    ROLE_CUSTOMER
 }
