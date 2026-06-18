@@ -39,10 +39,13 @@ public class DataInitializer {
                     "manager", "manager@greenslot.vn", "Manager@123", "Quản lý", "0900000002", ERole.ROLE_MANAGER);
 
             createDefaultUser(userRepository, roleRepository, passwordEncoder,
-                    "farmer", "farmer@greenslot.vn", "Farmer@123", "Nông dân mẫu", "0900000003", ERole.ROLE_FARMER);
+                    "location_manager", "location@greenslot.vn", "Location@123", "Quản lý Cơ sở", "0900000003", ERole.ROLE_LOCATION_MANAGER);
 
             createDefaultUser(userRepository, roleRepository, passwordEncoder,
-                    "customer", "customer@greenslot.vn", "Customer@123", "Khách hàng mẫu", "0900000004",
+                    "garden_staff", "staff@greenslot.vn", "Staff@123", "Nhân viên Vườn", "0900000004", ERole.ROLE_GARDEN_STAFF);
+
+            createDefaultUser(userRepository, roleRepository, passwordEncoder,
+                    "customer", "customer@greenslot.vn", "Customer@123", "Khách hàng mẫu", "0900000005",
                     ERole.ROLE_CUSTOMER);
         };
     }
