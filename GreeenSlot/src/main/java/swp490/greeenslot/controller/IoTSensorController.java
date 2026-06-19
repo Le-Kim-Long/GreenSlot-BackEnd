@@ -42,7 +42,7 @@ public class IoTSensorController {
     }
 
     @GetMapping("/latest")
-    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_FARMER')")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_GARDEN_STAFF')")
     @Operation(summary = "Gia tri moi nhat tung loai cam bien theo device")
     public ResponseEntity<List<SensorReadingResponseDTO>> getLatest(
             @Parameter(example = "arduino-greenhouse-01") @RequestParam String deviceId) {
@@ -50,7 +50,7 @@ public class IoTSensorController {
     }
 
     @GetMapping("/history")
-    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_FARMER')")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_GARDEN_STAFF')")
     @Operation(summary = "Lich su doc cam bien")
     public ResponseEntity<List<SensorReadingResponseDTO>> getHistory(
             @RequestParam String deviceId,

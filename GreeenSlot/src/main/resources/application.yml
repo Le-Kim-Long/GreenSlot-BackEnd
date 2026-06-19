@@ -8,8 +8,8 @@ spring:
     # Local dev: set SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD
     # Production: set via Render/Docker environment config
     url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=GreenSlotDB;encrypt=true;trustServerCertificate=true}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    username: sa
+    password: 12345
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.microsoft.sqlserver.jdbc.SQLServerDriver}
   jpa:
     hibernate:
@@ -41,11 +41,16 @@ springdoc:
 greeenslot:
   iot:
     # SECURITY: IoT API key MUST be set via environment variable
-    api-key: ${IOT_API_KEY}
+    api-key: ${IOT_API_KEY:default_iot_key_for_dev_only}
   app:
     # SECURITY: JWT secret MUST be set via environment variable — no fallback
-    jwtSecret: ${JWT_SECRET}
+    jwtSecret: ${JWT_SECRET:YmV6a29kZXJTZWNyZXRLZXlXaGljaE11c3RCZUExbGVhc3QyNTZCaXRzTG9uZ0ZvckpXVA==}
     jwtExpirationMs: ${JWT_EXPIRATION_MS:86400000} # 24 hours
     frontendResetUrl: ${FRONTEND_RESET_URL:http://localhost:3000/reset-password}
     resetTokenExpirationMs: ${RESET_TOKEN_EXPIRATION_MS:3600000} # 1 hour
+  vnpay:
+    tmnCode: ${VNP_TMN_CODE:87U5A44E}
+    hashSecret: ${VNP_HASH_SECRET:U80PULG6K80W800P0L8W8L0P80PULG6K}
+    url: ${VNP_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+    returnUrl: ${VNP_RETURN_URL:http://localhost:3000/payment-result}
 
