@@ -48,4 +48,9 @@ greeenslot:
     jwtExpirationMs: ${JWT_EXPIRATION_MS:86400000} # 24 hours
     frontendResetUrl: ${FRONTEND_RESET_URL:http://localhost:3000/reset-password}
     resetTokenExpirationMs: ${RESET_TOKEN_EXPIRATION_MS:3600000} # 1 hour
+  vnpay:
+    tmnCode: ${VNP_TMN_CODE:87U5A44E}
+    hashSecret: ${VNP_HASH_SECRET:U80PULG6K80W800P0L8W8L0P80PULG6K}
+    url: ${VNP_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+    returnUrl: ${VNP_RETURN_URL:http://localhost:3000/payment-result}
 

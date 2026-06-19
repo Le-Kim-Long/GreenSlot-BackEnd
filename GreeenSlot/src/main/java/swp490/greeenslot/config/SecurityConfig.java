@@ -57,6 +57,7 @@ public class SecurityConfig {
                 auth.requestMatchers("/api/auth/**").permitAll()
                     .requestMatchers("/api/iot/sensors/data").permitAll()
                     .requestMatchers("/api/iot/sensors/types").permitAll()
+                    .requestMatchers("/api/payments/vnpay-ipn").permitAll()
                     .requestMatchers(
                             "/",
                             "/error",
