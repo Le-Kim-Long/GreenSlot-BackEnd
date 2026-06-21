@@ -6,4 +6,5 @@ import swp490.greeenslot.entity.GardeningTask;
 
 @Repository
 public interface GardeningTaskRepository extends JpaRepository<GardeningTask, Long> {
+    java.util.List<GardeningTask> findByAssignedStaffUsernameOrderByCreatedAtDesc(String username);
 }

@@ -28,4 +28,9 @@ public class GlobalExceptionHandler {
         }
         return ResponseEntity.badRequest().body(new MessageResponseDTO(message));
     }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<MessageResponseDTO> handleRuntimeException(RuntimeException ex) {
+        return ResponseEntity.badRequest().body(new MessageResponseDTO(ex.getMessage()));
+    }
 }
