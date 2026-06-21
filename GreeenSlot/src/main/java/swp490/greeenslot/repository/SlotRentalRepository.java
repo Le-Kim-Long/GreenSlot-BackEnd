@@ -15,4 +15,10 @@ public interface SlotRentalRepository extends JpaRepository<SlotRental, Long> {
 
     @Query("SELECT r FROM SlotRental r WHERE r.gardenSlot.id = :slotId AND r.status = 'ACTIVE' AND r.endTime > :now")
     List<SlotRental> findActiveRentals(@Param("slotId") Long slotId, @Param("now") LocalDateTime now);
+
+    @Query("SELECT r FROM SlotRental r WHERE r.gardenSlot.id = :slotId AND r.user.username = :username AND r.status = 'ACTIVE' AND r.endTime > :now")
+    java.util.Optional<SlotRental> findActiveRentalBySlotAndUser(@Param("slotId") Long slotId, @Param("username") String username, @Param("now") LocalDateTime now);
+
+    @Query("SELECT r FROM SlotRental r WHERE r.status = 'ACTIVE' ORDER BY r.startTime DESC")
+    List<SlotRental> findAllActiveRentals();
 }
