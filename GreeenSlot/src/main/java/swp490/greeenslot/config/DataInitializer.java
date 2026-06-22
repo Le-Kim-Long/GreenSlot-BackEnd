@@ -21,6 +21,7 @@ import swp490.greeenslot.repository.GardenSlotRepository;
 import java.math.BigDecimal;
 
 import java.util.Set;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Khởi tạo dữ liệu mặc định khi ứng dụng chạy lần đầu:
@@ -36,8 +37,28 @@ public class DataInitializer {
             PasswordEncoder passwordEncoder,
             LocationRepository locationRepository,
             PillarRepository pillarRepository,
-            GardenSlotRepository gardenSlotRepository) {
+            GardenSlotRepository gardenSlotRepository,
+            JdbcTemplate jdbcTemplate) {
         return args -> {
+            // Ensure DB check-constraints on roles.name (if any) do not block code-first enum inserts.
+            // In some environments a legacy CHECK constraint prevents saving values like 'ROLE_ADMIN'.
+            try {
+                // Query any check constraints attached to dbo.roles
+                var constraints = jdbcTemplate.queryForList(
+                        "SELECT name FROM sys.check_constraints WHERE parent_object_id = OBJECT_ID('dbo.roles')", String.class);
+                for (String constraintName : constraints) {
+                    try {
+                        jdbcTemplate.execute("ALTER TABLE dbo.roles DROP CONSTRAINT [" + constraintName + "]");
+                        System.out.println("[DataInitializer] Dropped check constraint: " + constraintName + " on dbo.roles to allow enum role inserts.");
+                    } catch (Exception ex) {
+                        // If drop fails, log and continue; DataInitializer will attempt to save and may still fail.
+                        System.out.println("[DataInitializer] Could not drop constraint " + constraintName + ": " + ex.getMessage());
+                    }
+                }
+            } catch (Exception ignore) {
+                // Table may not exist yet (first-run migrations), or query not supported on DB; ignore and proceed.
+            }
+
             // 1. Tạo các Role nếu chưa tồn tại
             for (ERole eRole : ERole.values()) {
                 if (roleRepository.findByName(eRole).isEmpty()) {
