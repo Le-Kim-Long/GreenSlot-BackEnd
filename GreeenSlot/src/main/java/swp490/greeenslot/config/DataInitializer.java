@@ -10,6 +10,16 @@ import swp490.greeenslot.entity.User;
 import swp490.greeenslot.repository.RoleRepository;
 import swp490.greeenslot.repository.UserRepository;
 
+import swp490.greeenslot.entity.Location;
+import swp490.greeenslot.entity.Pillar;
+import swp490.greeenslot.entity.EPillarStatus;
+import swp490.greeenslot.entity.GardenSlot;
+import swp490.greeenslot.entity.ESlotStatus;
+import swp490.greeenslot.repository.LocationRepository;
+import swp490.greeenslot.repository.PillarRepository;
+import swp490.greeenslot.repository.GardenSlotRepository;
+import java.math.BigDecimal;
+
 import java.util.Set;
 
 /**
@@ -23,7 +33,10 @@ public class DataInitializer {
     @Bean
     public CommandLineRunner initData(RoleRepository roleRepository,
             UserRepository userRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            LocationRepository locationRepository,
+            PillarRepository pillarRepository,
+            GardenSlotRepository gardenSlotRepository) {
         return args -> {
             // 1. Tạo các Role nếu chưa tồn tại
             for (ERole eRole : ERole.values()) {
@@ -47,6 +60,39 @@ public class DataInitializer {
             createDefaultUser(userRepository, roleRepository, passwordEncoder,
                     "customer", "customer@greenslot.vn", "Customer@123", "Khách hàng mẫu", "0900000005",
                     ERole.ROLE_CUSTOMER);
+
+            // 3. Khởi tạo dữ liệu mẫu cho Location, Pillar, GardenSlot
+            if (locationRepository.count() == 0) {
+                Location location1 = new Location();
+                location1.setName("Cơ sở Quận 1");
+                location1.setAddress("123 Nguyễn Huệ, Quận 1, TP.HCM");
+                location1.setContactPhone("0901234567");
+                location1.setStatus("ACTIVE");
+                location1.setArea(1000.0);
+                locationRepository.save(location1);
+
+                Pillar pillar1 = new Pillar();
+                pillar1.setPillarCode("P-Q1-01");
+                pillar1.setStatus(EPillarStatus.ACTIVE);
+                pillar1.setLocation(location1);
+                pillarRepository.save(pillar1);
+
+                GardenSlot slot1 = new GardenSlot();
+                slot1.setSlotNumber("S-Q1-01-A");
+                slot1.setStatus(ESlotStatus.AVAILABLE);
+                slot1.setPrice(BigDecimal.valueOf(500000));
+                slot1.setPillar(pillar1);
+                gardenSlotRepository.save(slot1);
+
+                GardenSlot slot2 = new GardenSlot();
+                slot2.setSlotNumber("S-Q1-01-B");
+                slot2.setStatus(ESlotStatus.AVAILABLE);
+                slot2.setPrice(BigDecimal.valueOf(500000));
+                slot2.setPillar(pillar1);
+                gardenSlotRepository.save(slot2);
+
+                System.out.println("[DataInitializer] Created sample Location, Pillar, and GardenSlots.");
+            }
         };
     }
 
