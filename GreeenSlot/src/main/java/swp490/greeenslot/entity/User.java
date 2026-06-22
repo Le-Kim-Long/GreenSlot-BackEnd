@@ -34,7 +34,7 @@ public class User {
     @Column(name = "reset_token_expiry")
     private Instant resetTokenExpiry;
 
-    @Column(name = "enabled", nullable = false)
+    @Column(name = "enabled", columnDefinition = "bit default 1")
     private Boolean enabled = true;
 
     @ManyToMany(fetch = FetchType.LAZY)
