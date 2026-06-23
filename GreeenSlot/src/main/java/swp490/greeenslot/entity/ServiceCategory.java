@@ -24,6 +24,6 @@ public class ServiceCategory {
     private String categoryName;
 
     @Nationalized
-    @Column(columnDefinition = "NVARCHAR(MAX)")
+    @Lob
     private String description;
 }
