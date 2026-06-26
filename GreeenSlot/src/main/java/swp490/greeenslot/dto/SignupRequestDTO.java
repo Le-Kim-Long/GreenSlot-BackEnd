@@ -4,7 +4,6 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import java.util.Set;
 
 public class SignupRequestDTO {
 
@@ -22,7 +21,6 @@ public class SignupRequestDTO {
     @Pattern(regexp = "^(\\+84|0)(3|5|7|8|9)\\d{8}$", message = "Phone must be a valid Vietnam mobile number (e.g. 0912345678 or +84912345678)")
     private String phone;
     private String address;
-    private Set<String> roles;
 
     public String getUsername() {
         return username;
@@ -70,13 +68,5 @@ public class SignupRequestDTO {
 
     public void setAddress(String address) {
         this.address = address;
-    }
-
-    public Set<String> getRoles() {
-        return roles;
-    }
-
-    public void setRoles(Set<String> roles) {
-        this.roles = roles;
     }
 }
