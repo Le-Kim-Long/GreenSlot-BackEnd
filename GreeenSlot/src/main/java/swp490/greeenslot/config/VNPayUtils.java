@@ -57,32 +57,23 @@ public class VNPayUtils {
         vnp_Params.put("vnp_IpAddr", vnp_IpAddr);
         vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
 
-        // Sort keys
+        // Sort keys alphabetically
         List<String> fieldNames = new ArrayList<>(vnp_Params.keySet());
         Collections.sort(fieldNames);
 
-        StringBuilder hashData = new StringBuilder();
-        StringBuilder query = new StringBuilder();
+        // Use StringJoiner to avoid trailing '&' bug
+        StringJoiner hashData = new StringJoiner("&");
+        StringJoiner query = new StringJoiner("&");
 
-        Iterator<String> itr = fieldNames.iterator();
-        while (itr.hasNext()) {
-            String fieldName = itr.next();
+        for (String fieldName : fieldNames) {
             String fieldValue = vnp_Params.get(fieldName);
-            if ((fieldValue != null) && (fieldValue.length() > 0)) {
-                // Build hash data
-                hashData.append(fieldName);
-                hashData.append('=');
-                hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII).replace("+", "%20"));
+            if ((fieldValue != null) && (!fieldValue.isEmpty())) {
+                // Build hash data (VNPay requires UTF-8 encoding)
+                hashData.add(fieldName + "=" + URLEncoder.encode(fieldValue, StandardCharsets.UTF_8));
 
                 // Build query
-                query.append(URLEncoder.encode(fieldName, StandardCharsets.US_ASCII).replace("+", "%20"));
-                query.append('=');
-                query.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII).replace("+", "%20"));
-
-                if (itr.hasNext()) {
-                    query.append('&');
-                    hashData.append('&');
-                }
+                query.add(URLEncoder.encode(fieldName, StandardCharsets.UTF_8)
+                        + "=" + URLEncoder.encode(fieldValue, StandardCharsets.UTF_8));
             }
         }
 
@@ -109,8 +100,8 @@ public class VNPayUtils {
         StringJoiner hashData = new StringJoiner("&");
         for (String fieldName : fieldNames) {
             String fieldValue = fields.get(fieldName);
-            if ((fieldValue != null) && (fieldValue.length() > 0)) {
-                hashData.add(fieldName + "=" + URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII).replace("+", "%20"));
+            if ((fieldValue != null) && (!fieldValue.isEmpty())) {
+                hashData.add(fieldName + "=" + URLEncoder.encode(fieldValue, StandardCharsets.UTF_8));
             }
         }
 
