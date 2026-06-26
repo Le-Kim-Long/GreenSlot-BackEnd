@@ -3,7 +3,6 @@ package swp490.greeenslot.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import java.util.Set;
 
 public class SignupRequestDTO {
 
@@ -20,7 +19,6 @@ public class SignupRequestDTO {
     private String fullName;
     private String phone;
     private String address;
-    private Set<String> roles;
 
     public String getUsername() {
         return username;
@@ -68,13 +66,5 @@ public class SignupRequestDTO {
 
     public void setAddress(String address) {
         this.address = address;
-    }
-
-    public Set<String> getRoles() {
-        return roles;
-    }
-
-    public void setRoles(Set<String> roles) {
-        this.roles = roles;
     }
 }
