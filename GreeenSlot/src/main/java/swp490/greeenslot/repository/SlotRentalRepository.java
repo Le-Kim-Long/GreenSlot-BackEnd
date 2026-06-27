@@ -27,4 +27,13 @@ public interface SlotRentalRepository extends JpaRepository<SlotRental, Long> {
     boolean existsByGardenSlotIdAndStatus(Long slotId, swp490.greeenslot.entity.ERentalStatus status);
 
     List<SlotRental> findByGardenSlotId(Long slotId);
+
+    @Query("SELECT COUNT(r) FROM SlotRental r WHERE r.gardenSlot.id = :slotId AND r.id != :rentalId AND (r.status = 'ACTIVE' OR r.status = 'PENDING')")
+    long countOtherActiveOrPending(@Param("slotId") Long slotId, @Param("rentalId") Long rentalId);
+
+    @Query("SELECT r FROM SlotRental r WHERE r.status = 'PENDING' AND EXISTS (SELECT t FROM PaymentTransaction t WHERE t.rental.id = r.id AND t.status = 'PENDING' AND t.paymentDate < :cutoff)")
+    List<SlotRental> findStalePendingRentals(@Param("cutoff") LocalDateTime cutoff);
+
+    @Query("SELECT r FROM SlotRental r WHERE r.status = 'ACTIVE' AND r.endTime < :now")
+    List<SlotRental> findExpiredRentals(@Param("now") LocalDateTime now);
 }

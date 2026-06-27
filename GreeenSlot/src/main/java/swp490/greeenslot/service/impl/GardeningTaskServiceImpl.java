@@ -142,6 +142,10 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         }
 
         // Validate status transition sequence
+        if (task.getStatus() == ETaskStatus.COMPLETED) {
+            throw new IllegalArgumentException("Cannot modify status of a COMPLETED task");
+        }
+
         if (task.getStatus() == ETaskStatus.PENDING && newStatus == ETaskStatus.COMPLETED) {
             throw new IllegalArgumentException("Cannot transition directly from PENDING to COMPLETED. Must go through IN_PROGRESS first.");
         }
