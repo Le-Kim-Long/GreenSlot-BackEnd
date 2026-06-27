@@ -30,6 +30,9 @@ public class GardenSlot {
     @Column(precision = 12, scale = 2)
     private BigDecimal price;
 
+    @Column(name = "image_url")
+    private String imageUrl;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pillar_id")
     private Pillar pillar;

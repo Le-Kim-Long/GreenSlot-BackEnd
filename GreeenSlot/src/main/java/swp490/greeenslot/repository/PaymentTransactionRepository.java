@@ -23,4 +23,6 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );
+
+    boolean existsByRentalGardenSlotId(Long slotId);
 }

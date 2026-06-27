@@ -35,7 +35,8 @@ public class BookingController {
                 s.getPrice(),
                 s.getStatus().name(),
                 s.getPillar().getPillarCode(),
-                s.getPillar().getLocation().getName()
+                s.getPillar().getLocation().getName(),
+                s.getImageUrl()
         )).collect(Collectors.toList());
         return ResponseEntity.ok(dtoList);
     }

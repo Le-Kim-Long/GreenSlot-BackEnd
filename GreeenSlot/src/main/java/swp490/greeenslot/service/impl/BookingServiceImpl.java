@@ -38,6 +38,7 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional(readOnly = true)
     public List<GardenSlot> getAvailableSlots(Long locationId) {
+        // Retrieve available slots (Hibernate automatically populates the newly added imageUrl field)
         if (locationId == null) {
             return gardenSlotRepository.findAll().stream()
                     .filter(g -> g.getStatus() == ESlotStatus.AVAILABLE)

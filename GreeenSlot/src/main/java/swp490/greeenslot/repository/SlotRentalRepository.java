@@ -21,4 +21,10 @@ public interface SlotRentalRepository extends JpaRepository<SlotRental, Long> {
 
     @Query("SELECT r FROM SlotRental r WHERE r.status = 'ACTIVE' ORDER BY r.startTime DESC")
     List<SlotRental> findAllActiveRentals();
+
+    boolean existsByGardenSlotId(Long slotId);
+
+    boolean existsByGardenSlotIdAndStatus(Long slotId, swp490.greeenslot.entity.ERentalStatus status);
+
+    List<SlotRental> findByGardenSlotId(Long slotId);
 }

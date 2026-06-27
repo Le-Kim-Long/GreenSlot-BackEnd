@@ -20,4 +20,6 @@ public interface GardenSlotRepository extends JpaRepository<GardenSlot, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT g FROM GardenSlot g WHERE g.id = :id")
     Optional<GardenSlot> findByIdForUpdate(@Param("id") Long id);
+
+    boolean existsByPillarId(Long pillarId);
 }
