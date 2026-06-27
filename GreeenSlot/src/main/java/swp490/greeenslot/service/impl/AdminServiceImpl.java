@@ -3,6 +3,7 @@ package swp490.greeenslot.service.impl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import swp490.greeenslot.dto.*;
@@ -43,6 +44,16 @@ public class AdminServiceImpl implements AdminService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
 
+        // Prevent admin from removing their own ROLE_ADMIN authority
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        if (user.getUsername().equals(currentUsername)) {
+            boolean hasAdminRole = dto.getRoles().stream()
+                    .anyMatch(role -> role.equals("ROLE_ADMIN"));
+            if (!hasAdminRole) {
+                throw new IllegalArgumentException("Cannot remove ROLE_ADMIN from your own account");
+            }
+        }
+
         Set<Role> newRoles = new HashSet<>();
         for (String roleStr : dto.getRoles()) {
             ERole eRole;
@@ -66,6 +77,12 @@ public class AdminServiceImpl implements AdminService {
     public UserAdminDTO updateUserStatus(Long userId, UserStatusUpdateDTO dto) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+
+        // Prevent admin from disabling their own account
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        if (user.getUsername().equals(currentUsername) && !dto.getEnabled()) {
+            throw new IllegalArgumentException("Cannot disable your own account");
+        }
 
         user.setEnabled(dto.getEnabled());
         User updatedUser = userRepository.save(user);

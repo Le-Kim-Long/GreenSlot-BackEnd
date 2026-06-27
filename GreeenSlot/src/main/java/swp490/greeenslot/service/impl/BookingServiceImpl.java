@@ -93,6 +93,10 @@ public class BookingServiceImpl implements BookingService {
         rental.setStatus(ERentalStatus.PENDING);
         rental = slotRentalRepository.save(rental);
 
+        // Set slot status to PENDING_PAYMENT to reserve it temporarily
+        slot.setStatus(ESlotStatus.PENDING_PAYMENT);
+        gardenSlotRepository.save(slot);
+
         // Generate vnpTxnRef: BOOK_[slotId]_[duration]_[uuid]
         String uuid = UUID.randomUUID().toString().substring(0, 8);
         String txnRef = "BOOK_" + slot.getId() + "_" + months + "_" + uuid;
@@ -243,8 +247,12 @@ public class BookingServiceImpl implements BookingService {
                 slotRentalRepository.save(rental);
 
                 GardenSlot slot = rental.getGardenSlot();
-                slot.setStatus(ESlotStatus.AVAILABLE);
-                gardenSlotRepository.save(slot);
+                // Explicitly check if there are any other active or pending rentals
+                long otherCount = slotRentalRepository.countOtherActiveOrPending(slot.getId(), rental.getId());
+                if (otherCount == 0) {
+                    slot.setStatus(ESlotStatus.AVAILABLE);
+                    gardenSlotRepository.save(slot);
+                }
             }
         }
 
