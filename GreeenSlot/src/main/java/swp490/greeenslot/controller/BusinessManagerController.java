@@ -212,4 +212,44 @@ public class BusinessManagerController {
 
         return ResponseEntity.ok(businessManagementService.getRevenueAnalytics(startDateTime, endDateTime));
     }
+
+    // ==========================================
+    // Infrastructure Deletion
+    // ==========================================
+
+    @DeleteMapping("/locations/{id}")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Delete an existing location")
+    public ResponseEntity<MessageResponseDTO> deleteLocation(@PathVariable Long id) {
+        try {
+            businessManagementService.deleteLocation(id);
+            return ResponseEntity.ok(new MessageResponseDTO("Location deleted successfully."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new MessageResponseDTO(e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/pillars/{id}")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Delete an existing pillar")
+    public ResponseEntity<MessageResponseDTO> deletePillar(@PathVariable Long id) {
+        try {
+            businessManagementService.deletePillar(id);
+            return ResponseEntity.ok(new MessageResponseDTO("Pillar deleted successfully."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new MessageResponseDTO(e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/slots/{id}")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Delete an existing garden slot")
+    public ResponseEntity<MessageResponseDTO> deleteSlot(@PathVariable Long id) {
+        try {
+            businessManagementService.deleteSlot(id);
+            return ResponseEntity.ok(new MessageResponseDTO("Garden slot deleted successfully."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new MessageResponseDTO(e.getMessage()));
+        }
+    }
 }

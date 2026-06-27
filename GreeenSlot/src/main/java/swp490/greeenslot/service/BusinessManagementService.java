@@ -40,4 +40,9 @@ public interface BusinessManagementService {
 
     // Financial Analytics
     RevenueAnalyticsResponseDTO getRevenueAnalytics(LocalDateTime start, LocalDateTime end);
+
+    // Delete Infrastructure
+    void deleteLocation(Long id);
+    void deletePillar(Long id);
+    void deleteSlot(Long id);
 }

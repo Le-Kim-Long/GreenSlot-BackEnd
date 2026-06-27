@@ -26,4 +26,6 @@ public class GardenSlotDTO {
 
     @NotNull(message = "Pillar ID is required")
     private Long pillarId;
+
+    private String imageUrl;
 }

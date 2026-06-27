@@ -182,6 +182,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         }
         slot.setStatus(status);
         slot.setPrice(dto.getPrice());
+        slot.setImageUrl(dto.getImageUrl());
         slot.setPillar(pillar);
 
         GardenSlot saved = gardenSlotRepository.save(slot);
@@ -206,6 +207,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             }
         }
         slot.setPrice(dto.getPrice());
+        slot.setImageUrl(dto.getImageUrl());
         slot.setPillar(pillar);
 
         GardenSlot saved = gardenSlotRepository.save(slot);
@@ -229,7 +231,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     }
 
     private GardenSlotDTO mapToSlotDTO(GardenSlot s) {
-        return new GardenSlotDTO(s.getId(), s.getSlotNumber(), s.getStatus().name(), s.getPrice(), s.getPillar().getId());
+        return new GardenSlotDTO(s.getId(), s.getSlotNumber(), s.getStatus().name(), s.getPrice(), s.getPillar().getId(), s.getImageUrl());
     }
 
     // ==========================================
@@ -393,5 +395,56 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         )).collect(Collectors.toList());
 
         return new RevenueAnalyticsResponseDTO(totalRevenue, dailyBreakdown, txDtos);
+    }
+
+    // ==========================================
+    // Delete Infrastructure
+    // ==========================================
+
+    @Override
+    @Transactional
+    public void deleteLocation(Long id) {
+        Location location = locationRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Location not found with ID " + id));
+
+        boolean hasPillars = pillarRepository.existsByLocationId(id);
+        if (hasPillars) {
+            throw new IllegalArgumentException("Cannot delete Location with ID " + id + " because it contains associated Pillar records.");
+        }
+
+        locationRepository.delete(location);
+    }
+
+    @Override
+    @Transactional
+    public void deletePillar(Long id) {
+        Pillar pillar = pillarRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Pillar not found with ID " + id));
+
+        boolean hasSlots = gardenSlotRepository.existsByPillarId(id);
+        if (hasSlots) {
+            throw new IllegalArgumentException("Cannot delete Pillar with ID " + id + " because it contains associated Garden Slot records.");
+        }
+
+        pillarRepository.delete(pillar);
+    }
+
+    @Override
+    @Transactional
+    public void deleteSlot(Long id) {
+        GardenSlot slot = gardenSlotRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID " + id));
+
+        boolean hasActiveRental = slotRentalRepository.existsByGardenSlotIdAndStatus(id, ERentalStatus.ACTIVE);
+        if (hasActiveRental) {
+            throw new IllegalArgumentException("Cannot delete Garden Slot with ID " + id + " because it has associated active SlotRental records.");
+        }
+
+        boolean hasPaymentTransaction = paymentTransactionRepository.existsByRentalGardenSlotId(id);
+        if (hasPaymentTransaction) {
+            throw new IllegalArgumentException("Cannot delete Garden Slot with ID " + id + " because it has associated PaymentTransaction records.");
+        }
+
+        gardenSlotRepository.delete(slot);
     }
 }
