@@ -45,4 +45,6 @@ public interface BusinessManagementService {
     void deleteLocation(Long id);
     void deletePillar(Long id);
     void deleteSlot(Long id);
+    void deleteCategory(Long id);
+    void deleteServiceType(Long id);
 }
