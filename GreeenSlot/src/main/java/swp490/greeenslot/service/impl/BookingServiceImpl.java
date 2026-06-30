@@ -356,4 +356,35 @@ public class BookingServiceImpl implements BookingService {
             gardenSlotRepository.save(slot);
         }
     }
+
+    @Override
+    @Transactional
+    public BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress) {
+        SlotRental rental = slotRentalRepository.findByIdWithPessimisticLock(rentalId)
+                .orElseThrow(() -> new IllegalArgumentException("Slot rental not found with ID: " + rentalId));
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdminOrManager = auth != null && auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(role -> role.equals("ROLE_ADMIN") || role.equals("ROLE_MANAGER"));
+
+        if (!isAdminOrManager && !rental.getUser().getUsername().equals(username)) {
+            throw new IllegalArgumentException("Unauthorized: Only the contract owner can repay this booking");
+        }
+
+        if (rental.getStatus() != ERentalStatus.PENDING) {
+            throw new IllegalArgumentException("Only pending bookings can generate payment URL");
+        }
+
+        List<PaymentTransaction> txns = paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(rentalId);
+        PaymentTransaction pendingTxn = txns.stream()
+                .filter(t -> t.getStatus() == EPaymentStatus.PENDING)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No pending payment transaction found for this booking"));
+
+        String orderInfo = "Thanh toan don thue vuon GreenSlot ID: " + rentalId;
+        String paymentUrl = vnPayUtils.buildPaymentUrl(pendingTxn.getVnpTxnRef(), pendingTxn.getAmount(), ipAddress, orderInfo);
+
+        return new BookingResponseDTO(rentalId, paymentUrl, pendingTxn.getVnpTxnRef());
+    }
 }
