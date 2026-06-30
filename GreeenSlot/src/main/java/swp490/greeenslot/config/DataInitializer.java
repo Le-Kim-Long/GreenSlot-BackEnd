@@ -38,6 +38,7 @@ public class DataInitializer {
             PillarRepository pillarRepository,
             GardenSlotRepository gardenSlotRepository) {
         return args -> {
+
             // 1. Tạo các Role nếu chưa tồn tại
             for (ERole eRole : ERole.values()) {
                 if (roleRepository.findByName(eRole).isEmpty()) {

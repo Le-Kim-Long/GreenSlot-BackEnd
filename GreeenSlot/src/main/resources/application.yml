@@ -5,19 +5,21 @@ spring:
   datasource:
     # --- CẤU HÌNH DATABASE ---
     # SECURITY: All credentials MUST be provided via environment variables.
-    # Local dev: set SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD
-    # Production: set via Render/Docker environment config
+    # Local dev (SQL Server): no env vars needed; uses defaults below
+    # Render (Postgres): set SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD
     url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=GreenSlotDB;encrypt=true;trustServerCertificate=true}
     username: ${DB_USERNAME:sa}
     password: ${DB_PASSWORD:12345}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.microsoft.sqlserver.jdbc.SQLServerDriver}
   jpa:
     hibernate:
-      ddl-auto: update
+      # ddl-auto: create for fresh DB; update for existing. On Render first deployment, use 'create'; local dev uses 'update'
+      ddl-auto: ${SPRING_JPA_DDL_AUTO:update}
     show-sql: ${SHOW_SQL:false}
     properties:
       hibernate:
         format_sql: true
+        # Default: SQL Server (local dev). Override on Render with SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
         dialect: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.SQLServerDialect}
 
   mail:

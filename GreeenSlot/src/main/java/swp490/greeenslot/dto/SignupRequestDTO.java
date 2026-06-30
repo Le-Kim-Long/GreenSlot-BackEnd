@@ -2,6 +2,7 @@ package swp490.greeenslot.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public class SignupRequestDTO {
@@ -17,6 +18,7 @@ public class SignupRequestDTO {
     @Size(min = 6, message = "Password must be at least 6 characters")
     private String password;
     private String fullName;
+    @Pattern(regexp = "^(\\+84|0)(3|5|7|8|9)\\d{8}$", message = "Phone must be a valid Vietnam mobile number (e.g. 0912345678 or +84912345678)")
     private String phone;
     private String address;
 
