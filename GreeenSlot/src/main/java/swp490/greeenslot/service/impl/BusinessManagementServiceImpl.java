@@ -447,4 +447,20 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
 
         gardenSlotRepository.delete(slot);
     }
+
+    @Override
+    @Transactional
+    public void deleteCategory(Long id) {
+        ServiceCategory category = serviceCategoryRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Service category not found with ID: " + id));
+        serviceCategoryRepository.delete(category);
+    }
+
+    @Override
+    @Transactional
+    public void deleteServiceType(Long id) {
+        ServiceType type = serviceTypeRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Service type not found with ID: " + id));
+        serviceTypeRepository.delete(type);
+    }
 }

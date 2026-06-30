@@ -45,6 +45,17 @@ public class GardeningTaskController {
         return ResponseEntity.ok(mapToDTO(task));
     }
 
+    @RequestMapping(value = { "/tasks/{taskId}/assign" }, method = { RequestMethod.PATCH, RequestMethod.PUT, RequestMethod.POST })
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER')")
+    @Operation(summary = "Assign task to staff via PathVariable", description = "Allows Location Manager to assign an existing task by ID in URL path to a garden staff member.")
+    public ResponseEntity<GardeningTaskResponseDTO> assignTaskByPath(
+            @PathVariable Long taskId,
+            @Valid @RequestBody TaskAssignmentDTO request) {
+        request.setTaskId(taskId);
+        GardeningTask task = gardeningTaskService.assignTask(request);
+        return ResponseEntity.ok(mapToDTO(task));
+    }
+
     @GetMapping("/tasks/my-tasks")
     @PreAuthorize("hasRole('ROLE_GARDEN_STAFF')")
     @Operation(summary = "Get tasks assigned to current staff", description = "Retrieves tasks assigned to the authenticated garden staff, sorted by creation time descending.")

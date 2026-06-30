@@ -140,17 +140,25 @@ public class BusinessManagerController {
     }
 
     @GetMapping("/service-categories")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Get list of all service categories")
     public ResponseEntity<List<ServiceCategoryDTO>> getAllCategories() {
         return ResponseEntity.ok(businessManagementService.getAllCategories());
     }
 
     @GetMapping("/service-categories/{id}")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Get service category by ID")
     public ResponseEntity<ServiceCategoryDTO> getCategoryById(@PathVariable Long id) {
         return ResponseEntity.ok(businessManagementService.getCategoryById(id));
+    }
+
+    @DeleteMapping("/service-categories/{id}")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Delete service category by ID")
+    public ResponseEntity<Void> deleteCategory(@PathVariable Long id) {
+        businessManagementService.deleteCategory(id);
+        return ResponseEntity.noContent().build();
     }
 
     // ==========================================
@@ -172,17 +180,25 @@ public class BusinessManagerController {
     }
 
     @GetMapping("/service-types")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Get list of all service types")
     public ResponseEntity<List<ServiceTypeDTO>> getAllServiceTypes() {
         return ResponseEntity.ok(businessManagementService.getAllServiceTypes());
     }
 
     @GetMapping("/service-types/{id}")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Get service type by ID")
     public ResponseEntity<ServiceTypeDTO> getServiceTypeById(@PathVariable Long id) {
         return ResponseEntity.ok(businessManagementService.getServiceTypeById(id));
+    }
+
+    @DeleteMapping("/service-types/{id}")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Delete service type by ID")
+    public ResponseEntity<Void> deleteServiceType(@PathVariable Long id) {
+        businessManagementService.deleteServiceType(id);
+        return ResponseEntity.noContent().build();
     }
 
     // ==========================================

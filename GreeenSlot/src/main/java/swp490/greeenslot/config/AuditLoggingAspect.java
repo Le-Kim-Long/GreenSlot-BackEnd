@@ -24,9 +24,7 @@ public class AuditLoggingAspect {
     @Autowired
     private AuditLogRepository auditLogRepository;
 
-    @Around("execution(* swp490.greeenslot.controller..*(..)) && " +
-            "(@annotation(org.springframework.security.access.prepost.PreAuthorize) || " +
-            "@within(org.springframework.security.access.prepost.PreAuthorize))")
+    @Around("execution(* swp490.greeenslot.controller..*(..))")
     public Object logAudit(ProceedingJoinPoint joinPoint) throws Throwable {
         LocalDateTime performedAt = LocalDateTime.now();
         
