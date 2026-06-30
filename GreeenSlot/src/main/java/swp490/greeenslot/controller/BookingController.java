@@ -84,13 +84,28 @@ public class BookingController {
     }
 
     @PatchMapping("/{rentalId}/cancel")
+    @DeleteMapping({"/{rentalId}", "/{rentalId}/cancel"})
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Manually cancel a pending slot rental booking",
+    @Operation(summary = "Manually cancel or delete a pending slot rental booking",
                description = "Allows contract owner or administrative authorities (ADMIN/MANAGER) to actively cancel a pending booking with pessimistic locking, cascading task revocation, and exclusive slot release.")
     public ResponseEntity<java.util.Map<String, String>> cancelBooking(@PathVariable Long rentalId, Principal principal) {
         bookingService.cancelPendingBooking(rentalId, principal.getName());
         java.util.Map<String, String> response = new java.util.HashMap<>();
         response.put("message", "Booking cancelled successfully, tasks revoked, and slot released back to AVAILABLE");
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{rentalId}/pay")
+    @PostMapping("/{rentalId}/pay")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get or regenerate payment URL for pending booking",
+               description = "Allows contract owner to retrieve or regenerate the VNPay payment URL for an existing pending slot rental.")
+    public ResponseEntity<BookingResponseDTO> repayBooking(@PathVariable Long rentalId, Principal principal, HttpServletRequest httpServletRequest) {
+        String ipAddress = httpServletRequest.getHeader("X-FORWARDED-FOR");
+        if (ipAddress == null || ipAddress.isEmpty()) {
+            ipAddress = httpServletRequest.getRemoteAddr();
+        }
+        BookingResponseDTO response = bookingService.getOrRegeneratePaymentUrl(rentalId, principal.getName(), ipAddress);
         return ResponseEntity.ok(response);
     }
 }
