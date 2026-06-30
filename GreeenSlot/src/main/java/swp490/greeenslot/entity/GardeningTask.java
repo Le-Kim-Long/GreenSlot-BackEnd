@@ -26,7 +26,7 @@ public class GardeningTask {
     private String taskName;
 
     @Nationalized
-    @Column(columnDefinition = "NVARCHAR(MAX)")
+    @Column(length = 4000)
     private String description;
 
     @Enumerated(EnumType.STRING)

@@ -82,4 +82,15 @@ public class BookingController {
         List<RentalHistoryDTO> history = bookingService.getRentalHistory(principal.getName());
         return ResponseEntity.ok(history);
     }
+
+    @PatchMapping("/{rentalId}/cancel")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Manually cancel a pending slot rental booking",
+               description = "Allows contract owner or administrative authorities (ADMIN/MANAGER) to actively cancel a pending booking with pessimistic locking, cascading task revocation, and exclusive slot release.")
+    public ResponseEntity<java.util.Map<String, String>> cancelBooking(@PathVariable Long rentalId, Principal principal) {
+        bookingService.cancelPendingBooking(rentalId, principal.getName());
+        java.util.Map<String, String> response = new java.util.HashMap<>();
+        response.put("message", "Booking cancelled successfully, tasks revoked, and slot released back to AVAILABLE");
+        return ResponseEntity.ok(response);
+    }
 }

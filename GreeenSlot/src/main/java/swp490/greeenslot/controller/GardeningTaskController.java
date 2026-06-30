@@ -56,7 +56,7 @@ public class GardeningTaskController {
         return ResponseEntity.ok(dtoList);
     }
 
-    @PutMapping("/tasks/{id}/status")
+    @PatchMapping("/tasks/{id}/status")
     @PreAuthorize("hasRole('ROLE_GARDEN_STAFF')")
     @Operation(summary = "Update progress of a task", description = "Updates task status. Must include evidence image URL when marking status as COMPLETED.")
     public ResponseEntity<GardeningTaskResponseDTO> updateTaskStatus(

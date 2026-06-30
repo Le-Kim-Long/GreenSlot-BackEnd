@@ -7,12 +7,26 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import swp490.greeenslot.dto.ArduinoSensorDataRequestDTO;
 import swp490.greeenslot.dto.ArduinoSensorDataResponseDTO;
+import swp490.greeenslot.dto.DeviceTelemetryRequestDTO;
 import swp490.greeenslot.dto.SensorReadingItemDTO;
 import swp490.greeenslot.dto.SensorReadingResponseDTO;
 import swp490.greeenslot.entity.ESensorType;
 import swp490.greeenslot.entity.SensorReading;
+import swp490.greeenslot.entity.SensorThreshold;
+import swp490.greeenslot.entity.Pillar;
+import swp490.greeenslot.entity.GardenSlot;
+import swp490.greeenslot.entity.SlotRental;
+import swp490.greeenslot.entity.User;
 import swp490.greeenslot.repository.SensorReadingRepository;
+import swp490.greeenslot.repository.SensorThresholdRepository;
+import swp490.greeenslot.repository.PillarRepository;
+import swp490.greeenslot.repository.GardenSlotRepository;
+import swp490.greeenslot.repository.SlotRentalRepository;
+import swp490.greeenslot.repository.GardeningTaskRepository;
 import swp490.greeenslot.service.SensorReadingService;
+import swp490.greeenslot.service.NotificationService;
+
+import java.time.LocalDateTime;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -25,6 +39,24 @@ public class SensorReadingServiceImpl implements SensorReadingService {
 
     @Autowired
     private SensorReadingRepository sensorReadingRepository;
+
+    @Autowired
+    private SensorThresholdRepository sensorThresholdRepository;
+
+    @Autowired
+    private PillarRepository pillarRepository;
+
+    @Autowired
+    private GardenSlotRepository gardenSlotRepository;
+
+    @Autowired
+    private SlotRentalRepository slotRentalRepository;
+
+    @Autowired
+    private GardeningTaskRepository gardeningTaskRepository;
+
+    @Autowired
+    private NotificationService notificationService;
 
     @Value("${greeenslot.iot.api-key:GreenSlot-IoT-Dev-Key}")
     private String iotApiKey;
@@ -64,6 +96,79 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                 deviceId,
                 responseReadings.size(),
                 responseReadings);
+    }
+
+    @Override
+    @Transactional
+    public ArduinoSensorDataResponseDTO saveDeviceTelemetry(String apiKey, DeviceTelemetryRequestDTO request) {
+        validateApiKey(apiKey);
+        String deviceId = request.getDeviceId().trim();
+        String sensorTypeStr = request.getSensorType().trim();
+        ESensorType sensorType = ESensorType.fromCode(sensorTypeStr);
+        Double value = request.getValue();
+        
+        validateReading(sensorType, value);
+
+        String unit = request.getUnit() != null && !request.getUnit().isBlank()
+                ? request.getUnit().trim()
+                : sensorType.getDefaultUnit();
+
+        SensorReading reading = new SensorReading(
+                deviceId,
+                sensorType,
+                value,
+                unit,
+                Instant.now()
+        );
+        SensorReading savedReading = sensorReadingRepository.save(reading);
+
+        // Evaluate thresholds
+        Optional<SensorThreshold> thresholdOpt = sensorThresholdRepository.findByDeviceIdAndSensorType(deviceId, sensorTypeStr);
+        if (thresholdOpt.isPresent()) {
+            SensorThreshold threshold = thresholdOpt.get();
+            if (value < threshold.getMinValue() || value > threshold.getMaxValue()) {
+                // Threshold violation detected!
+                Optional<Pillar> pillarOpt = pillarRepository.findByPillarCode(deviceId);
+                if (pillarOpt.isPresent()) {
+                    Pillar pillar = pillarOpt.get();
+                    List<GardenSlot> slots = gardenSlotRepository.findByPillarId(pillar.getId());
+                    for (GardenSlot slot : slots) {
+                        List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(slot.getId(), LocalDateTime.now());
+                        for (SlotRental rental : activeRentals) {
+                            User customer = rental.getUser();
+                            // Save notification for customer
+                            notificationService.createNotification(
+                                    customer.getId(),
+                                    "IoT Sensor Warning Alert",
+                                    String.format("Alert: Sensor %s on slot %s is reporting %f %s, which is outside the set threshold boundaries of %f to %f.",
+                                            sensorType.getDescription(), slot.getSlotNumber(), value, unit, threshold.getMinValue(), threshold.getMaxValue()),
+                                    "IOT_ALERT"
+                            );
+
+                            // Save notification for assigned staff member(s)
+                            List<User> staffList = gardeningTaskRepository.findAssignedStaffBySlotId(slot.getId());
+                            for (User staff : staffList) {
+                                notificationService.createNotification(
+                                        staff.getId(),
+                                        "IoT Sensor Warning Alert (Staff Action Required)",
+                                        String.format("Alert: Sensor %s on slot %s is reporting %f %s, which is outside the set threshold boundaries of %f to %f. Assigned Staff Action Required.",
+                                                sensorType.getDescription(), slot.getSlotNumber(), value, unit, threshold.getMinValue(), threshold.getMaxValue()),
+                                        "IOT_ALERT"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        SensorReadingResponseDTO responseDTO = SensorReadingResponseDTO.fromEntity(savedReading);
+        return new ArduinoSensorDataResponseDTO(
+                "Device telemetry saved successfully.",
+                deviceId,
+                1,
+                List.of(responseDTO)
+        );
     }
 
     @Override

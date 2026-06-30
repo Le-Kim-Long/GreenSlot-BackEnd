@@ -22,4 +22,6 @@ public interface GardenSlotRepository extends JpaRepository<GardenSlot, Long> {
     Optional<GardenSlot> findByIdForUpdate(@Param("id") Long id);
 
     boolean existsByPillarId(Long pillarId);
+
+    List<GardenSlot> findByPillarId(Long pillarId);
 }

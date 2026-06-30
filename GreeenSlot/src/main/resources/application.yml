@@ -8,8 +8,8 @@ spring:
     # Local dev: set SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD
     # Production: set via Render/Docker environment config
     url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=GreenSlotDB;encrypt=true;trustServerCertificate=true}
-    username: sa
-    password: 12345
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:12345}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.microsoft.sqlserver.jdbc.SQLServerDriver}
   jpa:
     hibernate:

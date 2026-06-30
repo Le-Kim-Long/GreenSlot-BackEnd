@@ -1,18 +1,14 @@
 package swp490.greeenslot.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public class UserProfileUpdateDTO {
 
-    @NotBlank(message = "Full name is required")
     private String fullName;
 
-    @NotBlank(message = "Phone number is required")
     @Size(min = 10, max = 15, message = "Phone number must be between 10 and 15 characters")
     private String phone;
 
-    @NotBlank(message = "Address is required")
     private String address;
 
     public UserProfileUpdateDTO() {
