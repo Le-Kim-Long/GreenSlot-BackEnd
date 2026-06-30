@@ -18,6 +18,9 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
     Optional<PaymentTransaction> findByVnpTxnRef(String vnpTxnRef);
     List<PaymentTransaction> findByRentalIdOrderByPaymentDateDesc(Long rentalId);
 
+    @Query("SELECT t FROM PaymentTransaction t JOIN FETCH t.rental r JOIN FETCH r.user JOIN FETCH r.gardenSlot WHERE t.rental.user.username = :username ORDER BY t.paymentDate DESC")
+    List<PaymentTransaction> findAllTransactionsForUser(@Param("username") String username);
+
     @Query("SELECT t FROM PaymentTransaction t WHERE t.rental.gardenSlot.id = :slotId AND t.status = 'PENDING' AND t.paymentDate > :cutoff")
     List<PaymentTransaction> findRecentPendingTransactions(@Param("slotId") Long slotId, @Param("cutoff") LocalDateTime cutoff);
 

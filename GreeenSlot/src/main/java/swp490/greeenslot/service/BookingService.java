@@ -15,4 +15,5 @@ public interface BookingService {
     BookingResponseDTO extendRental(ExtensionRequestDTO request, String username, String ipAddress);
     Map<String, String> processIpn(Map<String, String> params);
     List<RentalHistoryDTO> getRentalHistory(String username);
+    void cancelPendingBooking(Long rentalId, String username);
 }

@@ -3,6 +3,9 @@ package swp490.greeenslot.service.impl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import swp490.greeenslot.config.VNPayUtils;
 import swp490.greeenslot.dto.BookingRequestDTO;
 import swp490.greeenslot.dto.BookingResponseDTO;
@@ -34,6 +37,9 @@ public class BookingServiceImpl implements BookingService {
 
     @Autowired
     private VNPayUtils vnPayUtils;
+
+    @Autowired
+    private GardeningTaskRepository gardeningTaskRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -264,7 +270,14 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional(readOnly = true)
     public List<RentalHistoryDTO> getRentalHistory(String username) {
-        List<SlotRental> rentals = slotRentalRepository.findByUserUsernameOrderByStartTimeDesc(username);
+        List<SlotRental> rentals = slotRentalRepository.findByUserUsernameWithSlotAndPillarAndLocation(username);
+        
+        // Fetch all transactions for this user's rentals in one query and group them by rental ID
+        List<PaymentTransaction> allTxns = paymentTransactionRepository.findAllTransactionsForUser(username);
+        Map<Long, List<PaymentTransaction>> txnsByRentalId = allTxns.stream()
+                .filter(t -> t.getRental() != null)
+                .collect(Collectors.groupingBy(t -> t.getRental().getId()));
+
         List<RentalHistoryDTO> history = new ArrayList<>();
 
         for (SlotRental rental : rentals) {
@@ -272,7 +285,7 @@ public class BookingServiceImpl implements BookingService {
             Pillar pillar = slot.getPillar();
             Location location = pillar.getLocation();
 
-            List<PaymentTransaction> txns = paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(rental.getId());
+            List<PaymentTransaction> txns = txnsByRentalId.getOrDefault(rental.getId(), Collections.emptyList());
             List<RentalHistoryDTO.PaymentTransactionInfo> txnInfos = new ArrayList<>();
             for (PaymentTransaction txn : txns) {
                 txnInfos.add(new RentalHistoryDTO.PaymentTransactionInfo(
@@ -298,5 +311,49 @@ public class BookingServiceImpl implements BookingService {
         }
 
         return history;
+    }
+
+    @Override
+    @Transactional
+    public void cancelPendingBooking(Long rentalId, String username) {
+        SlotRental rental = slotRentalRepository.findByIdWithPessimisticLock(rentalId)
+                .orElseThrow(() -> new IllegalArgumentException("Slot rental not found with ID: " + rentalId));
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdminOrManager = auth != null && auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(role -> role.equals("ROLE_ADMIN") || role.equals("ROLE_MANAGER"));
+
+        if (!isAdminOrManager && !rental.getUser().getUsername().equals(username)) {
+            throw new IllegalArgumentException("Unauthorized: Only the contract owner or admin/manager can cancel this booking");
+        }
+
+        if (rental.getStatus() != ERentalStatus.PENDING) {
+            throw new IllegalArgumentException("Only pending bookings can be cancelled");
+        }
+
+        rental.setStatus(ERentalStatus.CANCELLED);
+        slotRentalRepository.save(rental);
+
+        List<PaymentTransaction> pendingTxns = paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(rentalId);
+        for (PaymentTransaction txn : pendingTxns) {
+            if (txn.getStatus() == EPaymentStatus.PENDING) {
+                txn.setStatus(EPaymentStatus.FAILED);
+                paymentTransactionRepository.save(txn);
+            }
+        }
+
+        List<GardeningTask> pendingTasks = gardeningTaskRepository.findPendingTasksBySlotId(rental.getGardenSlot().getId());
+        for (GardeningTask task : pendingTasks) {
+            task.setStatus(ETaskStatus.CANCELLED);
+            gardeningTaskRepository.save(task);
+        }
+
+        GardenSlot slot = rental.getGardenSlot();
+        long activeOrPendingCount = slotRentalRepository.countOtherActiveOrPending(slot.getId(), rental.getId());
+        if (activeOrPendingCount == 0) {
+            slot.setStatus(ESlotStatus.AVAILABLE);
+            gardenSlotRepository.save(slot);
+        }
     }
 }

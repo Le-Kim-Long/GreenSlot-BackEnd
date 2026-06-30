@@ -119,15 +119,14 @@ public class AuthServiceImpl implements AuthService {
                     userRepository.save(user);
 
                     boolean emailSent = emailService.sendPasswordResetEmail(user.getEmail(), token);
-                    // SECURITY FIX: Never return the reset token in the API response.
-                    // The token must only be delivered via email.
+                    if (!emailSent) {
+                        throw new IllegalStateException("Failed to send password reset email. Please try again later.");
+                    }
                     return new ForgotPasswordResponseDTO(
-                            "If an account with that email exists, a password reset link has been sent.",
-                            null);
+                            "If an account with that email exists, a password reset link has been sent.");
                 })
                 .orElse(new ForgotPasswordResponseDTO(
-                        "If an account with that email exists, a password reset link has been sent.",
-                        null));
+                        "If an account with that email exists, a password reset link has been sent."));
     }
 
     @Override

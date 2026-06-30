@@ -8,8 +8,8 @@ spring:
     # Local dev (SQL Server): no env vars needed; uses defaults below
     # Render (Postgres): set SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD
     url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=GreenSlotDB;encrypt=true;trustServerCertificate=true}
-    username: ${SPRING_DATASOURCE_USERNAME:sa}
-    password: ${SPRING_DATASOURCE_PASSWORD:12345}
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:12345}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.microsoft.sqlserver.jdbc.SQLServerDriver}
   jpa:
     hibernate:

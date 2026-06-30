@@ -25,10 +25,13 @@ public class BookingScheduler {
     @Autowired
     private GardenSlotRepository gardenSlotRepository;
 
+    @Autowired
+    private GardeningTaskRepository gardeningTaskRepository;
+
     /**
      * Runs every 15 minutes.
      * Finds all SlotRentals stuck in PENDING status for more than 30 minutes,
-     * updates them to CANCELLED, updates associated pending transactions to FAILED,
+     * updates them to CANCELLED, updates associated pending transactions to EXPIRED,
      * and releases the GardenSlot back to AVAILABLE if there are no other active or pending rentals.
      */
     @Scheduled(cron = "0 */15 * * * *")
@@ -48,13 +51,19 @@ public class BookingScheduler {
             rental.setStatus(ERentalStatus.CANCELLED);
             slotRentalRepository.save(rental);
 
-            // Update associated PENDING transactions to FAILED
+            // Update associated PENDING transactions to EXPIRED
             List<PaymentTransaction> txns = paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(rental.getId());
             for (PaymentTransaction txn : txns) {
                 if (txn.getStatus() == EPaymentStatus.PENDING) {
-                    txn.setStatus(EPaymentStatus.FAILED);
+                    txn.setStatus(EPaymentStatus.EXPIRED);
                     paymentTransactionRepository.save(txn);
                 }
+            }
+
+            List<GardeningTask> pendingTasks = gardeningTaskRepository.findPendingTasksBySlotId(rental.getGardenSlot().getId());
+            for (GardeningTask task : pendingTasks) {
+                task.setStatus(ETaskStatus.CANCELLED);
+                gardeningTaskRepository.save(task);
             }
 
             // Release slot only if no other active or pending rentals exist

@@ -91,10 +91,10 @@ public class AuditLoggingAspect {
         
         try {
             result = joinPoint.proceed();
-            detailsStr = "Executed " + methodName + " successfully with args: " + Arrays.toString(args);
+            detailsStr = "Executed " + methodName + " successfully with args: " + sanitizeArgs(requestUri, args);
         } catch (Throwable ex) {
             status = "FAILED";
-            detailsStr = "Failed executing " + methodName + " with args: " + Arrays.toString(args) + ". Error: " + ex.getMessage();
+            detailsStr = "Failed executing " + methodName + " with args: " + sanitizeArgs(requestUri, args) + ". Error: " + ex.getMessage();
             throw ex;
         } finally {
             AuditLog auditLog = new AuditLog();
@@ -114,5 +114,23 @@ public class AuditLoggingAspect {
         }
         
         return result;
+    }
+
+    private String sanitizeArgs(String requestUri, Object[] args) {
+        if (args == null) return "[]";
+        if (requestUri != null && (requestUri.contains("/auth") || requestUri.contains("password") || requestUri.contains("login") || requestUri.contains("register"))) {
+            return "[REDACTED FOR SECURITY]";
+        }
+        return Arrays.stream(args)
+                .map(arg -> {
+                    if (arg == null) return "null";
+                    String str = arg.toString();
+                    if (str.toLowerCase().contains("password") || str.toLowerCase().contains("token") || str.toLowerCase().contains("secret")) {
+                        return "[REDACTED]";
+                    }
+                    return str;
+                })
+                .toList()
+                .toString();
     }
 }

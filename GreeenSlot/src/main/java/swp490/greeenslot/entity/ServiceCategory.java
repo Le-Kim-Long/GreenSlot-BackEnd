@@ -24,6 +24,6 @@ public class ServiceCategory {
     private String categoryName;
 
     @Nationalized
-    @Lob
+    @Column(length = 4000)
     private String description;
 }
