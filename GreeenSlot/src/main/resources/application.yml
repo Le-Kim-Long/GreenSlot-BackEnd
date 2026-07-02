@@ -49,7 +49,7 @@ greeenslot:
     resetTokenExpirationMs: ${RESET_TOKEN_EXPIRATION_MS:3600000} # 1 hour
   vnpay:
     tmnCode: ${VNP_TMN_CODE:1COY3S4A}
-    hashSecret: ${VNP_HASH_SECRET:9JYESFVFV6OS9AWJA19ZJJANM24E5QAH}
+    hashSecret: ${VNP_HASH_SECRET:I0GML7NMDJCGMP862QY2VVGVZAO77CDQ}
     url: ${VNP_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
     returnUrl: ${VNP_RETURN_URL:https://greenslot-frontend4.vercel.app/payment-result}
 
