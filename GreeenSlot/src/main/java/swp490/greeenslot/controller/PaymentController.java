@@ -18,7 +18,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import java.io.IOException;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/payments")
 @Tag(name = "Payments", description = "Endpoints for handling online payment callbacks")
@@ -27,7 +27,7 @@ public class PaymentController {
     @Autowired
     private BookingService bookingService;
 
-    @Value("${greeenslot.vnpay.returnUrl:https://greenslot-frontend2.vercel.app/payment-result}")
+    @Value("${greeenslot.vnpay.returnUrl:https://greenslot-frontend4.vercel.app/payment-result}")
     private String defaultReturnUrl;
 
     @GetMapping("/vnpay-ipn")

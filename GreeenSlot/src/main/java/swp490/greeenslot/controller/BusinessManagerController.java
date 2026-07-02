@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/manager")
 @Tag(name = "Business Management & Financial Analytics", description = "APIs for Location, Pillar, Slot, Service Categories/Types management, Operational dashboard, and Revenue analytics")

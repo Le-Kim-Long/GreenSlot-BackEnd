@@ -16,7 +16,7 @@ import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/bookings")
 @Tag(name = "Slot Booking", description = "Apis for Garden Slot Booking, extensions, and rental history")

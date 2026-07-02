@@ -13,7 +13,7 @@ import swp490.greeenslot.service.NotificationService;
 import java.security.Principal;
 import java.util.List;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/notifications")
 @Tag(name = "Notifications", description = "Endpoints for managing user alerts and notifications")

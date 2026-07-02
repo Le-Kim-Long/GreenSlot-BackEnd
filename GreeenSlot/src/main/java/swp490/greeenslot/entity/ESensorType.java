@@ -11,7 +11,8 @@ package swp490.greeenslot.entity;
 public enum ESensorType {
 
     SOIL_MOISTURE("soil_moisture", "%", "Do am dat"),
-    PH("ph", "pH", "Do pH dat");
+    PH("ph", "pH", "Do pH dat"),
+    LIGHT_INTENSITY("light_intensity", "Lux", "Cuong do anh sang");
 
     private final String code;
     private final String defaultUnit;

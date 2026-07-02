@@ -3,14 +3,12 @@ server:
 
 spring:
   datasource:
-    # --- CẤU HÌNH DATABASE ---
-    # SECURITY: All credentials MUST be provided via environment variables.
-    # Local dev (SQL Server): no env vars needed; uses defaults below
-    # Render (Postgres): set SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD
-    url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=GreenSlotDB;encrypt=true;trustServerCertificate=true}
-    username: ${DB_USERNAME:sa}
+    # --- CẤU HÌNH DATABASE (POSTGRESQL DEFAULT) ---
+    # SECURITY: All credentials MUST be provided via environment variables in production.
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/GreenSlotDB}
+    username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:12345}
-    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.microsoft.sqlserver.jdbc.SQLServerDriver}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
   jpa:
     hibernate:
       # ddl-auto: create for fresh DB; update for existing. On Render first deployment, use 'create'; local dev uses 'update'
@@ -19,8 +17,7 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        # Default: SQL Server (local dev). Override on Render with SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
-        dialect: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.SQLServerDialect}
+        dialect: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
 
   mail:
     host: ${MAIL_HOST:}
@@ -54,5 +51,5 @@ greeenslot:
     tmnCode: ${VNP_TMN_CODE:1COY3S4A}
     hashSecret: ${VNP_HASH_SECRET:9JYESFVFV6OS9AWJA19ZJJANM24E5QAH}
     url: ${VNP_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
-    returnUrl: ${VNP_RETURN_URL:https://greenslot-frontend2.vercel.app/payment-result}
+    returnUrl: ${VNP_RETURN_URL:https://greenslot-frontend4.vercel.app/payment-result}
 
