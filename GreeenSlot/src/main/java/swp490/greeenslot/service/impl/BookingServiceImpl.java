@@ -195,9 +195,9 @@ public class BookingServiceImpl implements BookingService {
             return response;
         }
 
-        // VNPay amount is multiplied by 100, divide it to match decimal value
-        BigDecimal vnpAmount = new BigDecimal(amountStr).divide(new BigDecimal(100));
-        if (txn.getAmount().compareTo(vnpAmount) != 0) {
+        // VNPay amount is multiplied by 100, multiply txn amount by 100 for safe comparison without division
+        BigDecimal expectedVnpAmount = txn.getAmount().multiply(new BigDecimal(100));
+        if (expectedVnpAmount.compareTo(new BigDecimal(amountStr)) != 0) {
             response.put("RspCode", "04");
             response.put("Message", "Invalid Amount");
             return response;
@@ -209,7 +209,8 @@ public class BookingServiceImpl implements BookingService {
             return response;
         }
 
-        boolean isSuccess = "00".equals(responseCode) && "00".equals(transactionStatus);
+        // vnp_TransactionStatus might be null or absent in return redirects, so check responseCode and fallback if present
+        boolean isSuccess = "00".equals(responseCode) && (transactionStatus == null || "00".equals(transactionStatus));
         txn.setPaymentDate(LocalDateTime.now());
 
         if (isSuccess) {
