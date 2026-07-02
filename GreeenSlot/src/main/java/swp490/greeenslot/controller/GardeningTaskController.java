@@ -15,7 +15,7 @@ import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api")
 @Tag(name = "Gardening Task Workflow", description = "APIs for requesting services, assigning tasks, updating status, and reporting issues")

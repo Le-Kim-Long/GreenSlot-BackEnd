@@ -13,7 +13,7 @@ import swp490.greeenslot.dto.ResetPasswordRequestDTO;
 import swp490.greeenslot.dto.SignupRequestDTO;
 import swp490.greeenslot.service.AuthService;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {

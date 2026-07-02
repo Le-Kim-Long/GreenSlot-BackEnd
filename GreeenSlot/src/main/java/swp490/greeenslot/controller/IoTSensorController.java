@@ -24,7 +24,7 @@ import java.util.Optional;
 /**
  * Controller handling IoT operations, telemetry, thresholds, and camera livestreams.
  */
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/iot")
 @Tag(name = "IoT Sensors & Devices", description = "Endpoints for receiving sensor telemetry, threshold boundaries, and camera streams")

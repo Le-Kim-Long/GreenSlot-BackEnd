@@ -15,7 +15,7 @@ import swp490.greeenslot.service.UserService;
 
 import java.security.Principal;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/users")
 @Tag(name = "User Profile", description = "APIs for user profile management")
