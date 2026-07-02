@@ -123,10 +123,11 @@ public class VNPayUtils {
         if (value == null) {
             return "";
         }
-        return URLEncoder.encode(value, StandardCharsets.UTF_8)
-                .replace("+", "%20")
-                .replace("*", "%2A")
-                .replace("%7E", "~");
+        try {
+            return URLEncoder.encode(value, StandardCharsets.US_ASCII.toString());
+        } catch (Exception e) {
+            return URLEncoder.encode(value, StandardCharsets.UTF_8);
+        }
     }
 
     public String hmacSHA512(String key, String data) {
