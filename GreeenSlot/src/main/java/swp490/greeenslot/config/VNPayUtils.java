@@ -12,9 +12,14 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 @Component
 public class VNPayUtils {
+
+    private static final Logger logger = LoggerFactory.getLogger(VNPayUtils.class);
 
     @Value("${greeenslot.vnpay.tmnCode}")
     private String tmnCode;
@@ -69,11 +74,10 @@ public class VNPayUtils {
             String fieldValue = vnp_Params.get(fieldName);
             if ((fieldValue != null) && (!fieldValue.isEmpty())) {
                 // Build hash data (VNPay requires UTF-8 encoding)
-                hashData.add(fieldName + "=" + URLEncoder.encode(fieldValue, StandardCharsets.UTF_8));
+                hashData.add(fieldName + "=" + encode(fieldValue));
 
                 // Build query
-                query.add(URLEncoder.encode(fieldName, StandardCharsets.UTF_8)
-                        + "=" + URLEncoder.encode(fieldValue, StandardCharsets.UTF_8));
+                query.add(encode(fieldName) + "=" + encode(fieldValue));
             }
         }
 
@@ -87,6 +91,7 @@ public class VNPayUtils {
     public boolean verifySignature(Map<String, String> fields) {
         String vnp_SecureHash = fields.get("vnp_SecureHash");
         if (vnp_SecureHash == null) {
+            logger.warn("VNPay verifySignature failed: vnp_SecureHash is missing");
             return false;
         }
 
@@ -101,12 +106,27 @@ public class VNPayUtils {
         for (String fieldName : fieldNames) {
             String fieldValue = fields.get(fieldName);
             if ((fieldValue != null) && (!fieldValue.isEmpty())) {
-                hashData.add(fieldName + "=" + URLEncoder.encode(fieldValue, StandardCharsets.UTF_8));
+                hashData.add(fieldName + "=" + encode(fieldValue));
             }
         }
 
         String calculatedHash = hmacSHA512(hashSecret, hashData.toString());
-        return calculatedHash.equalsIgnoreCase(vnp_SecureHash);
+        boolean isValid = calculatedHash.equalsIgnoreCase(vnp_SecureHash);
+        if (!isValid) {
+            logger.error("VNPay signature verification failed. Calculated: {}, Received: {}", calculatedHash, vnp_SecureHash);
+            logger.debug("Raw hash data string used: {}", hashData.toString());
+        }
+        return isValid;
+    }
+
+    private String encode(String value) {
+        if (value == null) {
+            return "";
+        }
+        return URLEncoder.encode(value, StandardCharsets.UTF_8)
+                .replace("+", "%20")
+                .replace("*", "%2A")
+                .replace("%7E", "~");
     }
 
     public String hmacSHA512(String key, String data) {
