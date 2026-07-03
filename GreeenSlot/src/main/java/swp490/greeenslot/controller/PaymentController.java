@@ -14,7 +14,11 @@ import swp490.greeenslot.service.BookingService;
 import java.util.HashMap;
 import java.util.Map;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
+import java.io.IOException;
+
+@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/payments")
 @Tag(name = "Payments", description = "Endpoints for handling online payment callbacks")
@@ -22,6 +26,9 @@ public class PaymentController {
 
     @Autowired
     private BookingService bookingService;
+
+    @Value("${greeenslot.vnpay.returnUrl:https://greenslot-frontend4.vercel.app/payment-result}")
+    private String defaultReturnUrl;
 
     @GetMapping("/vnpay-ipn")
     @Operation(summary = "VNPay IPN callback listener", description = "Performs secure checksum validation, amount checking, and state updates, returning JSON response to VNPay.")
@@ -37,5 +44,28 @@ public class PaymentController {
 
         Map<String, String> result = bookingService.processIpn(fields);
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/vnpay-return")
+    @Operation(summary = "VNPay Return callback redirector", description = "Processes VNPay return parameters and redirects browser securely to Frontend SPA.")
+    public void vnpayReturn(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        Map<String, String> fields = new HashMap<>();
+        for (Map.Entry<String, String[]> entry : request.getParameterMap().entrySet()) {
+            String name = entry.getKey();
+            String[] values = entry.getValue();
+            if (values.length > 0) {
+                fields.put(name, values[0]);
+            }
+        }
+        try {
+            bookingService.processIpn(fields);
+        } catch (Exception ignored) {}
+
+        String responseCode = fields.getOrDefault("vnp_ResponseCode", "");
+        String txnRef = fields.getOrDefault("vnp_TxnRef", "");
+        String status = "00".equals(responseCode) ? "success" : "failed";
+
+        String redirectUrl = defaultReturnUrl + "?status=" + status + "&vnp_ResponseCode=" + responseCode + "&vnp_TxnRef=" + txnRef;
+        response.sendRedirect(redirectUrl);
     }
 }

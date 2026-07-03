@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/manager")
 @Tag(name = "Business Management & Financial Analytics", description = "APIs for Location, Pillar, Slot, Service Categories/Types management, Operational dashboard, and Revenue analytics")
@@ -140,17 +140,25 @@ public class BusinessManagerController {
     }
 
     @GetMapping("/service-categories")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Get list of all service categories")
     public ResponseEntity<List<ServiceCategoryDTO>> getAllCategories() {
         return ResponseEntity.ok(businessManagementService.getAllCategories());
     }
 
     @GetMapping("/service-categories/{id}")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Get service category by ID")
     public ResponseEntity<ServiceCategoryDTO> getCategoryById(@PathVariable Long id) {
         return ResponseEntity.ok(businessManagementService.getCategoryById(id));
+    }
+
+    @DeleteMapping("/service-categories/{id}")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Delete service category by ID")
+    public ResponseEntity<Void> deleteCategory(@PathVariable Long id) {
+        businessManagementService.deleteCategory(id);
+        return ResponseEntity.noContent().build();
     }
 
     // ==========================================
@@ -172,17 +180,25 @@ public class BusinessManagerController {
     }
 
     @GetMapping("/service-types")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Get list of all service types")
     public ResponseEntity<List<ServiceTypeDTO>> getAllServiceTypes() {
         return ResponseEntity.ok(businessManagementService.getAllServiceTypes());
     }
 
     @GetMapping("/service-types/{id}")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Get service type by ID")
     public ResponseEntity<ServiceTypeDTO> getServiceTypeById(@PathVariable Long id) {
         return ResponseEntity.ok(businessManagementService.getServiceTypeById(id));
+    }
+
+    @DeleteMapping("/service-types/{id}")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Delete service type by ID")
+    public ResponseEntity<Void> deleteServiceType(@PathVariable Long id) {
+        businessManagementService.deleteServiceType(id);
+        return ResponseEntity.noContent().build();
     }
 
     // ==========================================
@@ -211,5 +227,45 @@ public class BusinessManagerController {
         LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
 
         return ResponseEntity.ok(businessManagementService.getRevenueAnalytics(startDateTime, endDateTime));
+    }
+
+    // ==========================================
+    // Infrastructure Deletion
+    // ==========================================
+
+    @DeleteMapping("/locations/{id}")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Delete an existing location")
+    public ResponseEntity<MessageResponseDTO> deleteLocation(@PathVariable Long id) {
+        try {
+            businessManagementService.deleteLocation(id);
+            return ResponseEntity.ok(new MessageResponseDTO("Location deleted successfully."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new MessageResponseDTO(e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/pillars/{id}")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Delete an existing pillar")
+    public ResponseEntity<MessageResponseDTO> deletePillar(@PathVariable Long id) {
+        try {
+            businessManagementService.deletePillar(id);
+            return ResponseEntity.ok(new MessageResponseDTO("Pillar deleted successfully."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new MessageResponseDTO(e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/slots/{id}")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Delete an existing garden slot")
+    public ResponseEntity<MessageResponseDTO> deleteSlot(@PathVariable Long id) {
+        try {
+            businessManagementService.deleteSlot(id);
+            return ResponseEntity.ok(new MessageResponseDTO("Garden slot deleted successfully."));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new MessageResponseDTO(e.getMessage()));
+        }
     }
 }

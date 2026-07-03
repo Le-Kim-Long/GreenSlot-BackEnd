@@ -17,7 +17,7 @@ import swp490.greeenslot.service.AdminService;
 import java.time.LocalDateTime;
 import java.util.List;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/admin")
 @PreAuthorize("hasRole('ROLE_ADMIN')")

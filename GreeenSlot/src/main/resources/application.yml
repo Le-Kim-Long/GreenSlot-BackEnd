@@ -3,22 +3,21 @@ server:
 
 spring:
   datasource:
-    # --- CẤU HÌNH DATABASE ---
-    # SECURITY: All credentials MUST be provided via environment variables.
-    # Local dev: set SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD
-    # Production: set via Render/Docker environment config
-    url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=GreenSlotDB;encrypt=true;trustServerCertificate=true}
-    username: sa
-    password: 12345
-    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.microsoft.sqlserver.jdbc.SQLServerDriver}
+    # --- CẤU HÌNH DATABASE (POSTGRESQL DEFAULT) ---
+    # SECURITY: All credentials MUST be provided via environment variables in production.
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/GreenSlotDB}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:12345}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
   jpa:
     hibernate:
-      ddl-auto: update
+      # ddl-auto: create for fresh DB; update for existing. On Render first deployment, use 'create'; local dev uses 'update'
+      ddl-auto: ${SPRING_JPA_DDL_AUTO:update}
     show-sql: ${SHOW_SQL:false}
     properties:
       hibernate:
         format_sql: true
-        dialect: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.SQLServerDialect}
+        dialect: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
 
   mail:
     host: ${MAIL_HOST:}
@@ -49,8 +48,8 @@ greeenslot:
     frontendResetUrl: ${FRONTEND_RESET_URL:http://localhost:3000/reset-password}
     resetTokenExpirationMs: ${RESET_TOKEN_EXPIRATION_MS:3600000} # 1 hour
   vnpay:
-    tmnCode: ${VNP_TMN_CODE:87U5A44E}
-    hashSecret: ${VNP_HASH_SECRET:U80PULG6K80W800P0L8W8L0P80PULG6K}
+    tmnCode: ${VNP_TMN_CODE:1COY3S4A}
+    hashSecret: ${VNP_HASH_SECRET:I0GML7NMDJCGMP862QY2VVGVZAO77CDQ}
     url: ${VNP_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
-    returnUrl: ${VNP_RETURN_URL:http://localhost:3000/payment-result}
+    returnUrl: ${VNP_RETURN_URL:https://greenslot-frontend4.vercel.app/payment-result}
 

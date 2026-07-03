@@ -15,7 +15,7 @@ import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api")
 @Tag(name = "Gardening Task Workflow", description = "APIs for requesting services, assigning tasks, updating status, and reporting issues")
@@ -45,6 +45,17 @@ public class GardeningTaskController {
         return ResponseEntity.ok(mapToDTO(task));
     }
 
+    @RequestMapping(value = { "/tasks/{taskId}/assign" }, method = { RequestMethod.PATCH, RequestMethod.PUT, RequestMethod.POST })
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER')")
+    @Operation(summary = "Assign task to staff via PathVariable", description = "Allows Location Manager to assign an existing task by ID in URL path to a garden staff member.")
+    public ResponseEntity<GardeningTaskResponseDTO> assignTaskByPath(
+            @PathVariable Long taskId,
+            @Valid @RequestBody TaskAssignmentDTO request) {
+        request.setTaskId(taskId);
+        GardeningTask task = gardeningTaskService.assignTask(request);
+        return ResponseEntity.ok(mapToDTO(task));
+    }
+
     @GetMapping("/tasks/my-tasks")
     @PreAuthorize("hasRole('ROLE_GARDEN_STAFF')")
     @Operation(summary = "Get tasks assigned to current staff", description = "Retrieves tasks assigned to the authenticated garden staff, sorted by creation time descending.")
@@ -56,7 +67,7 @@ public class GardeningTaskController {
         return ResponseEntity.ok(dtoList);
     }
 
-    @PutMapping("/tasks/{id}/status")
+    @PatchMapping("/tasks/{id}/status")
     @PreAuthorize("hasRole('ROLE_GARDEN_STAFF')")
     @Operation(summary = "Update progress of a task", description = "Updates task status. Must include evidence image URL when marking status as COMPLETED.")
     public ResponseEntity<GardeningTaskResponseDTO> updateTaskStatus(

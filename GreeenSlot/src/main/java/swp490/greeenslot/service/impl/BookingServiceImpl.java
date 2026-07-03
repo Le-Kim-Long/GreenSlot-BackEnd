@@ -1,8 +1,13 @@
 package swp490.greeenslot.service.impl;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import swp490.greeenslot.config.VNPayUtils;
 import swp490.greeenslot.dto.BookingRequestDTO;
 import swp490.greeenslot.dto.BookingResponseDTO;
@@ -20,6 +25,8 @@ import java.util.stream.Collectors;
 @Service
 public class BookingServiceImpl implements BookingService {
 
+    private static final Logger logger = LoggerFactory.getLogger(BookingServiceImpl.class);
+
     @Autowired
     private GardenSlotRepository gardenSlotRepository;
 
@@ -35,9 +42,13 @@ public class BookingServiceImpl implements BookingService {
     @Autowired
     private VNPayUtils vnPayUtils;
 
+    @Autowired
+    private GardeningTaskRepository gardeningTaskRepository;
+
     @Override
     @Transactional(readOnly = true)
     public List<GardenSlot> getAvailableSlots(Long locationId) {
+        // Retrieve available slots (Hibernate automatically populates the newly added imageUrl field)
         if (locationId == null) {
             return gardenSlotRepository.findAll().stream()
                     .filter(g -> g.getStatus() == ESlotStatus.AVAILABLE)
@@ -91,6 +102,10 @@ public class BookingServiceImpl implements BookingService {
         rental.setEndTime(end);
         rental.setStatus(ERentalStatus.PENDING);
         rental = slotRentalRepository.save(rental);
+
+        // Set slot status to PENDING_PAYMENT to reserve it temporarily
+        slot.setStatus(ESlotStatus.PENDING_PAYMENT);
+        gardenSlotRepository.save(slot);
 
         // Generate vnpTxnRef: BOOK_[slotId]_[duration]_[uuid]
         String uuid = UUID.randomUUID().toString().substring(0, 8);
@@ -158,9 +173,11 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public Map<String, String> processIpn(Map<String, String> params) {
+        logger.info("processIpn called with parameters: {}", params);
         Map<String, String> response = new HashMap<>();
 
         if (!vnPayUtils.verifySignature(params)) {
+            logger.error("VNPay IPN signature verification failed for params: {}", params);
             response.put("RspCode", "97");
             response.put("Message", "Invalid Signature");
             return response;
@@ -172,6 +189,7 @@ public class BookingServiceImpl implements BookingService {
         String transactionStatus = params.get("vnp_TransactionStatus");
 
         if (txnRef == null || amountStr == null || responseCode == null) {
+            logger.error("VNPay IPN processed failed: Input data required. txnRef={}, amount={}, responseCode={}", txnRef, amountStr, responseCode);
             response.put("RspCode", "99");
             response.put("Message", "Input data required");
             return response;
@@ -179,29 +197,35 @@ public class BookingServiceImpl implements BookingService {
 
         PaymentTransaction txn = paymentTransactionRepository.findByVnpTxnRef(txnRef).orElse(null);
         if (txn == null) {
+            logger.error("VNPay IPN processed failed: Transaction not found for txnRef={}", txnRef);
             response.put("RspCode", "01");
             response.put("Message", "Order not Found");
             return response;
         }
 
-        // VNPay amount is multiplied by 100, divide it to match decimal value
-        BigDecimal vnpAmount = new BigDecimal(amountStr).divide(new BigDecimal(100));
-        if (txn.getAmount().compareTo(vnpAmount) != 0) {
+        // VNPay amount is multiplied by 100, multiply txn amount by 100 for safe comparison without division
+        BigDecimal expectedVnpAmount = txn.getAmount().multiply(new BigDecimal(100));
+        if (expectedVnpAmount.compareTo(new BigDecimal(amountStr)) != 0) {
+            logger.error("VNPay IPN processed failed: Invalid amount for txnRef={}. Expected: {}, Received: {}", txnRef, expectedVnpAmount, amountStr);
             response.put("RspCode", "04");
             response.put("Message", "Invalid Amount");
             return response;
         }
 
         if (txn.getStatus() != EPaymentStatus.PENDING) {
+            logger.info("VNPay IPN order already confirmed for txnRef={}, current status: {}", txnRef, txn.getStatus());
             response.put("RspCode", "02");
             response.put("Message", "Order already confirmed");
             return response;
         }
 
-        boolean isSuccess = "00".equals(responseCode) && "00".equals(transactionStatus);
+        // vnp_TransactionStatus might be null, empty, or absent in return redirects, so check responseCode and fallback if present
+        boolean isSuccess = "00".equals(responseCode) && (transactionStatus == null || transactionStatus.isEmpty() || "00".equals(transactionStatus));
+        logger.info("VNPay transaction result for txnRef={}: success={}, responseCode={}, transactionStatus={}", txnRef, isSuccess, responseCode, transactionStatus);
         txn.setPaymentDate(LocalDateTime.now());
 
         if (isSuccess) {
+            logger.info("Updating transaction and rental status to SUCCESS/ACTIVE for txnRef={}", txnRef);
             txn.setStatus(EPaymentStatus.SUCCESS);
             paymentTransactionRepository.save(txn);
 
@@ -213,6 +237,7 @@ public class BookingServiceImpl implements BookingService {
                 GardenSlot slot = rental.getGardenSlot();
                 slot.setStatus(ESlotStatus.RENTED);
                 gardenSlotRepository.save(slot);
+                logger.info("Booking rental ID {} activated, Garden Slot ID {} status set to RENTED", rental.getId(), slot.getId());
 
             } else if (txnRef.startsWith("EXT_")) {
                 SlotRental rental = txn.getRental();
@@ -231,8 +256,10 @@ public class BookingServiceImpl implements BookingService {
                 GardenSlot slot = rental.getGardenSlot();
                 slot.setStatus(ESlotStatus.RENTED);
                 gardenSlotRepository.save(slot);
+                logger.info("Rental ID {} extension of {} months saved. New end time: {}", rental.getId(), durationMonths, newEnd);
             }
         } else {
+            logger.warn("Transaction failed or cancelled for txnRef={}. Updating statuses to FAILED/CANCELLED", txnRef);
             txn.setStatus(EPaymentStatus.FAILED);
             paymentTransactionRepository.save(txn);
 
@@ -242,8 +269,15 @@ public class BookingServiceImpl implements BookingService {
                 slotRentalRepository.save(rental);
 
                 GardenSlot slot = rental.getGardenSlot();
-                slot.setStatus(ESlotStatus.AVAILABLE);
-                gardenSlotRepository.save(slot);
+                // Explicitly check if there are any other active or pending rentals
+                long otherCount = slotRentalRepository.countOtherActiveOrPending(slot.getId(), rental.getId());
+                if (otherCount == 0) {
+                    slot.setStatus(ESlotStatus.AVAILABLE);
+                    gardenSlotRepository.save(slot);
+                    logger.info("Booking rental ID {} cancelled, Garden Slot ID {} status set to AVAILABLE", rental.getId(), slot.getId());
+                } else {
+                    logger.info("Booking rental ID {} cancelled, Garden Slot ID {} kept status because of other active/pending rentals", rental.getId(), slot.getId());
+                }
             }
         }
 
@@ -255,7 +289,14 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional(readOnly = true)
     public List<RentalHistoryDTO> getRentalHistory(String username) {
-        List<SlotRental> rentals = slotRentalRepository.findByUserUsernameOrderByStartTimeDesc(username);
+        List<SlotRental> rentals = slotRentalRepository.findByUserUsernameWithSlotAndPillarAndLocation(username);
+        
+        // Fetch all transactions for this user's rentals in one query and group them by rental ID
+        List<PaymentTransaction> allTxns = paymentTransactionRepository.findAllTransactionsForUser(username);
+        Map<Long, List<PaymentTransaction>> txnsByRentalId = allTxns.stream()
+                .filter(t -> t.getRental() != null)
+                .collect(Collectors.groupingBy(t -> t.getRental().getId()));
+
         List<RentalHistoryDTO> history = new ArrayList<>();
 
         for (SlotRental rental : rentals) {
@@ -263,7 +304,7 @@ public class BookingServiceImpl implements BookingService {
             Pillar pillar = slot.getPillar();
             Location location = pillar.getLocation();
 
-            List<PaymentTransaction> txns = paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(rental.getId());
+            List<PaymentTransaction> txns = txnsByRentalId.getOrDefault(rental.getId(), Collections.emptyList());
             List<RentalHistoryDTO.PaymentTransactionInfo> txnInfos = new ArrayList<>();
             for (PaymentTransaction txn : txns) {
                 txnInfos.add(new RentalHistoryDTO.PaymentTransactionInfo(
@@ -289,5 +330,80 @@ public class BookingServiceImpl implements BookingService {
         }
 
         return history;
+    }
+
+    @Override
+    @Transactional
+    public void cancelPendingBooking(Long rentalId, String username) {
+        SlotRental rental = slotRentalRepository.findByIdWithPessimisticLock(rentalId)
+                .orElseThrow(() -> new IllegalArgumentException("Slot rental not found with ID: " + rentalId));
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdminOrManager = auth != null && auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(role -> role.equals("ROLE_ADMIN") || role.equals("ROLE_MANAGER"));
+
+        if (!isAdminOrManager && !rental.getUser().getUsername().equals(username)) {
+            throw new IllegalArgumentException("Unauthorized: Only the contract owner or admin/manager can cancel this booking");
+        }
+
+        if (rental.getStatus() != ERentalStatus.PENDING) {
+            throw new IllegalArgumentException("Only pending bookings can be cancelled");
+        }
+
+        rental.setStatus(ERentalStatus.CANCELLED);
+        slotRentalRepository.save(rental);
+
+        List<PaymentTransaction> pendingTxns = paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(rentalId);
+        for (PaymentTransaction txn : pendingTxns) {
+            if (txn.getStatus() == EPaymentStatus.PENDING) {
+                txn.setStatus(EPaymentStatus.FAILED);
+                paymentTransactionRepository.save(txn);
+            }
+        }
+
+        List<GardeningTask> pendingTasks = gardeningTaskRepository.findPendingTasksBySlotId(rental.getGardenSlot().getId());
+        for (GardeningTask task : pendingTasks) {
+            task.setStatus(ETaskStatus.CANCELLED);
+            gardeningTaskRepository.save(task);
+        }
+
+        GardenSlot slot = rental.getGardenSlot();
+        long activeOrPendingCount = slotRentalRepository.countOtherActiveOrPending(slot.getId(), rental.getId());
+        if (activeOrPendingCount == 0) {
+            slot.setStatus(ESlotStatus.AVAILABLE);
+            gardenSlotRepository.save(slot);
+        }
+    }
+
+    @Override
+    @Transactional
+    public BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress) {
+        SlotRental rental = slotRentalRepository.findByIdWithPessimisticLock(rentalId)
+                .orElseThrow(() -> new IllegalArgumentException("Slot rental not found with ID: " + rentalId));
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdminOrManager = auth != null && auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(role -> role.equals("ROLE_ADMIN") || role.equals("ROLE_MANAGER"));
+
+        if (!isAdminOrManager && !rental.getUser().getUsername().equals(username)) {
+            throw new IllegalArgumentException("Unauthorized: Only the contract owner can repay this booking");
+        }
+
+        if (rental.getStatus() != ERentalStatus.PENDING) {
+            throw new IllegalArgumentException("Only pending bookings can generate payment URL");
+        }
+
+        List<PaymentTransaction> txns = paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(rentalId);
+        PaymentTransaction pendingTxn = txns.stream()
+                .filter(t -> t.getStatus() == EPaymentStatus.PENDING)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No pending payment transaction found for this booking"));
+
+        String orderInfo = "Thanh toan don thue vuon GreenSlot ID: " + rentalId;
+        String paymentUrl = vnPayUtils.buildPaymentUrl(pendingTxn.getVnpTxnRef(), pendingTxn.getAmount(), ipAddress, orderInfo);
+
+        return new BookingResponseDTO(rentalId, paymentUrl, pendingTxn.getVnpTxnRef());
     }
 }

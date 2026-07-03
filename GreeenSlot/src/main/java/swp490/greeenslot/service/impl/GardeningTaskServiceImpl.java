@@ -32,9 +32,17 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
     @Override
     @Transactional
     public GardeningTask requestService(ServiceRequestDTO request, String username) {
+        LocalDateTime now = LocalDateTime.now();
         // Validate active rental for the slot
-        slotRentalRepository.findActiveRentalBySlotAndUser(request.getSlotId(), username, LocalDateTime.now())
+        SlotRental rental = slotRentalRepository.findActiveRentalBySlotAndUser(request.getSlotId(), username, now)
                 .orElseThrow(() -> new IllegalArgumentException("No active rental found for slot ID " + request.getSlotId() + " belonging to customer " + username));
+
+        if (rental.getStatus() != ERentalStatus.ACTIVE) {
+            throw new IllegalArgumentException("Service request denied: Slot rental is not ACTIVE (current status: " + rental.getStatus() + ").");
+        }
+        if (rental.getEndTime() != null && rental.getEndTime().isBefore(now)) {
+            throw new IllegalArgumentException("Service request denied: Slot rental has expired.");
+        }
 
         // Fetch ServiceType
         ServiceType serviceType = serviceTypeRepository.findById(request.getServiceTypeId())
@@ -52,7 +60,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         task.setTaskType(ETaskType.SERVICE_REQUEST);
         task.setTargetSlot(slot);
         task.setAssignedStaff(null); // Unassigned initially
-        task.setCreatedAt(LocalDateTime.now());
+        task.setCreatedAt(now);
 
         return gardeningTaskRepository.save(task);
     }
@@ -142,6 +150,10 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         }
 
         // Validate status transition sequence
+        if (task.getStatus() == ETaskStatus.COMPLETED) {
+            throw new IllegalArgumentException("Cannot modify status of a COMPLETED task");
+        }
+
         if (task.getStatus() == ETaskStatus.PENDING && newStatus == ETaskStatus.COMPLETED) {
             throw new IllegalArgumentException("Cannot transition directly from PENDING to COMPLETED. Must go through IN_PROGRESS first.");
         }

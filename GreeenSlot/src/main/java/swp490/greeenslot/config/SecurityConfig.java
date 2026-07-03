@@ -14,7 +14,13 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import swp490.greeenslot.service.impl.UserDetailsServiceImpl;
+
+import java.util.Arrays;
+import java.util.Collections;
 
 @Configuration
 @EnableMethodSecurity
@@ -49,15 +55,29 @@ public class SecurityConfig {
     }
 
     @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(Arrays.asList("https://greenslot-frontend4.vercel.app", "*"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Collections.singletonList("*"));
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+
+    @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.csrf(AbstractHttpConfigurer::disable)
+        http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .csrf(AbstractHttpConfigurer::disable)
             .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth ->
                 auth.requestMatchers("/api/auth/**").permitAll()
                     .requestMatchers("/api/iot/sensors/data").permitAll()
+                    .requestMatchers("/api/iot/device/data").permitAll()
                     .requestMatchers("/api/iot/sensors/types").permitAll()
-                    .requestMatchers("/api/payments/vnpay-ipn").permitAll()
+                    .requestMatchers("/api/payments/vnpay-ipn", "/api/payments/vnpay-return").permitAll()
+                    .requestMatchers("/api/bookings/available").permitAll()
                     .requestMatchers(
                             "/",
                             "/error",

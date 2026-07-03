@@ -12,9 +12,14 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 @Component
 public class VNPayUtils {
+
+    private static final Logger logger = LoggerFactory.getLogger(VNPayUtils.class);
 
     @Value("${greeenslot.vnpay.tmnCode}")
     private String tmnCode;
@@ -57,32 +62,22 @@ public class VNPayUtils {
         vnp_Params.put("vnp_IpAddr", vnp_IpAddr);
         vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
 
-        // Sort keys
+        // Sort keys alphabetically
         List<String> fieldNames = new ArrayList<>(vnp_Params.keySet());
         Collections.sort(fieldNames);
 
-        StringBuilder hashData = new StringBuilder();
-        StringBuilder query = new StringBuilder();
+        // Use StringJoiner to avoid trailing '&' bug
+        StringJoiner hashData = new StringJoiner("&");
+        StringJoiner query = new StringJoiner("&");
 
-        Iterator<String> itr = fieldNames.iterator();
-        while (itr.hasNext()) {
-            String fieldName = itr.next();
+        for (String fieldName : fieldNames) {
             String fieldValue = vnp_Params.get(fieldName);
-            if ((fieldValue != null) && (fieldValue.length() > 0)) {
-                // Build hash data
-                hashData.append(fieldName);
-                hashData.append('=');
-                hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII).replace("+", "%20"));
+            if ((fieldValue != null) && (!fieldValue.isEmpty())) {
+                // Build hash data (VNPay requires UTF-8 encoding)
+                hashData.add(fieldName + "=" + encode(fieldValue));
 
                 // Build query
-                query.append(URLEncoder.encode(fieldName, StandardCharsets.US_ASCII).replace("+", "%20"));
-                query.append('=');
-                query.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII).replace("+", "%20"));
-
-                if (itr.hasNext()) {
-                    query.append('&');
-                    hashData.append('&');
-                }
+                query.add(encode(fieldName) + "=" + encode(fieldValue));
             }
         }
 
@@ -96,6 +91,7 @@ public class VNPayUtils {
     public boolean verifySignature(Map<String, String> fields) {
         String vnp_SecureHash = fields.get("vnp_SecureHash");
         if (vnp_SecureHash == null) {
+            logger.warn("VNPay verifySignature failed: vnp_SecureHash is missing");
             return false;
         }
 
@@ -109,13 +105,29 @@ public class VNPayUtils {
         StringJoiner hashData = new StringJoiner("&");
         for (String fieldName : fieldNames) {
             String fieldValue = fields.get(fieldName);
-            if ((fieldValue != null) && (fieldValue.length() > 0)) {
-                hashData.add(fieldName + "=" + URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII).replace("+", "%20"));
+            if ((fieldValue != null) && (!fieldValue.isEmpty())) {
+                hashData.add(fieldName + "=" + encode(fieldValue));
             }
         }
 
         String calculatedHash = hmacSHA512(hashSecret, hashData.toString());
-        return calculatedHash.equalsIgnoreCase(vnp_SecureHash);
+        boolean isValid = calculatedHash.equalsIgnoreCase(vnp_SecureHash);
+        if (!isValid) {
+            logger.error("VNPay signature verification failed. Calculated: {}, Received: {}", calculatedHash, vnp_SecureHash);
+            logger.debug("Raw hash data string used: {}", hashData.toString());
+        }
+        return isValid;
+    }
+
+    private String encode(String value) {
+        if (value == null) {
+            return "";
+        }
+        try {
+            return URLEncoder.encode(value, StandardCharsets.US_ASCII.toString());
+        } catch (Exception e) {
+            return URLEncoder.encode(value, StandardCharsets.UTF_8);
+        }
     }
 
     public String hmacSHA512(String key, String data) {

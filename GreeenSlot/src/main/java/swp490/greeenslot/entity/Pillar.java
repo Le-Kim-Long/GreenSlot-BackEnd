@@ -28,4 +28,7 @@ public class Pillar {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "location_id")
     private Location location;
+
+    @Column(name = "camera_stream_url")
+    private String cameraStreamUrl;
 }

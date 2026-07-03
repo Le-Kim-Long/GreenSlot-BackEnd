@@ -16,7 +16,7 @@ import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/bookings")
 @Tag(name = "Slot Booking", description = "Apis for Garden Slot Booking, extensions, and rental history")
@@ -35,7 +35,8 @@ public class BookingController {
                 s.getPrice(),
                 s.getStatus().name(),
                 s.getPillar().getPillarCode(),
-                s.getPillar().getLocation().getName()
+                s.getPillar().getLocation().getName(),
+                s.getImageUrl()
         )).collect(Collectors.toList());
         return ResponseEntity.ok(dtoList);
     }
@@ -80,5 +81,31 @@ public class BookingController {
     public ResponseEntity<List<RentalHistoryDTO>> getRentalHistory(Principal principal) {
         List<RentalHistoryDTO> history = bookingService.getRentalHistory(principal.getName());
         return ResponseEntity.ok(history);
+    }
+
+    @PatchMapping("/{rentalId}/cancel")
+    @DeleteMapping({"/{rentalId}", "/{rentalId}/cancel"})
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Manually cancel or delete a pending slot rental booking",
+               description = "Allows contract owner or administrative authorities (ADMIN/MANAGER) to actively cancel a pending booking with pessimistic locking, cascading task revocation, and exclusive slot release.")
+    public ResponseEntity<java.util.Map<String, String>> cancelBooking(@PathVariable Long rentalId, Principal principal) {
+        bookingService.cancelPendingBooking(rentalId, principal.getName());
+        java.util.Map<String, String> response = new java.util.HashMap<>();
+        response.put("message", "Booking cancelled successfully, tasks revoked, and slot released back to AVAILABLE");
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{rentalId}/pay")
+    @PostMapping("/{rentalId}/pay")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get or regenerate payment URL for pending booking",
+               description = "Allows contract owner to retrieve or regenerate the VNPay payment URL for an existing pending slot rental.")
+    public ResponseEntity<BookingResponseDTO> repayBooking(@PathVariable Long rentalId, Principal principal, HttpServletRequest httpServletRequest) {
+        String ipAddress = httpServletRequest.getHeader("X-FORWARDED-FOR");
+        if (ipAddress == null || ipAddress.isEmpty()) {
+            ipAddress = httpServletRequest.getRemoteAddr();
+        }
+        BookingResponseDTO response = bookingService.getOrRegeneratePaymentUrl(rentalId, principal.getName(), ipAddress);
+        return ResponseEntity.ok(response);
     }
 }
