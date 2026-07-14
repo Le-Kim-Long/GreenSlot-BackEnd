@@ -2,6 +2,7 @@ package swp490.greeenslot.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -12,12 +13,15 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<MessageResponseDTO> handleValidation(MethodArgumentNotValidException ex) {
-        String message = ex.getBindingResult().getFieldErrors().stream()
-                .map(error -> error.getField() + ": " + error.getDefaultMessage())
-                .collect(Collectors.joining("; "));
-        return ResponseEntity.badRequest().body(new MessageResponseDTO(message));
+    @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class})
+    public ResponseEntity<MessageResponseDTO> handleValidation(Exception ex) {
+        if (ex instanceof BindException bindEx) {
+            String message = bindEx.getBindingResult().getFieldErrors().stream()
+                    .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                    .collect(Collectors.joining("; "));
+            return ResponseEntity.badRequest().body(new MessageResponseDTO(message));
+        }
+        return ResponseEntity.badRequest().body(new MessageResponseDTO(ex.getMessage()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

@@ -19,6 +19,7 @@ import swp490.greeenslot.service.BookingService;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -401,9 +402,19 @@ public class BookingServiceImpl implements BookingService {
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("No pending payment transaction found for this booking"));
 
-        String orderInfo = "Thanh toan don thue vuon GreenSlot ID: " + rentalId;
-        String paymentUrl = vnPayUtils.buildPaymentUrl(pendingTxn.getVnpTxnRef(), pendingTxn.getAmount(), ipAddress, orderInfo);
+        // Generate a fresh unique vnpTxnRef so VNPay Sandbox accepts the retry attempt without duplicate/expired errors
+        String uuid = UUID.randomUUID().toString().substring(0, 8);
+        long months = ChronoUnit.MONTHS.between(rental.getStartTime(), rental.getEndTime());
+        if (months <= 0) months = 1;
+        String newTxnRef = "BOOK_" + rental.getGardenSlot().getId() + "_" + months + "_" + uuid;
 
-        return new BookingResponseDTO(rentalId, paymentUrl, pendingTxn.getVnpTxnRef());
+        pendingTxn.setVnpTxnRef(newTxnRef);
+        pendingTxn.setPaymentDate(LocalDateTime.now());
+        paymentTransactionRepository.save(pendingTxn);
+
+        String orderInfo = "Thanh toan don thue vuon GreenSlot ID: " + rentalId;
+        String paymentUrl = vnPayUtils.buildPaymentUrl(newTxnRef, pendingTxn.getAmount(), ipAddress, orderInfo);
+
+        return new BookingResponseDTO(rentalId, paymentUrl, newTxnRef);
     }
 }

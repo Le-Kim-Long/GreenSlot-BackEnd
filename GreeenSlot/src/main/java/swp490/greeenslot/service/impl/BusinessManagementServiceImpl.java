@@ -291,6 +291,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
 
         ServiceType serviceType = new ServiceType();
         serviceType.setServiceName(dto.getServiceName());
+        serviceType.setDescription(dto.getDescription());
         serviceType.setPrice(dto.getPrice());
         serviceType.setCategory(category);
 
@@ -308,6 +309,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
                 .orElseThrow(() -> new IllegalArgumentException("Service category not found with ID " + dto.getCategoryId()));
 
         serviceType.setServiceName(dto.getServiceName());
+        serviceType.setDescription(dto.getDescription());
         serviceType.setPrice(dto.getPrice());
         serviceType.setCategory(category);
 
@@ -332,7 +334,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     }
 
     private ServiceTypeDTO mapToServiceTypeDTO(ServiceType s) {
-        return new ServiceTypeDTO(s.getId(), s.getServiceName(), s.getPrice(), s.getCategory().getId());
+        return new ServiceTypeDTO(s.getId(), s.getServiceName(), s.getDescription(), s.getPrice(), s.getCategory().getId());
     }
 
     // ==========================================
