@@ -27,11 +27,14 @@ public class VNPayUtils {
     @Value("${greeenslot.vnpay.hashSecret}")
     private String hashSecret;
 
-    @Value("${greeenslot.vnpay.url}")
+    @Value("${greeenslot.vnpay.url:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}")
     private String url;
 
-    @Value("${greeenslot.vnpay.returnUrl}")
+    @Value("${greeenslot.vnpay.returnUrl:http://localhost:8080/api/payments/vnpay-return}")
     private String returnUrl;
+
+    @Value("${greeenslot.vnpay.ipnUrl:}")
+    private String ipnUrl;
 
     public String buildPaymentUrl(String txnRef, BigDecimal amount, String ipAddress, String orderInfo) {
         String vnp_Version = "2.1.0";
@@ -59,6 +62,9 @@ public class VNPayUtils {
         vnp_Params.put("vnp_OrderType", vnp_OrderType);
         vnp_Params.put("vnp_Locale", vnp_Locale);
         vnp_Params.put("vnp_ReturnUrl", returnUrl);
+        if (ipnUrl != null && !ipnUrl.isEmpty()) {
+            vnp_Params.put("vnp_IpnUrl", ipnUrl);
+        }
         vnp_Params.put("vnp_IpAddr", vnp_IpAddr);
         vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
 

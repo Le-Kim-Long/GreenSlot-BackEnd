@@ -13,7 +13,7 @@ import lombok.Setter;
 public class ServiceCategoryDTO {
     private Long id;
 
-    @NotBlank(message = "Category name is required")
+    @NotBlank(message = "Category name cannot be empty or whitespace")
     private String categoryName;
 
     private String description;

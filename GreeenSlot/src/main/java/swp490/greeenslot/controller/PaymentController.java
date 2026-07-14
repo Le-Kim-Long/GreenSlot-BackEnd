@@ -27,7 +27,7 @@ public class PaymentController {
     @Autowired
     private BookingService bookingService;
 
-    @Value("${greeenslot.vnpay.returnUrl:https://greenslot-frontend4.vercel.app/payment-result}")
+    @Value("${greeenslot.vnpay.frontendReturnUrl:${FRONTEND_RETURN_URL:http://localhost:5173/payment-result}}")
     private String defaultReturnUrl;
 
     @GetMapping("/vnpay-ipn")
