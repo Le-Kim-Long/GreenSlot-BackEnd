@@ -72,6 +72,16 @@ public class DataInitializer {
                 location1.setArea(1000.0);
                 locationRepository.save(location1);
 
+                // Assign default location to default staff users
+                userRepository.findByUsername("location_manager").ifPresent(u -> {
+                    u.setLocation(location1);
+                    userRepository.save(u);
+                });
+                userRepository.findByUsername("garden_staff").ifPresent(u -> {
+                    u.setLocation(location1);
+                    userRepository.save(u);
+                });
+
                 Pillar pillar1 = new Pillar();
                 pillar1.setPillarCode("P-Q1-01");
                 pillar1.setStatus(EPillarStatus.ACTIVE);

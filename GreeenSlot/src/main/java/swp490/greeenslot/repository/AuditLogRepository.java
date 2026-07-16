@@ -8,6 +8,6 @@ import java.util.List;
 
 @Repository
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
-    List<AuditLog> findByPerformedAtBetweenOrderByPerformedAtDesc(LocalDateTime start, LocalDateTime end);
-    List<AuditLog> findAllByOrderByPerformedAtDesc();
+    org.springframework.data.domain.Page<AuditLog> findByPerformedAtBetweenOrderByPerformedAtDesc(java.time.LocalDateTime start, java.time.LocalDateTime end, org.springframework.data.domain.Pageable pageable);
+    org.springframework.data.domain.Page<AuditLog> findAllByOrderByPerformedAtDesc(org.springframework.data.domain.Pageable pageable);
 }

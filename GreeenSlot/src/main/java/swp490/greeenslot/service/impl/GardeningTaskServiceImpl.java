@@ -190,7 +190,14 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         issueTask.setEvidenceImageUrl(request.getEvidenceImageUrl()); // Can be optional or populated
         issueTask.setAssignedStaff(null); // Left unassigned for manager review
         issueTask.setCreatedAt(LocalDateTime.now());
+        
+        GardeningTask savedIssue = gardeningTaskRepository.save(issueTask);
 
-        return gardeningTaskRepository.save(issueTask);
+        // Update original task
+        originalTask.setStatus(ETaskStatus.CANCELLED);
+        originalTask.setDescription(originalTask.getDescription() + "\n[BLOCKED_BY_ISSUE: " + savedIssue.getTaskName() + "]");
+        gardeningTaskRepository.save(originalTask);
+
+        return savedIssue;
     }
 }
