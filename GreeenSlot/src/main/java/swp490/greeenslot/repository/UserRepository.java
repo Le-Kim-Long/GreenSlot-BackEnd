@@ -23,4 +23,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
         @org.springframework.data.repository.query.Param("roleName") swp490.greeenslot.entity.ERole roleName,
         @org.springframework.data.repository.query.Param("locationId") Long locationId
     );
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.roles")
+    java.util.List<User> findAllWithRoles();
 }

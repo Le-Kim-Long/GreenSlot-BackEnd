@@ -46,6 +46,20 @@ public class DataInitializer {
                 }
             }
 
+            // 1.1. Tự động chuyển đổi/tích hợp dữ liệu cũ: ROLE_FARMER -> ROLE_GARDEN_STAFF
+            Role farmerRole = roleRepository.findByName(ERole.ROLE_FARMER).orElse(null);
+            Role staffRole = roleRepository.findByName(ERole.ROLE_GARDEN_STAFF).orElse(null);
+            if (farmerRole != null && staffRole != null) {
+                userRepository.findAllWithRoles().forEach(user -> {
+                    if (user.getRoles().contains(farmerRole)) {
+                        user.getRoles().remove(farmerRole);
+                        user.getRoles().add(staffRole);
+                        userRepository.save(user);
+                        System.out.println("[DataInitializer] Migrated legacy ROLE_FARMER to ROLE_GARDEN_STAFF for user: " + user.getUsername());
+                    }
+                });
+            }
+
             // 2. Tạo tài khoản mặc định cho từng role nếu chưa tồn tại
             createDefaultUser(userRepository, roleRepository, passwordEncoder,
                     "admin", "admin@greenslot.vn", "Admin@123", "Quản trị viên", "0900000001", ERole.ROLE_ADMIN);
