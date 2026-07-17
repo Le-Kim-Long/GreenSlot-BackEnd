@@ -268,4 +268,11 @@ public class BusinessManagerController {
             return ResponseEntity.badRequest().body(new MessageResponseDTO(e.getMessage()));
         }
     }
+
+    @GetMapping("/staffs")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER')")
+    @Operation(summary = "Get list of garden staffs isolated by location")
+    public ResponseEntity<List<UserAdminDTO>> getGardenStaffsByLocation(@RequestParam Long locationId) {
+        return ResponseEntity.ok(businessManagementService.getGardenStaffsByLocation(locationId));
+    }
 }

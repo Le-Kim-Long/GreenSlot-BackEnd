@@ -91,14 +91,14 @@ public class AdminServiceImpl implements AdminService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<AuditLogDTO> getAuditLogs(LocalDateTime start, LocalDateTime end) {
-        List<AuditLog> logs;
+    public Page<AuditLogDTO> getAuditLogs(LocalDateTime start, LocalDateTime end, Pageable pageable) {
+        Page<AuditLog> logs;
         if (start != null && end != null) {
-            logs = auditLogRepository.findByPerformedAtBetweenOrderByPerformedAtDesc(start, end);
+            logs = auditLogRepository.findByPerformedAtBetweenOrderByPerformedAtDesc(start, end, pageable);
         } else {
-            logs = auditLogRepository.findAllByOrderByPerformedAtDesc();
+            logs = auditLogRepository.findAllByOrderByPerformedAtDesc(pageable);
         }
-        return logs.stream().map(this::convertToAuditLogDTO).collect(Collectors.toList());
+        return logs.map(this::convertToAuditLogDTO);
     }
 
     @Override

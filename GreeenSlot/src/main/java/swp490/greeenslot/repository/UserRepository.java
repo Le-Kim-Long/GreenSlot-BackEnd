@@ -17,4 +17,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
 
     Optional<User> findByResetToken(String resetToken);
+
+    @org.springframework.data.jpa.repository.Query("SELECT u FROM User u JOIN u.roles r WHERE r.name = :roleName AND u.location.id = :locationId")
+    java.util.List<User> findByRoleNameAndLocation(
+        @org.springframework.data.repository.query.Param("roleName") swp490.greeenslot.entity.ERole roleName,
+        @org.springframework.data.repository.query.Param("locationId") Long locationId
+    );
+
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.roles")
+    java.util.List<User> findAllWithRoles();
 }

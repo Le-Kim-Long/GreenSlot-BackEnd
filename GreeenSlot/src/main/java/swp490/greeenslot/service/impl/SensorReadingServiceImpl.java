@@ -156,6 +156,23 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                                         "IOT_ALERT"
                                 );
                             }
+
+                            // Automatically spawn emergency MAINTENANCE GardeningTask if not already present
+                            String emergencyTaskName = "Emergency: IoT Sensor Warning - " + sensorType.getDescription();
+                            boolean taskExists = gardeningTaskRepository.existsByTargetSlotIdAndTaskNameAndStatus(
+                                    slot.getId(), emergencyTaskName, swp490.greeenslot.entity.ETaskStatus.PENDING);
+                            
+                            if (!taskExists) {
+                                swp490.greeenslot.entity.GardeningTask emergencyTask = new swp490.greeenslot.entity.GardeningTask();
+                                emergencyTask.setTaskName(emergencyTaskName);
+                                emergencyTask.setDescription(String.format("Emergency check requested for Slot %s. Sensor %s reported value %f %s (Threshold: %f - %f).", 
+                                        slot.getSlotNumber(), sensorType.getDescription(), value, unit, threshold.getMinValue(), threshold.getMaxValue()));
+                                emergencyTask.setStatus(swp490.greeenslot.entity.ETaskStatus.PENDING);
+                                emergencyTask.setTaskType(swp490.greeenslot.entity.ETaskType.MAINTENANCE);
+                                emergencyTask.setTargetSlot(slot);
+                                emergencyTask.setCreatedAt(LocalDateTime.now());
+                                gardeningTaskRepository.save(emergencyTask);
+                            }
                         }
                     }
                 }

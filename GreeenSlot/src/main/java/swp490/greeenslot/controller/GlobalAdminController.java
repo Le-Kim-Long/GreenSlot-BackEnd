@@ -54,10 +54,13 @@ public class GlobalAdminController {
 
     @GetMapping("/audit-logs")
     @Operation(summary = "Retrieve system audit logs", description = "Filter and fetch system access, security, and database modification logs.")
-    public ResponseEntity<List<AuditLogDTO>> getAuditLogs(
+    public ResponseEntity<Page<AuditLogDTO>> getAuditLogs(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
-        return ResponseEntity.ok(adminService.getAuditLogs(startDate, endDate));
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        return ResponseEntity.ok(adminService.getAuditLogs(startDate, endDate, pageable));
     }
 
     @PostMapping("/global-content")
