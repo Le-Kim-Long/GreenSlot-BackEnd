@@ -1,7 +1,12 @@
 package swp490.greeenslot.dto;
 
+import jakarta.validation.constraints.NotBlank;
+
 public class LoginRequestDTO {
+    @NotBlank(message = "Username cannot be empty or whitespace")
     private String username;
+
+    @NotBlank(message = "Password cannot be empty or whitespace")
     private String password;
 
     public String getUsername() {

@@ -6,4 +6,5 @@ import swp490.greeenslot.entity.ServiceType;
 
 @Repository
 public interface ServiceTypeRepository extends JpaRepository<ServiceType, Long> {
+    boolean existsByCategoryId(Long categoryId);
 }

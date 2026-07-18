@@ -47,4 +47,6 @@ public interface BusinessManagementService {
     void deleteSlot(Long id);
     void deleteCategory(Long id);
     void deleteServiceType(Long id);
+
+    java.util.List<swp490.greeenslot.dto.UserAdminDTO> getGardenStaffsByLocation(Long locationId);
 }

@@ -39,6 +39,12 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Autowired
     private PaymentTransactionRepository paymentTransactionRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private GardeningTaskRepository gardeningTaskRepository;
+
     // ==========================================
     // Location CRUD
     // ==========================================
@@ -291,6 +297,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
 
         ServiceType serviceType = new ServiceType();
         serviceType.setServiceName(dto.getServiceName());
+        serviceType.setDescription(dto.getDescription());
         serviceType.setPrice(dto.getPrice());
         serviceType.setCategory(category);
 
@@ -308,6 +315,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
                 .orElseThrow(() -> new IllegalArgumentException("Service category not found with ID " + dto.getCategoryId()));
 
         serviceType.setServiceName(dto.getServiceName());
+        serviceType.setDescription(dto.getDescription());
         serviceType.setPrice(dto.getPrice());
         serviceType.setCategory(category);
 
@@ -332,7 +340,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     }
 
     private ServiceTypeDTO mapToServiceTypeDTO(ServiceType s) {
-        return new ServiceTypeDTO(s.getId(), s.getServiceName(), s.getPrice(), s.getCategory().getId());
+        return new ServiceTypeDTO(s.getId(), s.getServiceName(), s.getDescription(), s.getPrice(), s.getCategory().getId());
     }
 
     // ==========================================
@@ -453,6 +461,12 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     public void deleteCategory(Long id) {
         ServiceCategory category = serviceCategoryRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Service category not found with ID: " + id));
+
+        boolean hasServiceTypes = serviceTypeRepository.existsByCategoryId(id);
+        if (hasServiceTypes) {
+            throw new IllegalArgumentException("Cannot delete Service Category with ID " + id + " because it contains associated Service Type records.");
+        }
+
         serviceCategoryRepository.delete(category);
     }
 
@@ -461,6 +475,29 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     public void deleteServiceType(Long id) {
         ServiceType type = serviceTypeRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Service type not found with ID: " + id));
+
+        boolean hasTasks = gardeningTaskRepository.existsByTaskName(type.getServiceName());
+        if (hasTasks) {
+            throw new IllegalArgumentException("Cannot delete Service Type with ID " + id + " because it contains associated Gardening Task records.");
+        }
+
         serviceTypeRepository.delete(type);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserAdminDTO> getGardenStaffsByLocation(Long locationId) {
+        return userRepository.findByRoleNameAndLocation(ERole.ROLE_GARDEN_STAFF, locationId).stream()
+                .map(user -> new UserAdminDTO(
+                        user.getId(),
+                        user.getUsername(),
+                        user.getEmail(),
+                        user.getFullName(),
+                        user.getPhone(),
+                        user.getAddress(),
+                        user.getEnabled() != null ? user.getEnabled() : true,
+                        user.getRoles().stream().map(r -> r.getName().name()).collect(Collectors.toList())
+                ))
+                .collect(Collectors.toList());
     }
 }

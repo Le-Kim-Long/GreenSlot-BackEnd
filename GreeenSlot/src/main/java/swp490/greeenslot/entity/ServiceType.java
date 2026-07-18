@@ -28,6 +28,10 @@ public class ServiceType {
     @Column(precision = 12, scale = 2)
     private BigDecimal price;
 
+    @Nationalized
+    @Column(name = "description", length = 4000)
+    private String description;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     private ServiceCategory category;

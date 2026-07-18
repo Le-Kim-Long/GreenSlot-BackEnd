@@ -13,4 +13,8 @@ public interface GardeningTaskRepository extends JpaRepository<GardeningTask, Lo
 
     @org.springframework.data.jpa.repository.Query("SELECT t FROM GardeningTask t WHERE t.targetSlot.id = :slotId AND t.status = swp490.greeenslot.entity.ETaskStatus.PENDING")
     java.util.List<GardeningTask> findPendingTasksBySlotId(@org.springframework.data.repository.query.Param("slotId") Long slotId);
+
+    boolean existsByTaskName(String taskName);
+
+    boolean existsByTargetSlotIdAndTaskNameAndStatus(Long slotId, String taskName, swp490.greeenslot.entity.ETaskStatus status);
 }

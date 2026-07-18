@@ -43,6 +43,10 @@ public class User {
                inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> roles = new HashSet<>();
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id")
+    private Location location;
+
     public User() {
     }
 
@@ -148,5 +152,13 @@ public class User {
     public void clearResetToken() {
         this.resetToken = null;
         this.resetTokenExpiry = null;
+    }
+
+    public Location getLocation() {
+        return location;
+    }
+
+    public void setLocation(Location location) {
+        this.location = location;
     }
 }
