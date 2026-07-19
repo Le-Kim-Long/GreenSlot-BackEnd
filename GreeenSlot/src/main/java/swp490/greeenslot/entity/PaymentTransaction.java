@@ -31,6 +31,13 @@ public class PaymentTransaction {
     @Column(name = "vnp_txn_ref")
     private String vnpTxnRef;
 
+    @Column(name = "transaction_code")
+    private String transactionCode;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private EPaymentMethod paymentMethod;
+
     @Column(name = "payment_date")
     private LocalDateTime paymentDate;
 

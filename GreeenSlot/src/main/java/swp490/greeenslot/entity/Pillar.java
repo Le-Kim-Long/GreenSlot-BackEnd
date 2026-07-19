@@ -31,4 +31,8 @@ public class Pillar {
 
     @Column(name = "camera_stream_url")
     private String cameraStreamUrl;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "default_tree_id")
+    private Tree defaultTree;
 }

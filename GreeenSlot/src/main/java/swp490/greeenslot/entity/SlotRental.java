@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Nationalized;
 
 import java.time.LocalDateTime;
 
@@ -37,4 +38,16 @@ public class SlotRental {
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private ERentalStatus status;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tree_id")
+    private Tree tree;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private ETreeStatus treeStatus;
+
+    @Nationalized
+    @Column(name = "tree_notes", length = 4000)
+    private String treeNotes;
 }
