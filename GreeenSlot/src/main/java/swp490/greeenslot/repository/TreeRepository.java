@@ -15,4 +15,6 @@ public interface TreeRepository extends JpaRepository<Tree, Long> {
     Optional<Tree> findByIdAndIsActiveTrue(Long id);
     
     List<Tree> findByTreeNameContainingIgnoreCase(String name);
+    
+    Optional<Tree> findByTreeName(String treeName);
 }
