@@ -275,4 +275,38 @@ public class BusinessManagerController {
     public ResponseEntity<List<UserAdminDTO>> getGardenStaffsByLocation(@RequestParam Long locationId) {
         return ResponseEntity.ok(businessManagementService.getGardenStaffsByLocation(locationId));
     }
+
+    // ==========================================
+    // Revenue by Location
+    // ==========================================
+
+    @GetMapping("/analytics/revenue-by-location")
+    @PreAuthorize("hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Get revenue breakdown by location")
+    public ResponseEntity<List<RevenueByLocationDTO>> getRevenueByLocation(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        LocalDateTime startDateTime = startDate.atStartOfDay();
+        LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
+
+        return ResponseEntity.ok(businessManagementService.getRevenueByLocation(startDateTime, endDateTime));
+    }
+
+    // ==========================================
+    // Transaction Declarations
+    // ==========================================
+
+    @GetMapping("/transactions/declarations")
+    @PreAuthorize("hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Get transaction declarations for tax reporting")
+    public ResponseEntity<List<TransactionDeclarationDTO>> getTransactionDeclarations(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        LocalDateTime startDateTime = startDate.atStartOfDay();
+        LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
+
+        return ResponseEntity.ok(businessManagementService.getTransactionDeclarations(startDateTime, endDateTime));
+    }
 }

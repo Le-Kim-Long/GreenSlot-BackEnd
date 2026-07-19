@@ -40,6 +40,8 @@ public interface BusinessManagementService {
 
     // Financial Analytics
     RevenueAnalyticsResponseDTO getRevenueAnalytics(LocalDateTime start, LocalDateTime end);
+    List<RevenueByLocationDTO> getRevenueByLocation(LocalDateTime start, LocalDateTime end);
+    List<TransactionDeclarationDTO> getTransactionDeclarations(LocalDateTime start, LocalDateTime end);
 
     // Delete Infrastructure
     void deleteLocation(Long id);

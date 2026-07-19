@@ -405,6 +405,66 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         return new RevenueAnalyticsResponseDTO(totalRevenue, dailyBreakdown, txDtos);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<RevenueByLocationDTO> getRevenueByLocation(LocalDateTime start, LocalDateTime end) {
+        List<PaymentTransaction> transactions = paymentTransactionRepository.findSuccessfulTransactionsBetween(start, end);
+        
+        return transactions.stream()
+                .filter(t -> t.getRental() != null 
+                        && t.getRental().getGardenSlot() != null 
+                        && t.getRental().getGardenSlot().getPillar() != null 
+                        && t.getRental().getGardenSlot().getPillar().getLocation() != null)
+                .collect(Collectors.groupingBy(
+                        t -> t.getRental().getGardenSlot().getPillar().getLocation(),
+                        Collectors.reducing(BigDecimal.ZERO, PaymentTransaction::getAmount, BigDecimal::add)
+                ))
+                .entrySet().stream()
+                .map(entry -> new RevenueByLocationDTO(
+                        entry.getKey().getId(),
+                        entry.getKey().getName(),
+                        entry.getValue(),
+                        transactions.stream()
+                                .filter(t -> t.getRental() != null 
+                                        && t.getRental().getGardenSlot() != null 
+                                        && t.getRental().getGardenSlot().getPillar() != null 
+                                        && t.getRental().getGardenSlot().getPillar().getLocation() != null
+                                        && t.getRental().getGardenSlot().getPillar().getLocation().equals(entry.getKey()))
+                                .count()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TransactionDeclarationDTO> getTransactionDeclarations(LocalDateTime start, LocalDateTime end) {
+        List<PaymentTransaction> transactions = paymentTransactionRepository.findSuccessfulTransactionsBetween(start, end);
+        
+        return transactions.stream()
+                .filter(t -> t.getRental() != null 
+                        && t.getRental().getGardenSlot() != null 
+                        && t.getRental().getGardenSlot().getPillar() != null 
+                        && t.getRental().getGardenSlot().getPillar().getLocation() != null
+                        && t.getRental().getUser() != null)
+                .map(t -> new TransactionDeclarationDTO(
+                        t.getId(),
+                        t.getRental().getId(),
+                        t.getRental().getGardenSlot().getSlotNumber(),
+                        t.getRental().getUser().getUsername(),
+                        t.getRental().getUser().getFullName(),
+                        t.getAmount(),
+                        t.getTransactionCode(),
+                        t.getPaymentMethod() != null ? t.getPaymentMethod().name() : null,
+                        t.getPaymentDate(),
+                        t.getStatus() != null ? t.getStatus().name() : null,
+                        t.getRental().getGardenSlot().getPillar().getLocation().getName(),
+                        t.getRental().getGardenSlot().getPillar().getPillarCode(),
+                        "Khach hang thue slot " + t.getRental().getGardenSlot().getSlotNumber() + 
+                        " tai " + t.getRental().getGardenSlot().getPillar().getLocation().getName()
+                ))
+                .collect(Collectors.toList());
+    }
+
     // ==========================================
     // Delete Infrastructure
     // ==========================================
