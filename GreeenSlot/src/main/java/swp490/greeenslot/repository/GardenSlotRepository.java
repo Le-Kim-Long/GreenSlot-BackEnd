@@ -24,4 +24,6 @@ public interface GardenSlotRepository extends JpaRepository<GardenSlot, Long> {
     boolean existsByPillarId(Long pillarId);
 
     List<GardenSlot> findByPillarId(Long pillarId);
+    
+    Optional<GardenSlot> findBySlotNumber(String slotNumber);
 }
