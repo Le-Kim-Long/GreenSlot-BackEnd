@@ -24,7 +24,7 @@ public class FirebaseConfig {
         FirebaseOptions options = FirebaseOptions.builder()
                 .setCredentials(
                         GoogleCredentials.fromStream(serviceAccount))
-                .setStorageBucket("greenslot.appspot.com")
+                .setStorageBucket("greenslot-46382.firebasestorage.app")
                 .build();
 
         if (FirebaseApp.getApps().isEmpty()) {
