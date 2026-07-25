@@ -32,4 +32,7 @@ public class Location {
     private String status;
 
     private Double area;
+    
+    @Column(name = "image_url")
+    private String imageUrl;
 }

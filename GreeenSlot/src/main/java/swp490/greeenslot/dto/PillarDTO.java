@@ -23,4 +23,6 @@ public class PillarDTO {
     @NotNull(message = "Location ID is required")
     @Positive(message = "Location ID must be positive")
     private Long locationId;
+
+    private String imageUrl;
 }

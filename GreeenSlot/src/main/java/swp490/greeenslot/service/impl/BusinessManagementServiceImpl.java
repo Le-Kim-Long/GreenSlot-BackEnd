@@ -58,6 +58,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         location.setContactPhone(dto.getContactPhone());
         location.setStatus(dto.getStatus() != null ? dto.getStatus() : "ACTIVE");
         location.setArea(dto.getArea());
+        location.setImageUrl(dto.getImageUrl());
         Location saved = locationRepository.save(location);
         return mapToLocationDTO(saved);
     }
@@ -74,6 +75,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             location.setStatus(dto.getStatus());
         }
         location.setArea(dto.getArea());
+        location.setImageUrl(dto.getImageUrl());
         Location saved = locationRepository.save(location);
         return mapToLocationDTO(saved);
     }
@@ -95,7 +97,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     }
 
     private LocationDTO mapToLocationDTO(Location l) {
-        return new LocationDTO(l.getId(), l.getName(), l.getAddress(), l.getContactPhone(), l.getStatus(), l.getArea());
+        return new LocationDTO(l.getId(), l.getName(), l.getAddress(), l.getContactPhone(), l.getStatus(), l.getArea(), l.getImageUrl());
     }
 
     // ==========================================
@@ -119,6 +121,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         }
         pillar.setStatus(status);
         pillar.setLocation(location);
+        pillar.setImageUrl(dto.getImageUrl());
 
         Pillar saved = pillarRepository.save(pillar);
         return mapToPillarDTO(saved);
@@ -142,6 +145,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             }
         }
         pillar.setLocation(location);
+        pillar.setImageUrl(dto.getImageUrl());
 
         Pillar saved = pillarRepository.save(pillar);
         return mapToPillarDTO(saved);
@@ -164,7 +168,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     }
 
     private PillarDTO mapToPillarDTO(Pillar p) {
-        return new PillarDTO(p.getId(), p.getPillarCode(), p.getStatus().name(), p.getLocation().getId());
+        return new PillarDTO(p.getId(), p.getPillarCode(), p.getStatus().name(), p.getLocation().getId(), p.getImageUrl());
     }
 
     // ==========================================

@@ -16,6 +16,7 @@ import swp490.greeenslot.entity.ImageFile;
 import swp490.greeenslot.entity.ImageStatus;
 import swp490.greeenslot.entity.User;
 import swp490.greeenslot.repository.ImageFileRepository;
+import swp490.greeenslot.repository.UserRepository;
 import swp490.greeenslot.service.FirebaseStorageService;
 
 import java.io.IOException;
@@ -32,6 +33,7 @@ public class ImageController {
 
     private final FirebaseStorageService firebaseStorageService;
     private final ImageFileRepository imageFileRepository;
+    private final UserRepository userRepository;
 
     @PostMapping("/upload")
     @PreAuthorize("isAuthenticated()")
@@ -144,6 +146,10 @@ public class ImageController {
                     .build();
             
             imageFile = imageFileRepository.save(imageFile);
+            
+            // Update current user's imageUrl
+            currentUser.setImageUrl(publicUrl);
+            userRepository.save(currentUser);
             
             ImageUploadResponseDTO response = ImageUploadResponseDTO.builder()
                     .id(imageFile.getId())

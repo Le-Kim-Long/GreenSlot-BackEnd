@@ -28,6 +28,9 @@ public class User {
     @Nationalized
     private String address;
 
+    @Column(name = "image_url")
+    private String imageUrl;
+
     @Column(name = "reset_token")
     private String resetToken;
 
@@ -160,5 +163,13 @@ public class User {
 
     public void setLocation(Location location) {
         this.location = location;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 }
