@@ -7,7 +7,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import swp490.greeenslot.dto.MessageResponseDTO;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import java.io.IOException;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
@@ -31,6 +33,16 @@ public class GlobalExceptionHandler {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new MessageResponseDTO(message));
         }
         return ResponseEntity.badRequest().body(new MessageResponseDTO(message));
+    }
+
+    @ExceptionHandler(IOException.class)
+    public ResponseEntity<MessageResponseDTO> handleIOException(IOException ex) {
+        return ResponseEntity.badRequest().body(new MessageResponseDTO(ex.getMessage()));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<MessageResponseDTO> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
+        return ResponseEntity.badRequest().body(new MessageResponseDTO("File size exceeds limit"));
     }
 
     @ExceptionHandler(RuntimeException.class)

@@ -40,6 +40,9 @@ public class ImageFile {
     @Column(nullable = false)
     private ImageStatus status;
 
+    @Column(name = "upload_type")
+    private String uploadType;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "uploaded_by")
     private User uploadedBy;

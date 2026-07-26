@@ -41,47 +41,40 @@ public class ImageController {
     @Operation(summary = "Upload image", description = "Upload an image to Firebase Storage")
     public ResponseEntity<ImageUploadResponseDTO> uploadImage(
             @RequestPart("file") MultipartFile file,
-            Authentication authentication) {
-        try {
-            UserDetailsImpl userDetails =
-                    (UserDetailsImpl) authentication.getPrincipal();
+            Authentication authentication) throws IOException {
+        UserDetailsImpl userDetails =
+                (UserDetailsImpl) authentication.getPrincipal();
 
-            User currentUser = userRepository.findById(userDetails.getId())
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+        User currentUser = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-            String publicUrl = firebaseStorageService.uploadImage(file);
-            
-            ImageFile imageFile = ImageFile.builder()
-                    .fileName(file.getOriginalFilename())
-                    .storagePath(extractStoragePath(publicUrl))
-                    .publicUrl(publicUrl)
-                    .contentType(file.getContentType())
-                    .fileSize(file.getSize())
-                    .uploadedAt(LocalDateTime.now())
-                    .status(ImageStatus.ACTIVE)
-                    .uploadedBy(currentUser)
-                    .build();
-            
-            imageFile = imageFileRepository.save(imageFile);
-            
-            ImageUploadResponseDTO response = ImageUploadResponseDTO.builder()
-                    .id(imageFile.getId())
-                    .fileName(imageFile.getFileName())
-                    .publicUrl(imageFile.getPublicUrl())
-                    .contentType(imageFile.getContentType())
-                    .fileSize(imageFile.getFileSize())
-                    .message("Image uploaded successfully")
-                    .uploadType("IMAGE")
-                    .build();
-            
-            return ResponseEntity.ok(response);
-        } catch (IOException e) {
-            return ResponseEntity.badRequest().body(
-                    ImageUploadResponseDTO.builder()
-                            .message("Failed to upload image: " + e.getMessage())
-                            .build()
-            );
-        }
+        String publicUrl = firebaseStorageService.uploadImage(file);
+
+        ImageFile imageFile = ImageFile.builder()
+                .fileName(file.getOriginalFilename())
+                .storagePath(extractStoragePath(publicUrl))
+                .publicUrl(publicUrl)
+                .contentType(file.getContentType())
+                .fileSize(file.getSize())
+                .uploadedAt(LocalDateTime.now())
+                .status(ImageStatus.ACTIVE)
+                .uploadType("IMAGE")
+                .uploadedBy(currentUser)
+                .build();
+
+        imageFile = imageFileRepository.save(imageFile);
+
+        ImageUploadResponseDTO response = ImageUploadResponseDTO.builder()
+                .id(imageFile.getId())
+                .fileName(imageFile.getFileName())
+                .publicUrl(imageFile.getPublicUrl())
+                .contentType(imageFile.getContentType())
+                .fileSize(imageFile.getFileSize())
+                .message("Image uploaded successfully")
+                .uploadType("IMAGE")
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping(value = "/upload/evidence", consumes = "multipart/form-data")
@@ -89,47 +82,40 @@ public class ImageController {
     @Operation(summary = "Upload evidence image", description = "Upload evidence image for task completion")
     public ResponseEntity<ImageUploadResponseDTO> uploadEvidence(
             @RequestPart("file") MultipartFile file,
-            Authentication authentication) {
-        try {
-            UserDetailsImpl userDetails =
-                    (UserDetailsImpl) authentication.getPrincipal();
+            Authentication authentication) throws IOException {
+        UserDetailsImpl userDetails =
+                (UserDetailsImpl) authentication.getPrincipal();
 
-            User currentUser = userRepository.findById(userDetails.getId())
-                    .orElseThrow(() -> new RuntimeException("User not found"));
-            
-            String publicUrl = firebaseStorageService.uploadEvidence(file);
-            
-            ImageFile imageFile = ImageFile.builder()
-                    .fileName(file.getOriginalFilename())
-                    .storagePath(extractStoragePath(publicUrl))
-                    .publicUrl(publicUrl)
-                    .contentType(file.getContentType())
-                    .fileSize(file.getSize())
-                    .uploadedAt(LocalDateTime.now())
-                    .status(ImageStatus.ACTIVE)
-                    .uploadedBy(currentUser)
-                    .build();
-            
-            imageFile = imageFileRepository.save(imageFile);
-            
-            ImageUploadResponseDTO response = ImageUploadResponseDTO.builder()
-                    .id(imageFile.getId())
-                    .fileName(imageFile.getFileName())
-                    .publicUrl(imageFile.getPublicUrl())
-                    .contentType(imageFile.getContentType())
-                    .fileSize(imageFile.getFileSize())
-                    .message("Evidence uploaded successfully")
-                    .uploadType("EVIDENCE")
-                    .build();
-            
-            return ResponseEntity.ok(response);
-        } catch (IOException e) {
-            return ResponseEntity.badRequest().body(
-                    ImageUploadResponseDTO.builder()
-                            .message("Failed to upload evidence: " + e.getMessage())
-                            .build()
-            );
-        }
+        User currentUser = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String publicUrl = firebaseStorageService.uploadEvidence(file);
+
+        ImageFile imageFile = ImageFile.builder()
+                .fileName(file.getOriginalFilename())
+                .storagePath(extractStoragePath(publicUrl))
+                .publicUrl(publicUrl)
+                .contentType(file.getContentType())
+                .fileSize(file.getSize())
+                .uploadedAt(LocalDateTime.now())
+                .status(ImageStatus.ACTIVE)
+                .uploadType("EVIDENCE")
+                .uploadedBy(currentUser)
+                .build();
+
+        imageFile = imageFileRepository.save(imageFile);
+
+        ImageUploadResponseDTO response = ImageUploadResponseDTO.builder()
+                .id(imageFile.getId())
+                .fileName(imageFile.getFileName())
+                .publicUrl(imageFile.getPublicUrl())
+                .contentType(imageFile.getContentType())
+                .fileSize(imageFile.getFileSize())
+                .message("Evidence uploaded successfully")
+                .uploadType("EVIDENCE")
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping(value = "/upload/avatar",consumes = "multipart/form-data")
@@ -137,51 +123,44 @@ public class ImageController {
     @Operation(summary = "Upload avatar", description = "Upload user avatar image")
     public ResponseEntity<ImageUploadResponseDTO> uploadAvatar(
             @RequestPart("file") MultipartFile file,
-            Authentication authentication) {
-        try {
-            UserDetailsImpl userDetails =
-                    (UserDetailsImpl) authentication.getPrincipal();
+            Authentication authentication) throws IOException {
+        UserDetailsImpl userDetails =
+                (UserDetailsImpl) authentication.getPrincipal();
 
-            User currentUser = userRepository.findById(userDetails.getId())
-                    .orElseThrow(() -> new RuntimeException("User not found"));
-            
-            String publicUrl = firebaseStorageService.uploadAvatar(file);
-            
-            ImageFile imageFile = ImageFile.builder()
-                    .fileName(file.getOriginalFilename())
-                    .storagePath(extractStoragePath(publicUrl))
-                    .publicUrl(publicUrl)
-                    .contentType(file.getContentType())
-                    .fileSize(file.getSize())
-                    .uploadedAt(LocalDateTime.now())
-                    .status(ImageStatus.ACTIVE)
-                    .uploadedBy(currentUser)
-                    .build();
-            
-            imageFile = imageFileRepository.save(imageFile);
-            
-            // Update current user's imageUrl
-            currentUser.setImageUrl(publicUrl);
-            userRepository.save(currentUser);
-            
-            ImageUploadResponseDTO response = ImageUploadResponseDTO.builder()
-                    .id(imageFile.getId())
-                    .fileName(imageFile.getFileName())
-                    .publicUrl(imageFile.getPublicUrl())
-                    .contentType(imageFile.getContentType())
-                    .fileSize(imageFile.getFileSize())
-                    .message("Avatar uploaded successfully")
-                    .uploadType("AVATAR")
-                    .build();
-            
-            return ResponseEntity.ok(response);
-        } catch (IOException e) {
-            return ResponseEntity.badRequest().body(
-                    ImageUploadResponseDTO.builder()
-                            .message("Failed to upload avatar: " + e.getMessage())
-                            .build()
-            );
-        }
+        User currentUser = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String publicUrl = firebaseStorageService.uploadAvatar(file);
+
+        ImageFile imageFile = ImageFile.builder()
+                .fileName(file.getOriginalFilename())
+                .storagePath(extractStoragePath(publicUrl))
+                .publicUrl(publicUrl)
+                .contentType(file.getContentType())
+                .fileSize(file.getSize())
+                .uploadedAt(LocalDateTime.now())
+                .status(ImageStatus.ACTIVE)
+                .uploadType("AVATAR")
+                .uploadedBy(currentUser)
+                .build();
+
+        imageFile = imageFileRepository.save(imageFile);
+
+        // Update current user's imageUrl
+        currentUser.setImageUrl(publicUrl);
+        userRepository.save(currentUser);
+
+        ImageUploadResponseDTO response = ImageUploadResponseDTO.builder()
+                .id(imageFile.getId())
+                .fileName(imageFile.getFileName())
+                .publicUrl(imageFile.getPublicUrl())
+                .contentType(imageFile.getContentType())
+                .fileSize(imageFile.getFileSize())
+                .message("Avatar uploaded successfully")
+                .uploadType("AVATAR")
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping(value = "/upload/video", consumes = "multipart/form-data")
@@ -189,47 +168,40 @@ public class ImageController {
     @Operation(summary = "Upload video", description = "Upload video file to Firebase Storage")
     public ResponseEntity<ImageUploadResponseDTO> uploadVideo(
             @RequestPart("file") MultipartFile file,
-            Authentication authentication) {
-        try {
-            UserDetailsImpl userDetails =
-                    (UserDetailsImpl) authentication.getPrincipal();
+            Authentication authentication) throws IOException {
+        UserDetailsImpl userDetails =
+                (UserDetailsImpl) authentication.getPrincipal();
 
-            User currentUser = userRepository.findById(userDetails.getId())
-                    .orElseThrow(() -> new RuntimeException("User not found"));
-            
-            String publicUrl = firebaseStorageService.uploadVideo(file);
-            
-            ImageFile imageFile = ImageFile.builder()
-                    .fileName(file.getOriginalFilename())
-                    .storagePath(extractStoragePath(publicUrl))
-                    .publicUrl(publicUrl)
-                    .contentType(file.getContentType())
-                    .fileSize(file.getSize())
-                    .uploadedAt(LocalDateTime.now())
-                    .status(ImageStatus.ACTIVE)
-                    .uploadedBy(currentUser)
-                    .build();
-            
-            imageFile = imageFileRepository.save(imageFile);
-            
-            ImageUploadResponseDTO response = ImageUploadResponseDTO.builder()
-                    .id(imageFile.getId())
-                    .fileName(imageFile.getFileName())
-                    .publicUrl(imageFile.getPublicUrl())
-                    .contentType(imageFile.getContentType())
-                    .fileSize(imageFile.getFileSize())
-                    .message("Video uploaded successfully")
-                    .uploadType("VIDEO")
-                    .build();
-            
-            return ResponseEntity.ok(response);
-        } catch (IOException e) {
-            return ResponseEntity.badRequest().body(
-                    ImageUploadResponseDTO.builder()
-                            .message("Failed to upload video: " + e.getMessage())
-                            .build()
-            );
-        }
+        User currentUser = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String publicUrl = firebaseStorageService.uploadVideo(file);
+
+        ImageFile imageFile = ImageFile.builder()
+                .fileName(file.getOriginalFilename())
+                .storagePath(extractStoragePath(publicUrl))
+                .publicUrl(publicUrl)
+                .contentType(file.getContentType())
+                .fileSize(file.getSize())
+                .uploadedAt(LocalDateTime.now())
+                .status(ImageStatus.ACTIVE)
+                .uploadType("VIDEO")
+                .uploadedBy(currentUser)
+                .build();
+
+        imageFile = imageFileRepository.save(imageFile);
+
+        ImageUploadResponseDTO response = ImageUploadResponseDTO.builder()
+                .id(imageFile.getId())
+                .fileName(imageFile.getFileName())
+                .publicUrl(imageFile.getPublicUrl())
+                .contentType(imageFile.getContentType())
+                .fileSize(imageFile.getFileSize())
+                .message("Video uploaded successfully")
+                .uploadType("VIDEO")
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
@@ -257,6 +229,16 @@ public class ImageController {
     @Operation(summary = "Get active images", description = "Get all active images")
     public ResponseEntity<List<ImageFileDTO>> getActiveImages() {
         List<ImageFileDTO> images = imageFileRepository.findByStatus(ImageStatus.ACTIVE).stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(images);
+    }
+
+    @GetMapping("/type/{uploadType}")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get images by type", description = "Get all images of a specific type (e.g., AVATAR, EVIDENCE, IMAGE, VIDEO)")
+    public ResponseEntity<List<ImageFileDTO>> getImagesByType(@PathVariable String uploadType) {
+        List<ImageFileDTO> images = imageFileRepository.findByUploadType(uploadType).stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(images);
@@ -329,6 +311,7 @@ public class ImageController {
                 .fileSize(imageFile.getFileSize())
                 .uploadedAt(imageFile.getUploadedAt())
                 .status(imageFile.getStatus().name())
+                .uploadType(imageFile.getUploadType())
                 .uploadedBy(imageFile.getUploadedBy() != null ? imageFile.getUploadedBy().getId() : null)
                 .uploadedByUsername(imageFile.getUploadedBy() != null ? imageFile.getUploadedBy().getUsername() : null)
                 .build();
