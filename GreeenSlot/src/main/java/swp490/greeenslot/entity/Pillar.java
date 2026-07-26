@@ -35,4 +35,7 @@ public class Pillar {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "default_tree_id")
     private Tree defaultTree;
+
+    @Column(name = "image_url")
+    private String imageUrl;
 }

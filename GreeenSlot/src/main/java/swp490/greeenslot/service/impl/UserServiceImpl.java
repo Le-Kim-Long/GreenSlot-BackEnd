@@ -38,6 +38,9 @@ public class UserServiceImpl implements UserService {
         if (dto.getAddress() != null) {
             user.setAddress(dto.getAddress());
         }
+        if (dto.getImageUrl() != null) {
+            user.setImageUrl(dto.getImageUrl());
+        }
 
         return userRepository.save(user);
     }

@@ -20,6 +20,7 @@ public class ImageFileDTO {
     private Long fileSize;
     private LocalDateTime uploadedAt;
     private String status;
+    private String uploadType;
     private Long uploadedBy;
     private String uploadedByUsername;
 }

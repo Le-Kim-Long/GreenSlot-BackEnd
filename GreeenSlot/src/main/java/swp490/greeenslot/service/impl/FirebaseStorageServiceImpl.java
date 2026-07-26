@@ -24,34 +24,42 @@ public class FirebaseStorageServiceImpl implements FirebaseStorageService {
             "image/jpeg", "image/png", "image/gif", "image/webp"
     };
 
+    private static final String[] ALLOWED_IMAGE_EXTENSIONS = {
+            "jpg", "jpeg", "png", "gif", "webp"
+    };
+
     private static final String[] ALLOWED_VIDEO_TYPES = {
             "video/mp4", "video/quicktime", "video/x-msvideo", "video/x-ms-wmv"
     };
 
+    private static final String[] ALLOWED_VIDEO_EXTENSIONS = {
+            "mp4", "mov", "avi", "wmv"
+    };
+
     @Override
     public String uploadImage(MultipartFile file) throws IOException {
-        validateFile(file, ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE);
+        validateFile(file, ALLOWED_IMAGE_TYPES, ALLOWED_IMAGE_EXTENSIONS, MAX_IMAGE_SIZE);
         String fileName = "images/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
         return uploadToFirebase(file, fileName);
     }
 
     @Override
     public String uploadEvidence(MultipartFile file) throws IOException {
-        validateFile(file, ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE);
+        validateFile(file, ALLOWED_IMAGE_TYPES, ALLOWED_IMAGE_EXTENSIONS, MAX_IMAGE_SIZE);
         String fileName = "evidence/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
         return uploadToFirebase(file, fileName);
     }
 
     @Override
     public String uploadAvatar(MultipartFile file) throws IOException {
-        validateFile(file, ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE);
+        validateFile(file, ALLOWED_IMAGE_TYPES, ALLOWED_IMAGE_EXTENSIONS, MAX_IMAGE_SIZE);
         String fileName = "avatars/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
         return uploadToFirebase(file, fileName);
     }
 
     @Override
     public String uploadVideo(MultipartFile file) throws IOException {
-        validateFile(file, ALLOWED_VIDEO_TYPES, MAX_VIDEO_SIZE);
+        validateFile(file, ALLOWED_VIDEO_TYPES, ALLOWED_VIDEO_EXTENSIONS, MAX_VIDEO_SIZE);
         String fileName = "videos/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
         return uploadToFirebase(file, fileName);
     }
@@ -97,7 +105,7 @@ public class FirebaseStorageServiceImpl implements FirebaseStorageService {
         }
     }
 
-    private void validateFile(MultipartFile file, String[] allowedTypes, long maxSize) throws IOException {
+    private void validateFile(MultipartFile file, String[] allowedTypes, String[] allowedExtensions, long maxSize) throws IOException {
         if (file.isEmpty()) {
             throw new IOException("File is empty");
         }
@@ -106,15 +114,36 @@ public class FirebaseStorageServiceImpl implements FirebaseStorageService {
             throw new IOException("File size exceeds maximum allowed size of " + (maxSize / 1024 / 1024) + "MB");
         }
 
+        // Validate Content Type
         String contentType = file.getContentType();
         if (contentType == null || !isAllowedType(contentType, allowedTypes)) {
             throw new IOException("File type not allowed. Allowed types: " + String.join(", ", allowedTypes));
+        }
+
+        // Validate Extension
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null || !isAllowedExtension(originalFilename, allowedExtensions)) {
+            throw new IOException("File extension not allowed. Allowed extensions: " + String.join(", ", allowedExtensions));
         }
     }
 
     private boolean isAllowedType(String contentType, String[] allowedTypes) {
         for (String allowedType : allowedTypes) {
-            if (contentType.startsWith(allowedType)) {
+            if (contentType.equalsIgnoreCase(allowedType)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isAllowedExtension(String fileName, String[] allowedExtensions) {
+        int lastDotIndex = fileName.lastIndexOf('.');
+        if (lastDotIndex == -1) {
+            return false;
+        }
+        String extension = fileName.substring(lastDotIndex + 1).toLowerCase();
+        for (String allowedExtension : allowedExtensions) {
+            if (extension.equals(allowedExtension)) {
                 return true;
             }
         }

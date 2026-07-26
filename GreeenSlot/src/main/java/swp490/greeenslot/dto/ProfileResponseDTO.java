@@ -12,6 +12,7 @@ public class ProfileResponseDTO {
     private String fullName;
     private String phone;
     private String address;
+    private String imageUrl;
 
     public ProfileResponseDTO() {}
 
@@ -22,6 +23,7 @@ public class ProfileResponseDTO {
         this.fullName = user.getFullName();
         this.phone = user.getPhone();
         this.address = user.getAddress();
+        this.imageUrl = user.getImageUrl();
     }
 
     public Long getId() {
@@ -70,5 +72,13 @@ public class ProfileResponseDTO {
 
     public void setAddress(String address) {
         this.address = address;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 }

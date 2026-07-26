@@ -28,4 +28,6 @@ public class LocationDTO {
     @NotNull(message = "Area is required")
     @Positive(message = "Area must be positive")
     private Double area;
+
+    private String imageUrl;
 }

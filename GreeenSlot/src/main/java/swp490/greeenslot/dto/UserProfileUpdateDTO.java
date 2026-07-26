@@ -10,14 +10,16 @@ public class UserProfileUpdateDTO {
     private String phone;
 
     private String address;
+    private String imageUrl;
 
     public UserProfileUpdateDTO() {
     }
 
-    public UserProfileUpdateDTO(String fullName, String phone, String address) {
+    public UserProfileUpdateDTO(String fullName, String phone, String address, String imageUrl) {
         this.fullName = fullName;
         this.phone = phone;
         this.address = address;
+        this.imageUrl = imageUrl;
     }
 
     public String getFullName() {
@@ -42,5 +44,13 @@ public class UserProfileUpdateDTO {
 
     public void setAddress(String address) {
         this.address = address;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 }
