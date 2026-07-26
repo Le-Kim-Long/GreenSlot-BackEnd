@@ -59,6 +59,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         task.setStatus(ETaskStatus.PENDING);
         task.setTaskType(ETaskType.SERVICE_REQUEST);
         task.setTargetSlot(slot);
+        task.setRequestedBy(userRepository.findByUsername(username).orElse(null));
         task.setAssignedStaff(null); // Unassigned initially
         task.setCreatedAt(now);
 

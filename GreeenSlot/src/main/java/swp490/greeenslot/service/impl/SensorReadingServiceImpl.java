@@ -84,7 +84,11 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                     item.getValue(),
                     unit,
                     recordedAt);
-            saved.add(sensorReadingRepository.save(reading));
+            SensorReading savedReading = sensorReadingRepository.save(reading);
+            saved.add(savedReading);
+            
+            // Evaluate thresholds for each reading
+            evaluateThresholds(deviceId, sensorType, item.getValue(), unit);
         }
 
         List<SensorReadingResponseDTO> responseReadings = saved.stream()
@@ -123,7 +127,24 @@ public class SensorReadingServiceImpl implements SensorReadingService {
         SensorReading savedReading = sensorReadingRepository.save(reading);
 
         // Evaluate thresholds
-        Optional<SensorThreshold> thresholdOpt = sensorThresholdRepository.findByDeviceIdAndSensorType(deviceId, sensorTypeStr);
+        evaluateThresholds(deviceId, sensorType, value, unit);
+
+        SensorReadingResponseDTO responseDTO = SensorReadingResponseDTO.fromEntity(savedReading);
+        return new ArduinoSensorDataResponseDTO(
+                "Device telemetry saved successfully.",
+                deviceId,
+                1,
+                List.of(responseDTO)
+        );
+    }
+
+    private void evaluateThresholds(String deviceId, ESensorType sensorType, Double value, String unit) {
+        Optional<SensorThreshold> thresholdOpt = sensorThresholdRepository.findByDeviceIdAndSensorType(deviceId, sensorType.name());
+        if (thresholdOpt.isEmpty()) {
+            // Try with code if name doesn't match
+            thresholdOpt = sensorThresholdRepository.findByDeviceIdAndSensorType(deviceId, sensorType.getCode());
+        }
+
         if (thresholdOpt.isPresent()) {
             SensorThreshold threshold = thresholdOpt.get();
             if (value < threshold.getMinValue() || value > threshold.getMaxValue()) {
@@ -178,14 +199,6 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                 }
             }
         }
-
-        SensorReadingResponseDTO responseDTO = SensorReadingResponseDTO.fromEntity(savedReading);
-        return new ArduinoSensorDataResponseDTO(
-                "Device telemetry saved successfully.",
-                deviceId,
-                1,
-                List.of(responseDTO)
-        );
     }
 
     @Override

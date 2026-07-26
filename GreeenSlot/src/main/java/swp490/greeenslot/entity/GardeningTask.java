@@ -48,6 +48,10 @@ public class GardeningTask {
     @JoinColumn(name = "target_slot_id")
     private GardenSlot targetSlot;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "requested_by_id")
+    private User requestedBy;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
     
