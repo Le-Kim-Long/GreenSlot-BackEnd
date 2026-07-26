@@ -18,6 +18,7 @@ import swp490.greeenslot.entity.User;
 import swp490.greeenslot.repository.ImageFileRepository;
 import swp490.greeenslot.repository.UserRepository;
 import swp490.greeenslot.service.FirebaseStorageService;
+import swp490.greeenslot.service.impl.UserDetailsImpl;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -35,15 +36,19 @@ public class ImageController {
     private final ImageFileRepository imageFileRepository;
     private final UserRepository userRepository;
 
-    @PostMapping("/upload")
+    @PostMapping(value = "/upload", consumes = "multipart/form-data")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Upload image", description = "Upload an image to Firebase Storage")
     public ResponseEntity<ImageUploadResponseDTO> uploadImage(
-            @RequestParam("file") MultipartFile file,
+            @RequestPart("file") MultipartFile file,
             Authentication authentication) {
         try {
-            User currentUser = (User) authentication.getPrincipal();
-            
+            UserDetailsImpl userDetails =
+                    (UserDetailsImpl) authentication.getPrincipal();
+
+            User currentUser = userRepository.findById(userDetails.getId())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
             String publicUrl = firebaseStorageService.uploadImage(file);
             
             ImageFile imageFile = ImageFile.builder()
@@ -79,14 +84,18 @@ public class ImageController {
         }
     }
 
-    @PostMapping("/upload/evidence")
+    @PostMapping(value = "/upload/evidence", consumes = "multipart/form-data")
     @PreAuthorize("hasAnyRole('ROLE_GARDEN_STAFF', 'ROLE_LOCATION_MANAGER', 'ROLE_MANAGER')")
     @Operation(summary = "Upload evidence image", description = "Upload evidence image for task completion")
     public ResponseEntity<ImageUploadResponseDTO> uploadEvidence(
-            @RequestParam("file") MultipartFile file,
+            @RequestPart("file") MultipartFile file,
             Authentication authentication) {
         try {
-            User currentUser = (User) authentication.getPrincipal();
+            UserDetailsImpl userDetails =
+                    (UserDetailsImpl) authentication.getPrincipal();
+
+            User currentUser = userRepository.findById(userDetails.getId())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
             
             String publicUrl = firebaseStorageService.uploadEvidence(file);
             
@@ -123,14 +132,18 @@ public class ImageController {
         }
     }
 
-    @PostMapping("/upload/avatar")
+    @PostMapping(value = "/upload/avatar",consumes = "multipart/form-data")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Upload avatar", description = "Upload user avatar image")
     public ResponseEntity<ImageUploadResponseDTO> uploadAvatar(
-            @RequestParam("file") MultipartFile file,
+            @RequestPart("file") MultipartFile file,
             Authentication authentication) {
         try {
-            User currentUser = (User) authentication.getPrincipal();
+            UserDetailsImpl userDetails =
+                    (UserDetailsImpl) authentication.getPrincipal();
+
+            User currentUser = userRepository.findById(userDetails.getId())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
             
             String publicUrl = firebaseStorageService.uploadAvatar(file);
             
@@ -171,14 +184,18 @@ public class ImageController {
         }
     }
 
-    @PostMapping("/upload/video")
+    @PostMapping(value = "/upload/video", consumes = "multipart/form-data")
     @PreAuthorize("hasAnyRole('ROLE_GARDEN_STAFF', 'ROLE_LOCATION_MANAGER', 'ROLE_MANAGER')")
     @Operation(summary = "Upload video", description = "Upload video file to Firebase Storage")
     public ResponseEntity<ImageUploadResponseDTO> uploadVideo(
-            @RequestParam("file") MultipartFile file,
+            @RequestPart("file") MultipartFile file,
             Authentication authentication) {
         try {
-            User currentUser = (User) authentication.getPrincipal();
+            UserDetailsImpl userDetails =
+                    (UserDetailsImpl) authentication.getPrincipal();
+
+            User currentUser = userRepository.findById(userDetails.getId())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
             
             String publicUrl = firebaseStorageService.uploadVideo(file);
             
@@ -249,7 +266,12 @@ public class ImageController {
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Get my uploads", description = "Get all images uploaded by current user")
     public ResponseEntity<List<ImageFileDTO>> getMyUploads(Authentication authentication) {
-        User currentUser = (User) authentication.getPrincipal();
+        UserDetailsImpl userDetails =
+                (UserDetailsImpl) authentication.getPrincipal();
+
+        User currentUser = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
         List<ImageFileDTO> images = imageFileRepository.findByUploadedByAndStatus(currentUser, ImageStatus.ACTIVE).stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
@@ -266,7 +288,12 @@ public class ImageController {
                 .map(imageFile -> {
                     try {
                         // Check if user is the uploader or has admin role
-                        User currentUser = (User) authentication.getPrincipal();
+                        UserDetailsImpl userDetails =
+                                (UserDetailsImpl) authentication.getPrincipal();
+
+                        User currentUser = userRepository.findById(userDetails.getId())
+                                .orElseThrow(() -> new RuntimeException("User not found"));
+
                         boolean isAdmin = currentUser.getRoles().stream()
                                 .anyMatch(role -> role.getName().name().equals("ROLE_ADMIN") || 
                                               role.getName().name().equals("ROLE_MANAGER"));
