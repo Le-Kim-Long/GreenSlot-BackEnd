@@ -7,6 +7,8 @@ import java.io.IOException;
 public interface FirebaseStorageService {
 
     String uploadImage(MultipartFile file) throws IOException;
+    String uploadTree(MultipartFile file) throws IOException;
+    String uploadEquipment(MultipartFile file) throws IOException;
 
     String uploadEvidence(MultipartFile file) throws IOException;
 

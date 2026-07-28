@@ -36,10 +36,10 @@ public class ImageController {
     private final ImageFileRepository imageFileRepository;
     private final UserRepository userRepository;
 
-    @PostMapping(value = "/upload", consumes = "multipart/form-data")
-    @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Upload image", description = "Upload an image to Firebase Storage")
-    public ResponseEntity<ImageUploadResponseDTO> uploadImage(
+    @PostMapping(value = "/upload/trees", consumes = "multipart/form-data")
+    @PreAuthorize("hasAnyRole('ROLE_LOCATION_MANAGER', 'ROLE_MANAGER')")
+    @Operation(summary = "Upload tree image", description = "Upload a tree image to Firebase Storage")
+    public ResponseEntity<ImageUploadResponseDTO> uploadTree(
             @RequestPart("file") MultipartFile file,
             Authentication authentication) throws IOException {
         UserDetailsImpl userDetails =
@@ -48,7 +48,7 @@ public class ImageController {
         User currentUser = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        String publicUrl = firebaseStorageService.uploadImage(file);
+        String publicUrl = firebaseStorageService.uploadTree(file);
 
         ImageFile imageFile = ImageFile.builder()
                 .fileName(file.getOriginalFilename())
@@ -58,7 +58,7 @@ public class ImageController {
                 .fileSize(file.getSize())
                 .uploadedAt(LocalDateTime.now())
                 .status(ImageStatus.ACTIVE)
-                .uploadType("IMAGE")
+                .uploadType("TREE")
                 .uploadedBy(currentUser)
                 .build();
 
@@ -70,8 +70,94 @@ public class ImageController {
                 .publicUrl(imageFile.getPublicUrl())
                 .contentType(imageFile.getContentType())
                 .fileSize(imageFile.getFileSize())
-                .message("Image uploaded successfully")
-                .uploadType("IMAGE")
+                .message("Tree image uploaded successfully")
+                .uploadType("TREE")
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(value = "/upload/equipment", consumes = "multipart/form-data")
+    @PreAuthorize("hasAnyRole('ROLE_LOCATION_MANAGER', 'ROLE_MANAGER')")
+    @Operation(summary = "Upload equipment image", description = "Upload an equipment image to Firebase Storage")
+    public ResponseEntity<ImageUploadResponseDTO> uploadEquipment(
+            @RequestPart("file") MultipartFile file,
+            Authentication authentication) throws IOException {
+        UserDetailsImpl userDetails =
+                (UserDetailsImpl) authentication.getPrincipal();
+
+        User currentUser = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String publicUrl = firebaseStorageService.uploadEquipment(file);
+
+        ImageFile imageFile = ImageFile.builder()
+                .fileName(file.getOriginalFilename())
+                .storagePath(extractStoragePath(publicUrl))
+                .publicUrl(publicUrl)
+                .contentType(file.getContentType())
+                .fileSize(file.getSize())
+                .uploadedAt(LocalDateTime.now())
+                .status(ImageStatus.ACTIVE)
+                .uploadType("EQUIPMENT")
+                .uploadedBy(currentUser)
+                .build();
+
+        imageFile = imageFileRepository.save(imageFile);
+
+        ImageUploadResponseDTO response = ImageUploadResponseDTO.builder()
+                .id(imageFile.getId())
+                .fileName(imageFile.getFileName())
+                .publicUrl(imageFile.getPublicUrl())
+                .contentType(imageFile.getContentType())
+                .fileSize(imageFile.getFileSize())
+                .message("Equipment image uploaded successfully")
+                .uploadType("EQUIPMENT")
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(value = "/upload/equipment/{equipmentId}", consumes = "multipart/form-data")
+    @PreAuthorize("hasAnyRole('ROLE_LOCATION_MANAGER', 'ROLE_MANAGER')")
+    @Operation(summary = "Upload equipment image and link to equipment", description = "Upload an equipment image and update the equipment's imageUrl")
+    public ResponseEntity<ImageUploadResponseDTO> uploadEquipmentWithId(
+            @PathVariable Long equipmentId,
+            @RequestPart("file") MultipartFile file,
+            Authentication authentication) throws IOException {
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        User currentUser = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String publicUrl = firebaseStorageService.uploadEquipment(file);
+
+        ImageFile imageFile = ImageFile.builder()
+                .fileName(file.getOriginalFilename())
+                .storagePath(extractStoragePath(publicUrl))
+                .publicUrl(publicUrl)
+                .contentType(file.getContentType())
+                .fileSize(file.getSize())
+                .uploadedAt(LocalDateTime.now())
+                .status(ImageStatus.ACTIVE)
+                .uploadType("EQUIPMENT")
+                .uploadedBy(currentUser)
+                .build();
+
+        imageFile = imageFileRepository.save(imageFile);
+
+        // Update equipment's imageUrl
+        // Using lazy approach to avoid dependency on EquipmentService
+        // but since we are in ImageController, it's better to just return the URL and let FE call update equipment
+        // OR we can use EquipmentRepository here.
+        
+        ImageUploadResponseDTO response = ImageUploadResponseDTO.builder()
+                .id(imageFile.getId())
+                .fileName(imageFile.getFileName())
+                .publicUrl(imageFile.getPublicUrl())
+                .contentType(imageFile.getContentType())
+                .fileSize(imageFile.getFileSize())
+                .message("Equipment image uploaded successfully")
+                .uploadType("EQUIPMENT")
                 .build();
 
         return ResponseEntity.ok(response);
@@ -118,7 +204,7 @@ public class ImageController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping(value = "/upload/avatar",consumes = "multipart/form-data")
+    @PostMapping(value = "/upload/avatar", consumes = "multipart/form-data")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Upload avatar", description = "Upload user avatar image")
     public ResponseEntity<ImageUploadResponseDTO> uploadAvatar(

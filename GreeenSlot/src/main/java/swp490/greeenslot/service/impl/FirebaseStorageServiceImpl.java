@@ -39,7 +39,21 @@ public class FirebaseStorageServiceImpl implements FirebaseStorageService {
     @Override
     public String uploadImage(MultipartFile file) throws IOException {
         validateFile(file, ALLOWED_IMAGE_TYPES, ALLOWED_IMAGE_EXTENSIONS, MAX_IMAGE_SIZE);
-        String fileName = "images/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
+        String fileName = "general/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
+        return uploadToFirebase(file, fileName);
+    }
+
+    @Override
+    public String uploadTree(MultipartFile file) throws IOException {
+        validateFile(file, ALLOWED_IMAGE_TYPES, ALLOWED_IMAGE_EXTENSIONS, MAX_IMAGE_SIZE);
+        String fileName = "trees/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
+        return uploadToFirebase(file, fileName);
+    }
+
+    @Override
+    public String uploadEquipment(MultipartFile file) throws IOException {
+        validateFile(file, ALLOWED_IMAGE_TYPES, ALLOWED_IMAGE_EXTENSIONS, MAX_IMAGE_SIZE);
+        String fileName = "equipment/" + UUID.randomUUID() + "_" + file.getOriginalFilename();
         return uploadToFirebase(file, fileName);
     }
 

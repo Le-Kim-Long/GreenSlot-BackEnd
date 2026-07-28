@@ -15,6 +15,7 @@ public interface TreeService {
     TreeDTO updateTree(Long id, TreeDTO dto);
     
     void deleteTree(Long id);
+    void forceDeleteTree(Long id);
     
     List<TreeDTO> getActiveTrees();
 }

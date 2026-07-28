@@ -67,6 +67,17 @@ public class GardeningTaskController {
         return ResponseEntity.ok(dtoList);
     }
 
+    @GetMapping("/tasks")
+    @PreAuthorize("hasAnyRole('ROLE_LOCATION_MANAGER', 'ROLE_MANAGER', 'ROLE_ADMIN')")
+    @Operation(summary = "Get all gardening tasks", description = "Retrieves all gardening tasks in the system, sorted by creation time descending.")
+    public ResponseEntity<List<GardeningTaskResponseDTO>> getAllTasks() {
+        List<GardeningTask> tasks = gardeningTaskService.getAllTasks();
+        List<GardeningTaskResponseDTO> dtoList = tasks.stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(dtoList);
+    }
+
     @PatchMapping("/tasks/{id}/status")
     @PreAuthorize("hasRole('ROLE_GARDEN_STAFF')")
     @Operation(summary = "Update progress of a task", description = "Updates task status. Must include evidence image URL when marking status as COMPLETED.")
