@@ -39,6 +39,13 @@ public class UserController {
         }
     }
 
+    @GetMapping("/staffs")
+    @PreAuthorize("hasAnyRole('ROLE_LOCATION_MANAGER', 'ROLE_MANAGER', 'ROLE_ADMIN')")
+    @Operation(summary = "Get list of garden staffs", description = "Retrieves a list of garden staffs, optionally filtered by location.")
+    public ResponseEntity<java.util.List<ProfileResponseDTO>> getStaffs(@RequestParam(required = false) Long locationId) {
+        return ResponseEntity.ok(userService.getStaffs(locationId));
+    }
+
     @PatchMapping("/profile")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Update user profile", description = "Updates full name, phone, and address of the currently authenticated user.")

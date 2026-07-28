@@ -63,4 +63,12 @@ public class TreeController {
         treeService.deleteTree(id);
         return ResponseEntity.noContent().build();
     }
+
+    @DeleteMapping("/{id}/force")
+    @PreAuthorize("hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Force delete a tree (hard delete from database)")
+    public ResponseEntity<Void> forceDeleteTree(@PathVariable Long id) {
+        treeService.forceDeleteTree(id);
+        return ResponseEntity.noContent().build();
+    }
 }

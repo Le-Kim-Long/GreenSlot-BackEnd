@@ -127,9 +127,13 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<GardeningTask> getMyTasks(String username) {
         return gardeningTaskRepository.findByAssignedStaffUsernameOrderByCreatedAtDesc(username);
+    }
+
+    @Override
+    public List<GardeningTask> getAllTasks() {
+        return gardeningTaskRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
     }
 
     @Override

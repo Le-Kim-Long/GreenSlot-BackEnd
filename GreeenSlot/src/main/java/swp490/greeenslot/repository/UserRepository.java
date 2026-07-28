@@ -18,6 +18,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByResetToken(String resetToken);
 
+    @org.springframework.data.jpa.repository.Query("SELECT u FROM User u JOIN u.roles r WHERE r.name = :roleName")
+    java.util.List<User> findByRoleName(
+        @org.springframework.data.repository.query.Param("roleName") swp490.greeenslot.entity.ERole roleName
+    );
+
     @org.springframework.data.jpa.repository.Query("SELECT u FROM User u JOIN u.roles r WHERE r.name = :roleName AND u.location.id = :locationId")
     java.util.List<User> findByRoleNameAndLocation(
         @org.springframework.data.repository.query.Param("roleName") swp490.greeenslot.entity.ERole roleName,

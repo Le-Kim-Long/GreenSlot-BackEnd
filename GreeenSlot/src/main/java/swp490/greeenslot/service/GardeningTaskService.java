@@ -11,7 +11,9 @@ public interface GardeningTaskService {
     GardeningTask assignTask(TaskAssignmentDTO request);
     
     List<GardeningTask> getMyTasks(String username);
-    
+
+    List<GardeningTask> getAllTasks();
+
     GardeningTask updateTaskStatus(Long taskId, TaskStatusUpdateDTO request, String username);
     
     GardeningTask reportIssue(Long taskId, IssueReportRequestDTO request, String username);

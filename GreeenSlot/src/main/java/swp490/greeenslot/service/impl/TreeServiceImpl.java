@@ -61,6 +61,14 @@ public class TreeServiceImpl implements TreeService {
     }
 
     @Override
+    @Transactional
+    public void forceDeleteTree(Long id) {
+        Tree tree = treeRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Tree not found with id: " + id));
+        treeRepository.delete(tree);
+    }
+
+    @Override
     public List<TreeDTO> getActiveTrees() {
         return treeRepository.findByIsActiveTrue().stream()
                 .map(this::mapToDTO)
