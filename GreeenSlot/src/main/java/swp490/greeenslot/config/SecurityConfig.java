@@ -73,6 +73,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth ->
                 auth.requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/cameras/**").permitAll()
                     .requestMatchers("/api/iot/sensors/data").permitAll()
                     .requestMatchers("/api/iot/device/data").permitAll()
                     .requestMatchers("/api/iot/sensors/types").permitAll()
