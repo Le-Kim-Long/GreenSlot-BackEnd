@@ -17,6 +17,11 @@ import swp490.greeenslot.entity.Pillar;
 import swp490.greeenslot.entity.GardenSlot;
 import swp490.greeenslot.entity.SlotRental;
 import swp490.greeenslot.entity.User;
+import swp490.greeenslot.entity.EAlertStatus;
+import swp490.greeenslot.entity.Alert;
+import swp490.greeenslot.entity.ERole;
+import swp490.greeenslot.repository.AlertRepository;
+import swp490.greeenslot.repository.UserRepository;
 import swp490.greeenslot.repository.SensorReadingRepository;
 import swp490.greeenslot.repository.SensorThresholdRepository;
 import swp490.greeenslot.repository.PillarRepository;
@@ -54,6 +59,12 @@ public class SensorReadingServiceImpl implements SensorReadingService {
 
     @Autowired
     private GardeningTaskRepository gardeningTaskRepository;
+
+    @Autowired
+    private AlertRepository alertRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Autowired
     private NotificationService notificationService;
@@ -152,6 +163,33 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                 Optional<Pillar> pillarOpt = pillarRepository.findByPillarCode(deviceId);
                 if (pillarOpt.isPresent()) {
                     Pillar pillar = pillarOpt.get();
+
+                    // Persist an Alert entity for the dashboard
+                    Alert alert = new Alert();
+                    alert.setAlertType("IOT_THRESHOLD_VIOLATION");
+                    alert.setDescription(String.format("Sensor %s on pillar %s reported value %f %s (Threshold: %f - %f).",
+                            sensorType.getDescription(), pillar.getPillarCode(), value, unit, threshold.getMinValue(), threshold.getMaxValue()));
+                    alert.setStatus(EAlertStatus.PENDING);
+                    alert.setThresholdValue(value < threshold.getMinValue() ? threshold.getMinValue() : threshold.getMaxValue());
+                    alert.setActualValue(value);
+                    alert.setSensorType(sensorType.name());
+                    alert.setPillar(pillar);
+                    alertRepository.save(alert);
+
+                    // Notify Location Managers of the location
+                    if (pillar.getLocation() != null) {
+                        List<User> managers = userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, pillar.getLocation().getId());
+                        for (User manager : managers) {
+                            notificationService.createNotification(
+                                    manager.getId(),
+                                    "IoT Alert: Threshold Violation",
+                                    String.format("Location: %s, Pillar: %s. Sensor %s reported %f %s (Limit: %f - %f).",
+                                            pillar.getLocation().getName(), pillar.getPillarCode(), sensorType.getDescription(), value, unit, threshold.getMinValue(), threshold.getMaxValue()),
+                                    "IOT_ALERT"
+                            );
+                        }
+                    }
+
                     List<GardenSlot> slots = gardenSlotRepository.findByPillarId(pillar.getId());
                     for (GardenSlot slot : slots) {
                         List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(slot.getId(), LocalDateTime.now());

@@ -7,6 +7,7 @@ import swp490.greeenslot.dto.*;
 import swp490.greeenslot.entity.*;
 import swp490.greeenslot.repository.*;
 import swp490.greeenslot.service.GardeningTaskService;
+import swp490.greeenslot.service.NotificationService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,6 +29,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
     @Autowired
     private GardenSlotRepository gardenSlotRepository;
+
+    @Autowired
+    private NotificationService notificationService;
 
     @Override
     @Transactional
@@ -63,6 +67,69 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         task.setAssignedStaff(null); // Unassigned initially
         task.setCreatedAt(now);
 
+        GardeningTask savedTask = gardeningTaskRepository.save(task);
+
+        // Notify Location Managers about the new service request
+        if (slot.getPillar() != null && slot.getPillar().getLocation() != null) {
+            List<User> managers = userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, slot.getPillar().getLocation().getId());
+            for (User manager : managers) {
+                notificationService.createNotification(
+                        manager.getId(),
+                        "New Service Request",
+                        String.format("New service request for Slot %s: %s", slot.getSlotNumber(), serviceType.getServiceName()),
+                        "SERVICE_REQUEST"
+                );
+            }
+        }
+
+        return savedTask;
+    }
+
+    @Override
+    @Transactional
+    public GardeningTask createTask(TaskCreateDTO request) {
+        GardenSlot slot = gardenSlotRepository.findById(request.getTargetSlotId())
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID " + request.getTargetSlotId()));
+
+        ETaskType type;
+        try {
+            type = ETaskType.valueOf(request.getTaskType().toUpperCase());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid task type. Must be MAINTENANCE or CLEANING");
+        }
+
+        if (type == ETaskType.SERVICE_REQUEST) {
+            throw new IllegalArgumentException("SERVICE_REQUEST tasks cannot be created directly by manager.");
+        }
+
+        GardeningTask task = new GardeningTask();
+        task.setTaskName(request.getTaskName());
+        task.setDescription(request.getDescription());
+        task.setStatus(ETaskStatus.PENDING);
+        task.setTaskType(type);
+        task.setTargetSlot(slot);
+        task.setCreatedAt(LocalDateTime.now());
+
+        return gardeningTaskRepository.save(task);
+    }
+
+    @Override
+    @Transactional
+    public GardeningTask assignStaff(Long taskId, Long staffId) {
+        GardeningTask task = gardeningTaskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
+
+        User staff = userRepository.findById(staffId)
+                .orElseThrow(() -> new IllegalArgumentException("Staff user not found with ID " + staffId));
+
+        boolean hasStaffRole = staff.getRoles().stream()
+                .anyMatch(role -> role.getName() == ERole.ROLE_GARDEN_STAFF);
+
+        if (!hasStaffRole) {
+            throw new IllegalArgumentException("User with ID " + staffId + " does not have ROLE_GARDEN_STAFF");
+        }
+
+        task.setAssignedStaff(staff);
         return gardeningTaskRepository.save(task);
     }
 
@@ -123,7 +190,19 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             task.setCreatedAt(LocalDateTime.now());
         }
 
-        return gardeningTaskRepository.save(task);
+        GardeningTask savedTask = gardeningTaskRepository.save(task);
+
+        // Notify the assigned staff
+        if (savedTask.getAssignedStaff() != null) {
+            notificationService.createNotification(
+                    savedTask.getAssignedStaff().getId(),
+                    "New Task Assigned",
+                    String.format("You have been assigned a new task: %s for Slot %s", savedTask.getTaskName(), savedTask.getTargetSlot().getSlotNumber()),
+                    "TASK_ASSIGNED"
+            );
+        }
+
+        return savedTask;
     }
 
     @Override
@@ -171,7 +250,32 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         }
 
         task.setStatus(newStatus);
-        return gardeningTaskRepository.save(task);
+        GardeningTask savedTask = gardeningTaskRepository.save(task);
+
+        // Notify Location Managers about the task update
+        if (savedTask.getTargetSlot() != null && savedTask.getTargetSlot().getPillar() != null && savedTask.getTargetSlot().getPillar().getLocation() != null) {
+            List<User> managers = userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, savedTask.getTargetSlot().getPillar().getLocation().getId());
+            for (User manager : managers) {
+                notificationService.createNotification(
+                        manager.getId(),
+                        "Task Status Updated",
+                        String.format("Task '%s' for Slot %s updated to %s by %s", savedTask.getTaskName(), savedTask.getTargetSlot().getSlotNumber(), newStatus.name(), username),
+                        "TASK_UPDATE"
+                );
+            }
+        }
+
+        // Notify requester if it's a service request
+        if (savedTask.getTaskType() == ETaskType.SERVICE_REQUEST && savedTask.getRequestedBy() != null) {
+            notificationService.createNotification(
+                    savedTask.getRequestedBy().getId(),
+                    "Service Request Update",
+                    String.format("Your service request '%s' is now %s", savedTask.getTaskName(), newStatus.name()),
+                    "SERVICE_UPDATE"
+            );
+        }
+
+        return savedTask;
     }
 
     @Override
@@ -197,6 +301,19 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         issueTask.setCreatedAt(LocalDateTime.now());
         
         GardeningTask savedIssue = gardeningTaskRepository.save(issueTask);
+
+        // Notify Location Managers about the reported issue
+        if (originalTask.getTargetSlot() != null && originalTask.getTargetSlot().getPillar() != null && originalTask.getTargetSlot().getPillar().getLocation() != null) {
+            List<User> managers = userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, originalTask.getTargetSlot().getPillar().getLocation().getId());
+            for (User manager : managers) {
+                notificationService.createNotification(
+                        manager.getId(),
+                        "Issue Reported on Task",
+                        String.format("Staff %s reported an issue on Task #%d: %s", username, taskId, request.getIssueTitle()),
+                        "ISSUE_REPORT"
+                );
+            }
+        }
 
         // Update original task
         originalTask.setStatus(ETaskStatus.CANCELLED);

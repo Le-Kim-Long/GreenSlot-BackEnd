@@ -35,6 +35,27 @@ public class GardeningTaskController {
         return ResponseEntity.ok(mapToDTO(task));
     }
 
+    @PostMapping("/tasks")
+    @PreAuthorize("hasAnyRole('ROLE_LOCATION_MANAGER', 'ROLE_MANAGER')")
+    @Operation(summary = "Create a new gardening task", description = "Allows manager to create a new task (PENDING status) without assigning it yet.")
+    public ResponseEntity<GardeningTaskResponseDTO> createTask(
+            @Valid @RequestBody TaskCreateDTO request) {
+        
+        GardeningTask task = gardeningTaskService.createTask(request);
+        return ResponseEntity.ok(mapToDTO(task));
+    }
+
+    @PostMapping("/tasks/{taskId}/assign/{staffId}")
+    @PreAuthorize("hasAnyRole('ROLE_LOCATION_MANAGER', 'ROLE_MANAGER')")
+    @Operation(summary = "Assign a task to a staff member", description = "Assigns an existing task to a garden staff member by their IDs.")
+    public ResponseEntity<GardeningTaskResponseDTO> assignStaff(
+            @PathVariable Long taskId,
+            @PathVariable Long staffId) {
+        
+        GardeningTask task = gardeningTaskService.assignStaff(taskId, staffId);
+        return ResponseEntity.ok(mapToDTO(task));
+    }
+
     @PostMapping("/tasks/assign")
     @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER')")
     @Operation(summary = "Assign or create and assign a task to a staff", description = "Allows the manager to assign an existing task or create a new MAINTENANCE/CLEANING task and assign it to a staff member.")

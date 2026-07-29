@@ -16,6 +16,7 @@ import swp490.greeenslot.dto.RentalHistoryDTO;
 import swp490.greeenslot.entity.*;
 import swp490.greeenslot.repository.*;
 import swp490.greeenslot.service.BookingService;
+import swp490.greeenslot.service.NotificationService;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -171,6 +172,9 @@ public class BookingServiceImpl implements BookingService {
         return new BookingResponseDTO(rental.getId(), paymentUrl, txnRef);
     }
 
+    @Autowired
+    private NotificationService notificationService;
+
     @Override
     @Transactional
     public Map<String, String> processIpn(Map<String, String> params) {
@@ -240,6 +244,26 @@ public class BookingServiceImpl implements BookingService {
                 gardenSlotRepository.save(slot);
                 logger.info("Booking rental ID {} activated, Garden Slot ID {} status set to RENTED", rental.getId(), slot.getId());
 
+                notificationService.createNotification(
+                        rental.getUser().getId(),
+                        "Booking Confirmed",
+                        String.format("Your booking for Slot %s at %s has been confirmed. Enjoy your garden!",
+                                slot.getSlotNumber(), slot.getPillar().getLocation().getName()),
+                        "BOOKING_CONFIRMED"
+                );
+
+                // Notify General Managers about revenue
+                List<User> genManagers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
+                for (User gm : genManagers) {
+                    notificationService.createNotification(
+                            gm.getId(),
+                            "New Rental Revenue",
+                            String.format("New booking confirmed for Slot %s. Amount: %s",
+                                    slot.getSlotNumber(), txn.getAmount().toString()),
+                            "REVENUE_ALERT"
+                    );
+                }
+
             } else if (txnRef.startsWith("EXT_")) {
                 SlotRental rental = txn.getRental();
                 String[] parts = txnRef.split("_");
@@ -258,6 +282,26 @@ public class BookingServiceImpl implements BookingService {
                 slot.setStatus(ESlotStatus.RENTED);
                 gardenSlotRepository.save(slot);
                 logger.info("Rental ID {} extension of {} months saved. New end time: {}", rental.getId(), durationMonths, newEnd);
+
+                notificationService.createNotification(
+                        rental.getUser().getId(),
+                        "Rental Extended",
+                        String.format("Your rental for Slot %s has been extended for %d months. New expiry date: %s",
+                                slot.getSlotNumber(), durationMonths, newEnd.toLocalDate().toString()),
+                        "RENTAL_EXTENDED"
+                );
+
+                // Notify General Managers about revenue
+                List<User> genManagers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
+                for (User gm : genManagers) {
+                    notificationService.createNotification(
+                            gm.getId(),
+                            "Extension Revenue",
+                            String.format("Rental for Slot %s extended. Amount: %s",
+                                    slot.getSlotNumber(), txn.getAmount().toString()),
+                            "REVENUE_ALERT"
+                    );
+                }
             }
         } else {
             logger.warn("Transaction failed or cancelled for txnRef={}. Updating statuses to FAILED/CANCELLED", txnRef);
@@ -268,6 +312,13 @@ public class BookingServiceImpl implements BookingService {
                 SlotRental rental = txn.getRental();
                 rental.setStatus(ERentalStatus.CANCELLED);
                 slotRentalRepository.save(rental);
+
+                notificationService.createNotification(
+                        rental.getUser().getId(),
+                        "Payment Failed",
+                        "Your payment for garden slot booking failed or was cancelled. The booking has been cancelled.",
+                        "PAYMENT_FAILED"
+                );
 
                 GardenSlot slot = rental.getGardenSlot();
                 // Explicitly check if there are any other active or pending rentals
