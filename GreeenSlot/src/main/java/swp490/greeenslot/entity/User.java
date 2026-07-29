@@ -31,6 +31,9 @@ public class User {
     @Column(name = "image_url")
     private String imageUrl;
 
+    @Column(name = "device_token")
+    private String deviceToken;
+
     @Column(name = "reset_token")
     private String resetToken;
 
@@ -171,5 +174,13 @@ public class User {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public String getDeviceToken() {
+        return deviceToken;
+    }
+
+    public void setDeviceToken(String deviceToken) {
+        this.deviceToken = deviceToken;
     }
 }

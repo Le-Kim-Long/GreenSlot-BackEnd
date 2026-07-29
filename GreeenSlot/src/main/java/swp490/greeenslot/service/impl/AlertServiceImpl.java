@@ -103,6 +103,12 @@ public class AlertServiceImpl implements AlertService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional
+    public Alert createAlert(Alert alert) {
+        return alertRepository.save(alert);
+    }
+
     private AlertDTO mapToDTO(Alert alert) {
         return new AlertDTO(
                 alert.getId(),

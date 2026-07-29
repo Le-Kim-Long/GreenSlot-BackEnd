@@ -29,6 +29,12 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
     @Autowired
     private GardenSlotRepository gardenSlotRepository;
 
+    @Autowired
+    private swp490.greeenslot.service.NotificationService notificationService;
+
+    @Autowired
+    private swp490.greeenslot.service.FirebaseMessagingService firebaseMessagingService;
+
     @Override
     @Transactional
     public GardeningTask requestService(ServiceRequestDTO request, String username) {
@@ -87,6 +93,22 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             task = gardeningTaskRepository.findById(request.getTaskId())
                     .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + request.getTaskId()));
             task.setAssignedStaff(staff);
+        
+        // Notify staff about task assignment
+        notificationService.createNotification(
+                staff.getId(),
+                "New Task Assigned",
+                String.format("You have been assigned to task: %s for slot %s", 
+                        task.getTaskName(), task.getTargetSlot() != null ? task.getTargetSlot().getSlotNumber() : "N/A"),
+                "TASK_ASSIGNMENT"
+        );
+        
+        firebaseMessagingService.sendPushNotification(
+                staff.getId(),
+                "New Task Assigned",
+                String.format("Task: %s - Slot: %s", 
+                        task.getTaskName(), task.getTargetSlot() != null ? task.getTargetSlot().getSlotNumber() : "N/A")
+        );
         } else {
             // Create and assign a new task
             if (request.getTaskName() == null || request.getTaskName().trim().isEmpty()) {
@@ -121,6 +143,22 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             task.setTargetSlot(slot);
             task.setAssignedStaff(staff);
             task.setCreatedAt(LocalDateTime.now());
+            
+            // Notify staff about new task assignment
+            notificationService.createNotification(
+                    staff.getId(),
+                    "New Task Assigned",
+                    String.format("You have been assigned to task: %s for slot %s", 
+                            task.getTaskName(), slot.getSlotNumber()),
+                    "TASK_ASSIGNMENT"
+            );
+            
+            firebaseMessagingService.sendPushNotification(
+                    staff.getId(),
+                    "New Task Assigned",
+                    String.format("Task: %s - Slot: %s", 
+                            task.getTaskName(), slot.getSlotNumber())
+            );
         }
 
         return gardeningTaskRepository.save(task);

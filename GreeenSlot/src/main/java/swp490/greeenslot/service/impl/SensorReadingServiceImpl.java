@@ -58,6 +58,12 @@ public class SensorReadingServiceImpl implements SensorReadingService {
     @Autowired
     private NotificationService notificationService;
 
+    @Autowired
+    private swp490.greeenslot.service.FirebaseMessagingService firebaseMessagingService;
+
+    @Autowired
+    private swp490.greeenslot.service.AlertService alertService;
+
     @Value("${greeenslot.iot.api-key:GreenSlot-IoT-Dev-Key}")
     private String iotApiKey;
 
@@ -152,6 +158,42 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                 Optional<Pillar> pillarOpt = pillarRepository.findByPillarCode(deviceId);
                 if (pillarOpt.isPresent()) {
                     Pillar pillar = pillarOpt.get();
+                    
+                    // Create Alert record for managers
+                    swp490.greeenslot.entity.Alert alert = new swp490.greeenslot.entity.Alert();
+                    alert.setAlertType(sensorType.name());
+                    alert.setDescription(String.format("Sensor %s on pillar %s reported value %f %s, outside threshold %f - %f", 
+                            sensorType.getDescription(), pillar.getPillarCode(), value, unit, threshold.getMinValue(), threshold.getMaxValue()));
+                    alert.setStatus(swp490.greeenslot.entity.EAlertStatus.PENDING);
+                    alert.setThresholdValue((threshold.getMaxValue() - threshold.getMinValue()) / 2 + threshold.getMinValue());
+                    alert.setActualValue(value);
+                    alert.setSensorType(sensorType.name());
+                    alert.setPillar(pillar);
+                    alert.setCreatedAt(LocalDateTime.now());
+                    alertService.createAlert(alert);
+                    
+                    // Alert location managers
+                    if (pillar.getLocation() != null) {
+                        String managerTitle = "IoT Sensor Threshold Alert";
+                        String managerBody = String.format("Pillar %s: Sensor %s exceeded threshold. Value: %f %s (Range: %f - %f)",
+                                pillar.getPillarCode(), sensorType.getDescription(), value, unit, threshold.getMinValue(), threshold.getMaxValue());
+                        
+                        firebaseMessagingService.sendPushNotificationToLocation(
+                                pillar.getLocation().getId(), 
+                                managerTitle, 
+                                managerBody, 
+                                "ROLE_LOCATION_MANAGER"
+                        );
+                        
+                        // Also notify general managers
+                        firebaseMessagingService.sendPushNotificationToLocation(
+                                pillar.getLocation().getId(), 
+                                managerTitle, 
+                                managerBody, 
+                                "ROLE_MANAGER"
+                        );
+                    }
+                    
                     List<GardenSlot> slots = gardenSlotRepository.findByPillarId(pillar.getId());
                     for (GardenSlot slot : slots) {
                         List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(slot.getId(), LocalDateTime.now());
@@ -165,6 +207,14 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                                             sensorType.getDescription(), slot.getSlotNumber(), value, unit, threshold.getMinValue(), threshold.getMaxValue()),
                                     "IOT_ALERT"
                             );
+                            
+                            // Send push notification to customer
+                            firebaseMessagingService.sendPushNotification(
+                                    customer.getId(),
+                                    "IoT Sensor Warning",
+                                    String.format("Slot %s: Sensor %s reading %f %s is outside normal range", 
+                                            slot.getSlotNumber(), sensorType.getDescription(), value, unit)
+                            );
 
                             // Save notification for assigned staff member(s)
                             List<User> staffList = gardeningTaskRepository.findAssignedStaffBySlotId(slot.getId());
@@ -175,6 +225,14 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                                         String.format("Alert: Sensor %s on slot %s is reporting %f %s, which is outside the set threshold boundaries of %f to %f. Assigned Staff Action Required.",
                                                 sensorType.getDescription(), slot.getSlotNumber(), value, unit, threshold.getMinValue(), threshold.getMaxValue()),
                                         "IOT_ALERT"
+                                );
+                                
+                                // Send push notification to staff
+                                firebaseMessagingService.sendPushNotification(
+                                        staff.getId(),
+                                        "Action Required: IoT Sensor Alert",
+                                        String.format("Slot %s: Sensor %s requires attention. Value: %f %s", 
+                                                slot.getSlotNumber(), sensorType.getDescription(), value, unit)
                                 );
                             }
 
