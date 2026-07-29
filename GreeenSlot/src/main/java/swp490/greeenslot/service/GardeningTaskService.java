@@ -8,10 +8,6 @@ import java.util.List;
 public interface GardeningTaskService {
     GardeningTask requestService(ServiceRequestDTO request, String username);
     
-    GardeningTask createTask(TaskCreateDTO request);
-
-    GardeningTask assignStaff(Long taskId, Long staffId);
-
     GardeningTask assignTask(TaskAssignmentDTO request);
     
     List<GardeningTask> getMyTasks(String username);

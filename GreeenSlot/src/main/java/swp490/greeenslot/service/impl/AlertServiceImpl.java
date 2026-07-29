@@ -9,7 +9,6 @@ import swp490.greeenslot.dto.AlertProcessingRequestDTO;
 import swp490.greeenslot.entity.*;
 import swp490.greeenslot.repository.*;
 import swp490.greeenslot.service.AlertService;
-import swp490.greeenslot.service.NotificationService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,9 +28,6 @@ public class AlertServiceImpl implements AlertService {
 
     @Autowired
     private PillarRepository pillarRepository;
-
-    @Autowired
-    private NotificationService notificationService;
 
     @Override
     public List<AlertDTO> getAllAlerts() {
@@ -94,19 +90,6 @@ public class AlertServiceImpl implements AlertService {
             alert.setResolvedAt(LocalDateTime.now());
         }
         alertRepository.save(alert);
-        
-        // Notify Location Managers about alert resolution
-        if (alert.getPillar() != null && alert.getPillar().getLocation() != null && EAlertStatus.valueOf(request.getStatus().toUpperCase()) == EAlertStatus.RESOLVED) {
-            List<User> managers = userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, alert.getPillar().getLocation().getId());
-            for (User manager : managers) {
-                notificationService.createNotification(
-                        manager.getId(),
-                        "Alert Resolved",
-                        String.format("Alert #%d on Pillar %s has been marked as RESOLVED by %s", alert.getId(), alert.getPillar().getPillarCode(), username),
-                        "ALERT_RESOLUTION"
-                );
-            }
-        }
         
         return mapToLogDTO(savedLog);
     }

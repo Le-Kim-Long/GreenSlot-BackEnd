@@ -25,7 +25,6 @@ import swp490.greeenslot.entity.User;
 import swp490.greeenslot.repository.RoleRepository;
 import swp490.greeenslot.repository.UserRepository;
 import swp490.greeenslot.service.AuthService;
-import swp490.greeenslot.service.NotificationService;
 
 import java.time.Instant;
 import java.util.HashSet;
@@ -54,9 +53,6 @@ public class AuthServiceImpl implements AuthService {
 
     @Autowired
     private EmailService emailService;
-
-    @Autowired
-    private NotificationService notificationService;
 
     @Value("${greeenslot.app.resetTokenExpirationMs:3600000}")
     private long resetTokenExpirationMs;
@@ -109,18 +105,7 @@ public class AuthServiceImpl implements AuthService {
         roles.add(customerRole);
 
         user.setRoles(roles);
-        User savedUser = userRepository.save(user);
-
-        // Notify Admins about new registration
-        List<User> admins = userRepository.findByRoleName(ERole.ROLE_ADMIN);
-        for (User admin : admins) {
-            notificationService.createNotification(
-                    admin.getId(),
-                    "New User Registration",
-                    String.format("User %s (%s) has registered as a Customer.", savedUser.getUsername(), savedUser.getEmail()),
-                    "USER_REGISTRATION"
-            );
-        }
+        userRepository.save(user);
     }
 
     @Override

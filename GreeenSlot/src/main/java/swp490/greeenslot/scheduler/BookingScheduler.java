@@ -6,7 +6,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import swp490.greeenslot.entity.*;
 import swp490.greeenslot.repository.*;
-import swp490.greeenslot.service.NotificationService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,9 +27,6 @@ public class BookingScheduler {
 
     @Autowired
     private GardeningTaskRepository gardeningTaskRepository;
-
-    @Autowired
-    private NotificationService notificationService;
 
     /**
      * Runs every 15 minutes.
@@ -54,14 +50,6 @@ public class BookingScheduler {
             logger.info("Cleaning up stale pending rental with ID: " + rental.getId());
             rental.setStatus(ERentalStatus.CANCELLED);
             slotRentalRepository.save(rental);
-
-            notificationService.createNotification(
-                    rental.getUser().getId(),
-                    "Booking Cancelled",
-                    String.format("Your pending booking for Slot %s has been cancelled due to payment timeout.",
-                            rental.getGardenSlot().getSlotNumber()),
-                    "BOOKING_TIMEOUT"
-            );
 
             // Update associated PENDING transactions to EXPIRED
             List<PaymentTransaction> txns = paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(rental.getId());
@@ -113,14 +101,6 @@ public class BookingScheduler {
             logger.info("Expiring rental with ID: " + rental.getId());
             rental.setStatus(ERentalStatus.EXPIRED);
             slotRentalRepository.save(rental);
-
-            notificationService.createNotification(
-                    rental.getUser().getId(),
-                    "Rental Expired",
-                    String.format("Your rental for Slot %s has expired. Thank you for using GreenSlot!",
-                            rental.getGardenSlot().getSlotNumber()),
-                    "RENTAL_EXPIRED"
-            );
 
             // Release slot only if no other active or pending rentals exist
             GardenSlot slot = rental.getGardenSlot();
