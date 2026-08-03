@@ -20,4 +20,7 @@ public interface GardeningTaskRepository extends JpaRepository<GardeningTask, Lo
 
     @org.springframework.data.jpa.repository.Query("SELECT t FROM GardeningTask t WHERE t.requestedBy.username = :username ORDER BY t.createdAt DESC")
     java.util.List<GardeningTask> findByRequestedBy_UsernameOrderByCreatedAtDesc(@org.springframework.data.repository.query.Param("username") String username);
+
+    @org.springframework.data.jpa.repository.Query("SELECT t FROM GardeningTask t WHERE t.assignedStaff.id = :staffId")
+    java.util.List<GardeningTask> findByAssignedStaffId(@org.springframework.data.repository.query.Param("staffId") Long staffId);
 }

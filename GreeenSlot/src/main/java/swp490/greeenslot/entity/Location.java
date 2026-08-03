@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.Nationalized;
+import java.time.LocalTime;
 
 @Entity
 @Table(name = "locations")
@@ -35,4 +36,13 @@ public class Location {
     
     @Column(name = "image_url")
     private String imageUrl;
+
+    @Column(name = "open_time", columnDefinition = "TIME")
+    private LocalTime openTime;
+
+    @Column(name = "close_time", columnDefinition = "TIME")
+    private LocalTime closeTime;
+
+    @Column(name = "closed_days", length = 100)
+    private String closedDays; // e.g., "SUNDAY,MONDAY"
 }

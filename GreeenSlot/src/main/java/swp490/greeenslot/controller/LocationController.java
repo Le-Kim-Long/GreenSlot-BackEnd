@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import swp490.greeenslot.dto.LocationDTO;
+import swp490.greeenslot.dto.LocationOperatingHoursDTO;
 import swp490.greeenslot.entity.Location;
 import swp490.greeenslot.repository.LocationRepository;
 
@@ -54,5 +55,42 @@ public class LocationController {
                 ))
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/operating-hours")
+    @Operation(summary = "Get location operating hours")
+    public ResponseEntity<LocationOperatingHoursDTO> getOperatingHours(@PathVariable Long id) {
+        return locationRepository.findById(id)
+                .map(l -> new LocationOperatingHoursDTO(
+                        l.getId(),
+                        l.getOpenTime(),
+                        l.getCloseTime(),
+                        l.getClosedDays()
+                ))
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/{id}/operating-hours")
+    @PreAuthorize("hasAnyRole('ROLE_LOCATION_MANAGER', 'ROLE_ADMIN')")
+    @Operation(summary = "Update location operating hours")
+    public ResponseEntity<LocationOperatingHoursDTO> updateOperatingHours(
+            @PathVariable Long id,
+            @RequestBody LocationOperatingHoursDTO dto) {
+        Location location = locationRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Location not found with ID: " + id));
+        
+        location.setOpenTime(dto.getOpenTime());
+        location.setCloseTime(dto.getCloseTime());
+        location.setClosedDays(dto.getClosedDays());
+        
+        Location updated = locationRepository.save(location);
+        
+        return ResponseEntity.ok(new LocationOperatingHoursDTO(
+                updated.getId(),
+                updated.getOpenTime(),
+                updated.getCloseTime(),
+                updated.getClosedDays()
+        ));
     }
 }

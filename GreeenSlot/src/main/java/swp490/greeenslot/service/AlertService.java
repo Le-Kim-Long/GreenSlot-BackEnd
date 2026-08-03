@@ -24,4 +24,6 @@ public interface AlertService {
     List<AlertProcessingLogDTO> getAlertProcessingLogs(Long alertId);
     
     Alert createAlert(Alert alert);
+
+    AlertDTO escalateAlert(Long alertId, Long escalateToUserId, String reason);
 }

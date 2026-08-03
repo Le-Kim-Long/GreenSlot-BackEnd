@@ -30,4 +30,6 @@ public interface CustomerService {
     List<RentalHistoryDTO> getMyRentalHistory(String username);
     
     RentalHistoryDTO getActiveRental(String username);
+
+    void deactivateAccount(String username);
 }

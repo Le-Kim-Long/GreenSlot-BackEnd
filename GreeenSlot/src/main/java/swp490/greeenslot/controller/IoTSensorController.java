@@ -30,8 +30,13 @@ import java.util.Optional;
 @Tag(name = "IoT Sensors & Devices", description = "Endpoints for receiving sensor telemetry, threshold boundaries, and camera streams")
 public class IoTSensorController {
 
+    private static final String VALID_IOT_API_KEY = "GreenSlot-IoT-Dev-Key";
+
     @Autowired
     private SensorReadingService sensorReadingService;
+
+    @Autowired
+    private SensorReadingRepository sensorReadingRepository;
 
     @Autowired
     private SensorThresholdRepository sensorThresholdRepository;
@@ -44,6 +49,12 @@ public class IoTSensorController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PillarRepository pillarRepository;
+
+    @Autowired
+    private swp490.greeenslot.service.FirebaseStorageService firebaseStorageService;
 
     // --- TASK 3: TELEMETRY INGESTION ---
 
@@ -83,6 +94,41 @@ public class IoTSensorController {
             @RequestParam(required = false) ESensorType sensorType,
             @RequestParam(defaultValue = "50") int limit) {
         return ResponseEntity.ok(sensorReadingService.getHistory(deviceId, sensorType, limit));
+    }
+
+    @GetMapping("/sensors/aggregated")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Aggregated sensor data for charts",
+            description = "Returns time-series aggregated data (daily or hourly) for chart visualization")
+    public ResponseEntity<List<SensorAggregationDTO>> getAggregatedData(
+            @RequestParam String deviceId,
+            @RequestParam ESensorType sensorType,
+            @RequestParam java.time.Instant startTime,
+            @RequestParam java.time.Instant endTime,
+            @RequestParam(defaultValue = "daily") String aggregationType) {
+        
+        List<Object[]> rawData;
+        if ("hourly".equalsIgnoreCase(aggregationType)) {
+            rawData = sensorReadingRepository.findHourlyAggregatedData(deviceId, sensorType, startTime, endTime);
+        } else {
+            rawData = sensorReadingRepository.findDailyAggregatedData(deviceId, sensorType, startTime, endTime);
+        }
+        
+        List<SensorAggregationDTO> result = rawData.stream().map(row -> {
+            SensorAggregationDTO dto = new SensorAggregationDTO();
+            if ("hourly".equalsIgnoreCase(aggregationType)) {
+                dto.setHour((Integer) row[0]);
+            } else {
+                dto.setDate((java.time.LocalDate) row[0]);
+            }
+            dto.setAvgValue((Double) row[1]);
+            dto.setMinValue((Double) row[2]);
+            dto.setMaxValue((Double) row[3]);
+            dto.setCount((Long) row[4]);
+            return dto;
+        }).toList();
+        
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/sensors/types")
@@ -207,5 +253,209 @@ public class IoTSensorController {
                 "pillarCode", pillar.getPillarCode(),
                 "cameraStreamUrl", streamUrl
         ));
+    }
+
+    @GetMapping("/camera/{slotId}/status")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN')")
+    @Operation(summary = "Get camera status", description = "Returns camera status and last heartbeat time")
+    public ResponseEntity<Map<String, Object>> getCameraStatus(@PathVariable Long slotId) {
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+
+        Pillar pillar = slot.getPillar();
+        if (pillar == null) {
+            throw new IllegalArgumentException("This garden slot is not currently associated with a Pillar.");
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "slotNumber", slot.getSlotNumber(),
+                "pillarCode", pillar.getPillarCode(),
+                "cameraStatus", pillar.getCameraStatus() != null ? pillar.getCameraStatus() : "UNKNOWN",
+                "cameraLastHeartbeat", pillar.getCameraLastHeartbeat()
+        ));
+    }
+
+    @PostMapping("/camera/{slotId}/heartbeat")
+    @Operation(summary = "Update camera heartbeat", description = "IoT device sends heartbeat to indicate camera is online")
+    public ResponseEntity<Map<String, String>> updateCameraHeartbeat(
+            @PathVariable Long slotId,
+            @RequestHeader("X-IoT-Api-Key") String apiKey) {
+        
+        if (!VALID_IOT_API_KEY.equals(apiKey)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Invalid API key"));
+        }
+        
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+
+        Pillar pillar = slot.getPillar();
+        if (pillar == null) {
+            throw new IllegalArgumentException("This garden slot is not currently associated with a Pillar.");
+        }
+
+        pillar.setCameraStatus("ONLINE");
+        pillar.setCameraLastHeartbeat(java.time.LocalDateTime.now());
+        pillarRepository.save(pillar);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Camera heartbeat updated",
+                "pillarCode", pillar.getPillarCode(),
+                "status", "ONLINE"
+        ));
+    }
+
+    @PostMapping("/device/{slotId}/heartbeat")
+    @Operation(summary = "Update device heartbeat", description = "IoT device sends heartbeat to indicate device is online")
+    public ResponseEntity<Map<String, String>> updateDeviceHeartbeat(
+            @PathVariable Long slotId,
+            @RequestHeader("X-IoT-Api-Key") String apiKey) {
+        
+        if (!VALID_IOT_API_KEY.equals(apiKey)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Invalid API key"));
+        }
+        
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+
+        Pillar pillar = slot.getPillar();
+        if (pillar == null) {
+            throw new IllegalArgumentException("This garden slot is not currently associated with a Pillar.");
+        }
+
+        pillar.setDeviceStatus("ONLINE");
+        pillar.setDeviceLastHeartbeat(java.time.LocalDateTime.now());
+        pillarRepository.save(pillar);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Device heartbeat updated",
+                "pillarCode", pillar.getPillarCode(),
+                "status", "ONLINE"
+        ));
+    }
+
+    @GetMapping("/device/{slotId}/status")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
+    @Operation(summary = "Get device status", description = "Returns the current status of the IoT device")
+    public ResponseEntity<Map<String, Object>> getDeviceStatus(@PathVariable Long slotId) {
+        
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+
+        Pillar pillar = slot.getPillar();
+        if (pillar == null) {
+            throw new IllegalArgumentException("This garden slot is not currently associated with a Pillar.");
+        }
+
+        // Check if device is offline (no heartbeat for more than 5 minutes)
+        boolean isOffline = pillar.getDeviceLastHeartbeat() == null 
+                || pillar.getDeviceLastHeartbeat().isBefore(java.time.LocalDateTime.now().minusMinutes(5));
+        
+        String status = isOffline ? "OFFLINE" : (pillar.getDeviceStatus() != null ? pillar.getDeviceStatus() : "UNKNOWN");
+
+        return ResponseEntity.ok(Map.of(
+                "pillarCode", pillar.getPillarCode(),
+                "status", status,
+                "lastHeartbeat", pillar.getDeviceLastHeartbeat() != null ? pillar.getDeviceLastHeartbeat().toString() : "Never",
+                "isOffline", isOffline
+        ));
+    }
+
+    @PostMapping("/camera/{slotId}/control")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN')")
+    @Operation(summary = "Control camera (pan/tilt)", description = "Send pan/tilt commands to camera")
+    public ResponseEntity<Map<String, String>> controlCamera(
+            @PathVariable Long slotId,
+            @RequestBody Map<String, String> controlRequest) {
+        // ... (rest of the code remains the same)
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+
+        Pillar pillar = slot.getPillar();
+        if (pillar == null) {
+            throw new IllegalArgumentException("This garden slot is not currently associated with a Pillar.");
+        }
+
+        String action = controlRequest.get("action"); // PAN_LEFT, PAN_RIGHT, TILT_UP, TILT_DOWN, ZOOM_IN, ZOOM_OUT
+        
+        // This is a placeholder - actual implementation would send commands to IoT device
+        // For now, return success as the hardware integration is not implemented
+        return ResponseEntity.ok(Map.of(
+                "message", "Camera control command sent: " + action,
+                "status", "COMMAND_SENT"
+        ));
+    }
+
+    @PostMapping("/camera/{slotId}/record")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
+    @Operation(summary = "Record video from camera", description = "Starts video recording and saves to Firebase Storage")
+    public ResponseEntity<Map<String, String>> recordVideo(
+            @PathVariable Long slotId,
+            @RequestParam(defaultValue = "30") int durationSeconds) {
+        
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+
+        Pillar pillar = slot.getPillar();
+        if (pillar == null) {
+            throw new IllegalArgumentException("This garden slot is not currently associated with a Pillar.");
+        }
+
+        // This is a placeholder - actual implementation would:
+        // 1. Send command to IoT camera to start recording
+        // 2. Wait for duration or receive video file
+        // 3. Upload video to Firebase Storage
+        // 4. Return the Firebase Storage URL
+        
+        String videoFileName = "camera_" + pillar.getPillarCode() + "_" + System.currentTimeMillis() + ".mp4";
+        String firebasePath = "camera-recordings/" + videoFileName;
+        
+        // Placeholder Firebase URL
+        String firebaseUrl = "https://firebasestorage.googleapis.com/v0/b/greenslot-46382.appspot.com/o/" + firebasePath;
+        
+        return ResponseEntity.ok(Map.of(
+                "message", "Video recording initiated",
+                "videoUrl", firebaseUrl,
+                "duration", String.valueOf(durationSeconds),
+                "status", "RECORDING_STARTED"
+        ));
+    }
+
+    @PostMapping("/camera/{slotId}/upload-video")
+    @Operation(summary = "Upload video to Firebase Storage", description = "IoT device uploads recorded video file")
+    public ResponseEntity<Map<String, String>> uploadVideo(
+            @PathVariable Long slotId,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @RequestHeader("X-IoT-Api-Key") String apiKey) {
+        
+        // Validate API key
+        if (!"GreenSlot-IoT-Dev-Key".equals(apiKey)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        try {
+            GardenSlot slot = gardenSlotRepository.findById(slotId)
+                    .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+
+            Pillar pillar = slot.getPillar();
+            if (pillar == null) {
+                throw new IllegalArgumentException("This garden slot is not currently associated with a Pillar.");
+            }
+
+            String fileName = "camera_" + pillar.getPillarCode() + "_" + System.currentTimeMillis() + "_" + file.getOriginalFilename();
+            
+            // Upload to Firebase Storage using existing uploadVideo method
+            String downloadUrl = firebaseStorageService.uploadVideo(file);
+            
+            return ResponseEntity.ok(Map.of(
+                    "message", "Video uploaded successfully",
+                    "downloadUrl", downloadUrl,
+                    "fileName", fileName
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to upload video: " + e.getMessage()));
+        }
     }
 }
