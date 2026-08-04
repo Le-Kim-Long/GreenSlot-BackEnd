@@ -74,4 +74,14 @@ public class AlertController {
     public ResponseEntity<List<AlertProcessingLogDTO>> getAlertProcessingLogs(@PathVariable Long alertId) {
         return ResponseEntity.ok(alertService.getAlertProcessingLogs(alertId));
     }
+
+    @PostMapping("/{alertId}/escalate")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER')")
+    @Operation(summary = "Escalate an alert to manager/admin", description = "Escalates an alert to a specific manager or admin user")
+    public ResponseEntity<AlertDTO> escalateAlert(
+            @PathVariable Long alertId,
+            @RequestParam Long escalateToUserId,
+            @RequestParam(required = false) String reason) {
+        return ResponseEntity.ok(alertService.escalateAlert(alertId, escalateToUserId, reason != null ? reason : "Manual escalation"));
+    }
 }

@@ -14,6 +14,7 @@ import swp490.greeenslot.repository.GardeningTaskRepository;
 import swp490.greeenslot.repository.SensorReadingRepository;
 import swp490.greeenslot.repository.ServiceCategoryRepository;
 import swp490.greeenslot.repository.SlotRentalRepository;
+import swp490.greeenslot.repository.UserRepository;
 import swp490.greeenslot.service.CustomerService;
 
 import java.math.BigDecimal;
@@ -31,6 +32,7 @@ public class CustomerServiceImpl implements CustomerService {
     private final ServiceCategoryRepository serviceCategoryRepository;
     private final GardeningTaskRepository gardeningTaskRepository;
     private final SlotRentalRepository slotRentalRepository;
+    private final UserRepository userRepository;
 
     @Override
     public List<AvailableSlotDTO> getAvailableSlots() {
@@ -210,5 +212,13 @@ public class CustomerServiceImpl implements CustomerService {
                 rental.getStatus() != null ? rental.getStatus().name() : null,
                 null // transactions can be added later if needed
         );
+    }
+
+    @Override
+    public void deactivateAccount(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
+        user.setDeletedAt(LocalDateTime.now());
+        userRepository.save(user);
     }
 }

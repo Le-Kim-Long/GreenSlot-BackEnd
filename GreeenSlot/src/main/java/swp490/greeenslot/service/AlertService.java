@@ -3,6 +3,7 @@ package swp490.greeenslot.service;
 import swp490.greeenslot.dto.AlertDTO;
 import swp490.greeenslot.dto.AlertProcessingLogDTO;
 import swp490.greeenslot.dto.AlertProcessingRequestDTO;
+import swp490.greeenslot.entity.Alert;
 
 import java.util.List;
 
@@ -21,4 +22,8 @@ public interface AlertService {
     AlertProcessingLogDTO processAlert(AlertProcessingRequestDTO request, String username);
     
     List<AlertProcessingLogDTO> getAlertProcessingLogs(Long alertId);
+    
+    Alert createAlert(Alert alert);
+
+    AlertDTO escalateAlert(Long alertId, Long escalateToUserId, String reason);
 }

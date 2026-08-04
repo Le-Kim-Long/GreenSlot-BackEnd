@@ -46,6 +46,12 @@ public class BookingServiceImpl implements BookingService {
     @Autowired
     private GardeningTaskRepository gardeningTaskRepository;
 
+    @Autowired
+    private swp490.greeenslot.service.NotificationService notificationService;
+
+    @Autowired
+    private swp490.greeenslot.service.FirebaseMessagingService firebaseMessagingService;
+
     @Override
     @Transactional(readOnly = true)
     public List<GardenSlot> getAvailableSlots(Long locationId) {
@@ -240,6 +246,26 @@ public class BookingServiceImpl implements BookingService {
                 gardenSlotRepository.save(slot);
                 logger.info("Booking rental ID {} activated, Garden Slot ID {} status set to RENTED", rental.getId(), slot.getId());
 
+                // Notify customer of successful payment and rental activation
+                User customer = rental.getUser();
+                String slotNumber = slot.getSlotNumber();
+                String locationName = slot.getPillar() != null && slot.getPillar().getLocation() != null 
+                        ? slot.getPillar().getLocation().getName() : "N/A";
+                
+                notificationService.createNotification(
+                        customer.getId(),
+                        "Payment Successful",
+                        String.format("Your payment for slot %s at %s was successful. Your rental is now active until %s.",
+                                slotNumber, locationName, rental.getEndTime()),
+                        "PAYMENT_SUCCESS"
+                );
+                
+                firebaseMessagingService.sendPushNotification(
+                        customer.getId(),
+                        "Payment Successful",
+                        String.format("Slot %s rental activated until %s", slotNumber, rental.getEndTime())
+                );
+
             } else if (txnRef.startsWith("EXT_")) {
                 SlotRental rental = txn.getRental();
                 String[] parts = txnRef.split("_");
@@ -258,6 +284,24 @@ public class BookingServiceImpl implements BookingService {
                 slot.setStatus(ESlotStatus.RENTED);
                 gardenSlotRepository.save(slot);
                 logger.info("Rental ID {} extension of {} months saved. New end time: {}", rental.getId(), durationMonths, newEnd);
+
+                // Notify customer of successful extension
+                User customer = rental.getUser();
+                String slotNumber = slot.getSlotNumber();
+                
+                notificationService.createNotification(
+                        customer.getId(),
+                        "Extension Successful",
+                        String.format("Your rental for slot %s has been extended by %d months until %s.",
+                                slotNumber, durationMonths, newEnd),
+                        "PAYMENT_SUCCESS"
+                );
+                
+                firebaseMessagingService.sendPushNotification(
+                        customer.getId(),
+                        "Extension Successful",
+                        String.format("Slot %s extended until %s", slotNumber, newEnd)
+                );
             }
         } else {
             logger.warn("Transaction failed or cancelled for txnRef={}. Updating statuses to FAILED/CANCELLED", txnRef);
@@ -279,6 +323,24 @@ public class BookingServiceImpl implements BookingService {
                 } else {
                     logger.info("Booking rental ID {} cancelled, Garden Slot ID {} kept status because of other active/pending rentals", rental.getId(), slot.getId());
                 }
+
+                // Notify customer of payment failure
+                User customer = rental.getUser();
+                String slotNumber = slot.getSlotNumber();
+                
+                notificationService.createNotification(
+                        customer.getId(),
+                        "Payment Failed",
+                        String.format("Your payment for slot %s failed. Please try again or contact support.",
+                                slotNumber),
+                        "PAYMENT_FAILED"
+                );
+                
+                firebaseMessagingService.sendPushNotification(
+                        customer.getId(),
+                        "Payment Failed",
+                        String.format("Slot %s payment unsuccessful. Please try again.", slotNumber)
+                );
             }
         }
 

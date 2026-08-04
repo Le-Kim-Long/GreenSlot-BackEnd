@@ -107,4 +107,12 @@ public class CustomerController {
         }
         return ResponseEntity.ok(activeRental);
     }
+
+    @DeleteMapping("/account/deactivate")
+    @PreAuthorize("hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Deactivate customer account (soft delete)")
+    public ResponseEntity<String> deactivateAccount(Authentication authentication) {
+        customerService.deactivateAccount(authentication.getName());
+        return ResponseEntity.ok("Account deactivated successfully");
+    }
 }

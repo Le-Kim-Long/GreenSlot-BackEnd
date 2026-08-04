@@ -2,6 +2,7 @@ package swp490.greeenslot.entity;
 
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import org.hibernate.annotations.Nationalized;
@@ -31,6 +32,9 @@ public class User {
     @Column(name = "image_url")
     private String imageUrl;
 
+    @Column(name = "device_token")
+    private String deviceToken;
+
     @Column(name = "reset_token")
     private String resetToken;
 
@@ -39,6 +43,9 @@ public class User {
 
     @Column(name = "enabled")
     private Boolean enabled = true;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "user_roles",
@@ -171,5 +178,21 @@ public class User {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public String getDeviceToken() {
+        return deviceToken;
+    }
+
+    public void setDeviceToken(String deviceToken) {
+        this.deviceToken = deviceToken;
+    }
+
+    public LocalDateTime getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(LocalDateTime deletedAt) {
+        this.deletedAt = deletedAt;
     }
 }

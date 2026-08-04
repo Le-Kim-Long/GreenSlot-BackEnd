@@ -32,6 +32,18 @@ public class Pillar {
     @Column(name = "camera_stream_url")
     private String cameraStreamUrl;
 
+    @Column(name = "camera_status")
+    private String cameraStatus; // ONLINE, OFFLINE, MAINTENANCE
+
+    @Column(name = "camera_last_heartbeat")
+    private java.time.LocalDateTime cameraLastHeartbeat;
+
+    @Column(name = "device_status")
+    private String deviceStatus; // ONLINE, OFFLINE, MAINTENANCE
+
+    @Column(name = "device_last_heartbeat")
+    private java.time.LocalDateTime deviceLastHeartbeat;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "default_tree_id")
     private Tree defaultTree;

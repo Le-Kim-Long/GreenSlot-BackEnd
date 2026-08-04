@@ -103,6 +103,33 @@ public class AlertServiceImpl implements AlertService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional
+    public Alert createAlert(Alert alert) {
+        return alertRepository.save(alert);
+    }
+
+    @Override
+    @Transactional
+    public AlertDTO escalateAlert(Long alertId, Long escalateToUserId, String reason) {
+        Alert alert = alertRepository.findById(alertId)
+                .orElseThrow(() -> new RuntimeException("Alert not found with id: " + alertId));
+
+        User escalateToUser = userRepository.findById(escalateToUserId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + escalateToUserId));
+
+        alert.setEscalatedToUser(escalateToUser);
+        alert.setEscalatedAt(LocalDateTime.now());
+        alert.setEscalationReason(reason);
+        alert.setEscalationStatus(EAlertStatus.ESCALATED);
+
+        Alert savedAlert = alertRepository.save(alert);
+
+        // TODO: Send notification to escalated user via Firebase Messaging
+
+        return mapToDTO(savedAlert);
+    }
+
     private AlertDTO mapToDTO(Alert alert) {
         return new AlertDTO(
                 alert.getId(),

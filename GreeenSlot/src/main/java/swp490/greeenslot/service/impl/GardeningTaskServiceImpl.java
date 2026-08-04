@@ -29,6 +29,12 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
     @Autowired
     private GardenSlotRepository gardenSlotRepository;
 
+    @Autowired
+    private swp490.greeenslot.service.NotificationService notificationService;
+
+    @Autowired
+    private swp490.greeenslot.service.FirebaseMessagingService firebaseMessagingService;
+
     @Override
     @Transactional
     public GardeningTask requestService(ServiceRequestDTO request, String username) {
@@ -68,7 +74,50 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
     @Override
     @Transactional
-    public GardeningTask assignTask(TaskAssignmentDTO request) {
+    public GardeningTask createTask(TaskAssignmentDTO request) {
+        if (request.getTaskName() == null || request.getTaskName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Task name is required");
+        }
+        if (request.getTaskType() == null) {
+            throw new IllegalArgumentException("Task type is required");
+        }
+        if (request.getTargetSlotId() == null) {
+            throw new IllegalArgumentException("Target slot ID is required");
+        }
+
+        GardenSlot slot = gardenSlotRepository.findById(request.getTargetSlotId())
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID " + request.getTargetSlotId()));
+
+        ETaskType type;
+        try {
+            type = ETaskType.valueOf(request.getTaskType().toUpperCase());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid task type. Must be MAINTENANCE or CLEANING");
+        }
+
+        if (type == ETaskType.SERVICE_REQUEST) {
+            throw new IllegalArgumentException("SERVICE_REQUEST tasks cannot be created directly by manager. They must originate from customer requests.");
+        }
+
+        GardeningTask task = new GardeningTask();
+        task.setTaskName(request.getTaskName());
+        task.setDescription(request.getDescription());
+        task.setStatus(ETaskStatus.PENDING);
+        task.setTaskType(type);
+        task.setTargetSlot(slot);
+        task.setAssignedStaff(null); // Unassigned initially
+        task.setCreatedAt(LocalDateTime.now());
+
+        return gardeningTaskRepository.save(task);
+    }
+
+    @Override
+    @Transactional
+    public GardeningTask assignStaffToTask(Long taskId, TaskAssignmentDTO request) {
+        if (request.getStaffId() == null) {
+            throw new IllegalArgumentException("Staff ID is required for task assignment");
+        }
+        
         // Fetch target staff and check role
         User staff = userRepository.findById(request.getStaffId())
                 .orElseThrow(() -> new IllegalArgumentException("Staff user not found with ID " + request.getStaffId()));
@@ -80,50 +129,31 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             throw new IllegalArgumentException("User with ID " + request.getStaffId() + " does not have ROLE_GARDEN_STAFF");
         }
 
-        GardeningTask task;
+        // Fetch the task
+        GardeningTask task = gardeningTaskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
 
-        if (request.getTaskId() != null) {
-            // Assign existing task
-            task = gardeningTaskRepository.findById(request.getTaskId())
-                    .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + request.getTaskId()));
-            task.setAssignedStaff(staff);
-        } else {
-            // Create and assign a new task
-            if (request.getTaskName() == null || request.getTaskName().trim().isEmpty()) {
-                throw new IllegalArgumentException("Task name is required to create a new task");
-            }
-            if (request.getTaskType() == null) {
-                throw new IllegalArgumentException("Task type is required to create a new task");
-            }
-            if (request.getTargetSlotId() == null) {
-                throw new IllegalArgumentException("Target slot ID is required to create a new task");
-            }
+        // Assign staff
+        task.setAssignedStaff(staff);
+        GardeningTask savedTask = gardeningTaskRepository.save(task);
 
-            GardenSlot slot = gardenSlotRepository.findById(request.getTargetSlotId())
-                    .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID " + request.getTargetSlotId()));
+        // Notify staff about task assignment
+        notificationService.createNotification(
+                staff.getId(),
+                "New Task Assigned",
+                String.format("You have been assigned to task: %s for slot %s",
+                        task.getTaskName(), task.getTargetSlot() != null ? task.getTargetSlot().getSlotNumber() : "N/A"),
+                "TASK_ASSIGNMENT"
+        );
 
-            ETaskType type;
-            try {
-                type = ETaskType.valueOf(request.getTaskType().toUpperCase());
-            } catch (Exception e) {
-                throw new IllegalArgumentException("Invalid task type. Must be MAINTENANCE or CLEANING");
-            }
+        firebaseMessagingService.sendPushNotification(
+                staff.getId(),
+                "New Task Assigned",
+                String.format("Task: %s - Slot: %s",
+                        task.getTaskName(), task.getTargetSlot() != null ? task.getTargetSlot().getSlotNumber() : "N/A")
+        );
 
-            if (type == ETaskType.SERVICE_REQUEST) {
-                throw new IllegalArgumentException("SERVICE_REQUEST tasks cannot be created directly by manager. They must originate from customer requests.");
-            }
-
-            task = new GardeningTask();
-            task.setTaskName(request.getTaskName());
-            task.setDescription(request.getDescription());
-            task.setStatus(ETaskStatus.PENDING);
-            task.setTaskType(type);
-            task.setTargetSlot(slot);
-            task.setAssignedStaff(staff);
-            task.setCreatedAt(LocalDateTime.now());
-        }
-
-        return gardeningTaskRepository.save(task);
+        return savedTask;
     }
 
     @Override

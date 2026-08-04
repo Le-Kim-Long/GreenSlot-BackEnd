@@ -60,6 +60,20 @@ public class Alert {
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "escalation_status", length = 20)
+    private EAlertStatus escalationStatus; // PENDING, ESCALATED, RESOLVED
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "escalated_to_user_id")
+    private User escalatedToUser; // Manager/Admin who received escalation
+
+    @Column(name = "escalated_at")
+    private LocalDateTime escalatedAt;
+
+    @Column(name = "escalation_reason", length = 1000)
+    private String escalationReason;
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
