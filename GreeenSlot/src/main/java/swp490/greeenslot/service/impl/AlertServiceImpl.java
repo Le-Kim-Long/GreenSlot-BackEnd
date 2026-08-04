@@ -76,22 +76,34 @@ public class AlertServiceImpl implements AlertService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
         
+        EAlertStatus newAlertStatus = EAlertStatus.valueOf(request.getStatus().toUpperCase());
+
         AlertProcessingLog log = new AlertProcessingLog();
         log.setAlert(alert);
         log.setProcessedBy(user);
-        log.setStatus(EAlertProcessingStatus.valueOf(request.getStatus().toUpperCase()));
+        log.setStatus(toProcessingStatus(newAlertStatus));
         log.setComment(request.getComment());
         log.setEvidenceImageUrl(request.getEvidenceImageUrl());
-        
+
         AlertProcessingLog savedLog = alertProcessingLogRepository.save(log);
-        
-        alert.setStatus(EAlertStatus.valueOf(request.getStatus().toUpperCase()));
-        if (EAlertStatus.valueOf(request.getStatus().toUpperCase()) == EAlertStatus.RESOLVED) {
+
+        alert.setStatus(newAlertStatus);
+        if (newAlertStatus == EAlertStatus.RESOLVED) {
             alert.setResolvedAt(LocalDateTime.now());
         }
         alertRepository.save(alert);
-        
+
         return mapToLogDTO(savedLog);
+    }
+
+    // Log xử lý (AlertProcessingLog) dùng enum riêng EAlertProcessingStatus (PROCESSED/NOT_PROCESSED/FAILED),
+    // khác với trạng thái của Alert (EAlertStatus) — cần map thủ công thay vì valueOf() chung 1 chuỗi cho cả 2 enum
+    private EAlertProcessingStatus toProcessingStatus(EAlertStatus alertStatus) {
+        return switch (alertStatus) {
+            case RESOLVED -> EAlertProcessingStatus.PROCESSED;
+            case FAILED -> EAlertProcessingStatus.FAILED;
+            default -> EAlertProcessingStatus.NOT_PROCESSED;
+        };
     }
 
     @Override
