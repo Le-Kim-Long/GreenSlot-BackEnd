@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.*;
 import swp490.greeenslot.dto.CustomerLifetimeValueDTO;
 import swp490.greeenslot.dto.SensorAggregateDTO;
 import swp490.greeenslot.entity.ESensorType;
+import swp490.greeenslot.entity.GardenSlot;
+import swp490.greeenslot.repository.GardenSlotRepository;
 import swp490.greeenslot.service.CustomerAnalyticsService;
 import swp490.greeenslot.service.SensorReadingService;
 
@@ -25,6 +27,19 @@ public class CustomerAnalyticsController {
 
     @Autowired
     private SensorReadingService sensorReadingService;
+
+    @Autowired
+    private GardenSlotRepository gardenSlotRepository;
+
+    /** Ô vườn (GardenSlot) va tru vuon (Pillar) la hai ID khac nhau — phai resolve qua GardenSlot truoc khi truy van cam bien theo tru. */
+    private Long resolvePillarId(Long slotId) {
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Slot not found with ID: " + slotId));
+        if (slot.getPillar() == null) {
+            throw new IllegalArgumentException("Slot " + slotId + " is not associated with a pillar");
+        }
+        return slot.getPillar().getId();
+    }
 
     @GetMapping("/customers/{userId}/clv")
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
@@ -48,7 +63,7 @@ public class CustomerAnalyticsController {
             @RequestParam(required = false) String sensorType,
             @RequestParam(defaultValue = "24") int hours) {
         ESensorType type = sensorType != null ? ESensorType.fromCode(sensorType) : ESensorType.SOIL_MOISTURE;
-        return ResponseEntity.ok(sensorReadingService.getHourlyAggregates(slotId, type, hours));
+        return ResponseEntity.ok(sensorReadingService.getHourlyAggregates(resolvePillarId(slotId), type, hours));
     }
 
     @GetMapping("/slots/{slotId}/charts/daily")
@@ -59,7 +74,7 @@ public class CustomerAnalyticsController {
             @RequestParam(required = false) String sensorType,
             @RequestParam(defaultValue = "30") int days) {
         ESensorType type = sensorType != null ? ESensorType.fromCode(sensorType) : ESensorType.SOIL_MOISTURE;
-        return ResponseEntity.ok(sensorReadingService.getDailyAggregates(slotId, type, days));
+        return ResponseEntity.ok(sensorReadingService.getDailyAggregates(resolvePillarId(slotId), type, days));
     }
 
     @GetMapping("/slots/{slotId}/charts/weekly")
@@ -70,7 +85,7 @@ public class CustomerAnalyticsController {
             @RequestParam(required = false) String sensorType,
             @RequestParam(defaultValue = "12") int weeks) {
         ESensorType type = sensorType != null ? ESensorType.fromCode(sensorType) : ESensorType.SOIL_MOISTURE;
-        return ResponseEntity.ok(sensorReadingService.getWeeklyAggregates(slotId, type, weeks));
+        return ResponseEntity.ok(sensorReadingService.getWeeklyAggregates(resolvePillarId(slotId), type, weeks));
     }
 }
 
