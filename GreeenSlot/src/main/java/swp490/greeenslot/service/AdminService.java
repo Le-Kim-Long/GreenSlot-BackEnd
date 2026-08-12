@@ -11,6 +11,8 @@ public interface AdminService {
     Page<UserAdminDTO> getAllUsers(Pageable pageable);
     UserAdminDTO updateUserAuthorities(Long userId, UserAuthorityUpdateDTO dto);
     UserAdminDTO updateUserStatus(Long userId, UserStatusUpdateDTO dto);
+    UserAdminDTO updateUserLocation(Long userId, Long locationId);
+    UserAdminDTO createUser(swp490.greeenslot.dto.UserAdminCreateDTO dto);
     org.springframework.data.domain.Page<swp490.greeenslot.dto.AuditLogDTO> getAuditLogs(java.time.LocalDateTime start, java.time.LocalDateTime end, org.springframework.data.domain.Pageable pageable);
     GlobalContentDTO createContent(GlobalContentDTO dto);
     GlobalContentDTO updateContent(Long id, GlobalContentDTO dto);

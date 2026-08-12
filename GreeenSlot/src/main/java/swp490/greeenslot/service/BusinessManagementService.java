@@ -39,7 +39,7 @@ public interface BusinessManagementService {
     List<ActiveRentalDTO> getActiveRentals();
 
     // Financial Analytics
-    RevenueAnalyticsResponseDTO getRevenueAnalytics(LocalDateTime start, LocalDateTime end);
+    RevenueAnalyticsResponseDTO getRevenueAnalytics(Long locationId, LocalDateTime start, LocalDateTime end);
     List<RevenueByLocationDTO> getRevenueByLocation(LocalDateTime start, LocalDateTime end);
     List<TransactionDeclarationDTO> getTransactionDeclarations(LocalDateTime start, LocalDateTime end);
 

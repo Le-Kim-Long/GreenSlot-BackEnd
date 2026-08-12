@@ -107,7 +107,7 @@ public class AuditLoggingAspect {
             try {
                 auditLogRepository.save(auditLog);
             } catch (Exception dbEx) {
-                System.err.println("AuditLoggingAspect: Failed to persist audit log: " + dbEx.getMessage());
+                org.slf4j.LoggerFactory.getLogger(AuditLoggingAspect.class).error("Failed to persist audit log", dbEx);
             }
         }
         

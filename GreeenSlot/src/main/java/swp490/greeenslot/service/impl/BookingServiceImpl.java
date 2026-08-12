@@ -381,6 +381,7 @@ public class BookingServiceImpl implements BookingService {
 
             history.add(new RentalHistoryDTO(
                     rental.getId(),
+                    slot.getId(),
                     slot.getSlotNumber(),
                     pillar.getPillarCode(),
                     location.getName(),

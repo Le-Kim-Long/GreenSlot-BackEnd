@@ -19,4 +19,6 @@ public class UserAdminDTO {
     private String address;
     private Boolean enabled;
     private List<String> roles;
+    private Long locationId;
+    private String locationName;
 }

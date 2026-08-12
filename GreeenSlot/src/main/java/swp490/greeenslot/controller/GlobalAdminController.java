@@ -31,9 +31,15 @@ public class GlobalAdminController {
     @Operation(summary = "Get paginated list of all users", description = "Retrieve a list of all users on the platform with pagination.")
     public ResponseEntity<Page<UserAdminDTO>> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(page, size);
         return ResponseEntity.ok(adminService.getAllUsers(pageable));
+    }
+
+    @PostMapping("/users")
+    @Operation(summary = "Create a new user account", description = "Create a new user with specific roles and optionally assign a location.")
+    public ResponseEntity<UserAdminDTO> createUser(@jakarta.validation.Valid @RequestBody swp490.greeenslot.dto.UserAdminCreateDTO dto) {
+        return ResponseEntity.ok(adminService.createUser(dto));
     }
 
     @PutMapping("/users/{id}/authorities")
@@ -50,6 +56,14 @@ public class GlobalAdminController {
             @PathVariable Long id,
             @Valid @RequestBody UserStatusUpdateDTO dto) {
         return ResponseEntity.ok(adminService.updateUserStatus(id, dto));
+    }
+
+    @PutMapping("/users/{id}/location/{locationId}")
+    @Operation(summary = "Assign a user to a specific location", description = "Map a user (e.g., Location Manager or Garden Staff) to a facility. Pass 0 or an invalid ID to clear.")
+    public ResponseEntity<UserAdminDTO> updateUserLocation(
+            @PathVariable Long id,
+            @PathVariable Long locationId) {
+        return ResponseEntity.ok(adminService.updateUserLocation(id, locationId));
     }
 
     @GetMapping("/audit-logs")

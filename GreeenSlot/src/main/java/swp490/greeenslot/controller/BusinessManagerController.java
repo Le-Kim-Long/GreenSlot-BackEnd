@@ -221,12 +221,15 @@ public class BusinessManagerController {
     @Operation(summary = "Get total financial revenue and transaction breakdowns within date bounds")
     public ResponseEntity<RevenueAnalyticsResponseDTO> getRevenueAnalytics(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            org.springframework.security.core.Authentication authentication) {
 
         LocalDateTime startDateTime = startDate.atStartOfDay();
         LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
+        
+        swp490.greeenslot.service.impl.UserDetailsImpl userDetails = (swp490.greeenslot.service.impl.UserDetailsImpl) authentication.getPrincipal();
 
-        return ResponseEntity.ok(businessManagementService.getRevenueAnalytics(startDateTime, endDateTime));
+        return ResponseEntity.ok(businessManagementService.getRevenueAnalytics(userDetails.getId(), startDateTime, endDateTime));
     }
 
     // ==========================================

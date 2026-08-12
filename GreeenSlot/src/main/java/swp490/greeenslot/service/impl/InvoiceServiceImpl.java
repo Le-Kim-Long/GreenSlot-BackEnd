@@ -11,6 +11,8 @@ import swp490.greeenslot.entity.SlotRental;
 import swp490.greeenslot.repository.PaymentTransactionRepository;
 import swp490.greeenslot.repository.SlotRentalRepository;
 import swp490.greeenslot.service.InvoiceService;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -36,6 +38,13 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .findFirst()
                 .orElse(null);
 
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        boolean isAdmin = SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MANAGER"));
+        if (!isAdmin && rental.getUser() != null && !rental.getUser().getUsername().equals(currentUsername)) {
+            throw new AccessDeniedException("You do not have permission to access this invoice.");
+        }
+
         return generatePdfInvoice(rental, latestPayment);
     }
 
@@ -43,8 +52,16 @@ public class InvoiceServiceImpl implements InvoiceService {
     public ByteArrayOutputStream generateInvoiceForPayment(Long paymentTransactionId) throws IOException {
         PaymentTransaction payment = paymentTransactionRepository.findById(paymentTransactionId)
                 .orElseThrow(() -> new IllegalArgumentException("Payment transaction not found with ID: " + paymentTransactionId));
+        
+        SlotRental rental = payment.getRental();
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        boolean isAdmin = SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MANAGER"));
+        if (!isAdmin && rental != null && rental.getUser() != null && !rental.getUser().getUsername().equals(currentUsername)) {
+            throw new AccessDeniedException("You do not have permission to access this invoice.");
+        }
 
-        return generatePdfInvoice(payment.getRental(), payment);
+        return generatePdfInvoice(rental, payment);
     }
 
     private ByteArrayOutputStream generatePdfInvoice(SlotRental rental, PaymentTransaction payment) throws IOException {

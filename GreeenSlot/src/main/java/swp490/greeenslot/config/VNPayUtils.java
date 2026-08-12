@@ -137,12 +137,6 @@ public class VNPayUtils {
         logger.error("VNPay signature verification failed. Calculated: {}, Received: {}", calculatedHash, vnp_SecureHash);
         logger.debug("Raw hash data string used: {}", hashData.toString());
 
-        // In Sandbox / Demo environment with demo merchant code (1COY3S4A), VNPay Sandbox sometimes returns inconsistent HMAC signatures across frontend redirects.
-        if ("1COY3S4A".equals(tmnCode) || (url != null && url.contains("sandbox"))) {
-            logger.warn("Sandbox environment detected (1COY3S4A / sandbox). Bypassing signature mismatch for local testing.");
-            return true;
-        }
-
         return false;
     }
 

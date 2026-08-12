@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -30,7 +31,8 @@ import java.util.Optional;
 @Tag(name = "IoT Sensors & Devices", description = "Endpoints for receiving sensor telemetry, threshold boundaries, and camera streams")
 public class IoTSensorController {
 
-    private static final String VALID_IOT_API_KEY = "GreenSlot-IoT-Dev-Key";
+    @Value("${iot.api.key:GreenSlot-IoT-Dev-Key}")
+    private String VALID_IOT_API_KEY;
 
     @Autowired
     private SensorReadingService sensorReadingService;
@@ -387,6 +389,54 @@ public class IoTSensorController {
         ));
     }
 
+    @GetMapping("/pump/status")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Get pump status", description = "Get current status of the pump")
+    public ResponseEntity<Map<String, Object>> getPumpStatus() {
+        // Placeholder for IoT integration
+        return ResponseEntity.ok(Map.of(
+                "status", "OFF",
+                "lastUpdated", java.time.LocalDateTime.now()
+        ));
+    }
+
+    @PostMapping("/pump/status")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
+    @Operation(summary = "Control water pump", description = "Send ON/OFF commands to the water pump")
+    public ResponseEntity<Map<String, Object>> updatePumpStatus(
+            @RequestBody Map<String, Object> controlRequest) {
+        
+        // Placeholder for IoT integration
+        return ResponseEntity.ok(Map.of(
+                "message", "Pump status updated",
+                "status", controlRequest.get("status") != null ? controlRequest.get("status") : "OFF"
+        ));
+    }
+
+    @PostMapping("/device/{slotId}/plant")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
+    @Operation(summary = "Trigger tree planting", description = "Trigger the automated planting mechanism for a specific slot")
+    public ResponseEntity<Map<String, String>> triggerPlanting(
+            @PathVariable Long slotId,
+            @RequestBody Map<String, String> request) {
+        
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+
+        Pillar pillar = slot.getPillar();
+        if (pillar == null) {
+            throw new IllegalArgumentException("This garden slot is not currently associated with a Pillar.");
+        }
+
+        String seedType = request.getOrDefault("seedType", "UNKNOWN");
+        
+        // Placeholder for IoT integration
+        return ResponseEntity.ok(Map.of(
+                "message", "Planting sequence triggered for seed: " + seedType,
+                "status", "COMMAND_SENT"
+        ));
+    }
+
     @PostMapping("/camera/{slotId}/record")
     @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
     @Operation(summary = "Record video from camera", description = "Starts video recording and saves to Firebase Storage")
@@ -430,7 +480,7 @@ public class IoTSensorController {
             @RequestHeader("X-IoT-Api-Key") String apiKey) {
         
         // Validate API key
-        if (!"GreenSlot-IoT-Dev-Key".equals(apiKey)) {
+        if (!VALID_IOT_API_KEY.equals(apiKey)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 

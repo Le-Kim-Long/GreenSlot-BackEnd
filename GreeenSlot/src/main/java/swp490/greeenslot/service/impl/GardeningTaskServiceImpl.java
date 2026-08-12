@@ -181,23 +181,36 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         try {
             newStatus = ETaskStatus.valueOf(request.getStatus().toUpperCase());
         } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid task status. Must be PENDING, IN_PROGRESS, or COMPLETED");
+            throw new IllegalArgumentException("Invalid task status. Must be PENDING, IN_PROGRESS, PENDING_APPROVAL, or COMPLETED");
         }
 
         // Validate status transition sequence
         if (task.getStatus() == ETaskStatus.COMPLETED) {
             throw new IllegalArgumentException("Cannot modify status of a COMPLETED task");
         }
-
-        if (task.getStatus() == ETaskStatus.PENDING && newStatus == ETaskStatus.COMPLETED) {
-            throw new IllegalArgumentException("Cannot transition directly from PENDING to COMPLETED. Must go through IN_PROGRESS first.");
+        
+        if (task.getStatus() == ETaskStatus.PENDING_APPROVAL) {
+            throw new IllegalArgumentException("Task is currently under review by manager. Cannot modify.");
         }
 
+        if (task.getStatus() == ETaskStatus.PENDING && (newStatus == ETaskStatus.PENDING_APPROVAL || newStatus == ETaskStatus.COMPLETED)) {
+            throw new IllegalArgumentException("Cannot transition directly from PENDING to PENDING_APPROVAL/COMPLETED. Must go through IN_PROGRESS first.");
+        }
+        
         if (newStatus == ETaskStatus.COMPLETED) {
+            throw new IllegalArgumentException("Staff cannot mark task as COMPLETED directly. Must mark as PENDING_APPROVAL and provide evidence.");
+        }
+
+        if (newStatus == ETaskStatus.PENDING_APPROVAL) {
             if (request.getEvidenceImageUrl() == null || request.getEvidenceImageUrl().trim().isEmpty()) {
-                throw new IllegalArgumentException("Evidence image URL is required when marking task as COMPLETED");
+                throw new IllegalArgumentException("Evidence image URL is required when submitting task for approval");
             }
             task.setEvidenceImageUrl(request.getEvidenceImageUrl());
+            
+            // Clear previous rejection reason if any
+            if (task.getStatus() == ETaskStatus.REJECTED) {
+                task.setRejectionReason(null);
+            }
         }
 
         task.setStatus(newStatus);
@@ -234,5 +247,51 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         gardeningTaskRepository.save(originalTask);
 
         return savedIssue;
+    }
+
+    @Override
+    @Transactional
+    public GardeningTask reviewTaskEvidence(Long taskId, TaskReviewRequestDTO request) {
+        GardeningTask task = gardeningTaskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
+
+        if (task.getStatus() != ETaskStatus.PENDING_APPROVAL) {
+            throw new IllegalArgumentException("Task must be in PENDING_APPROVAL status to be reviewed. Current status: " + task.getStatus());
+        }
+
+        if ("APPROVE".equalsIgnoreCase(request.getAction())) {
+            task.setStatus(ETaskStatus.COMPLETED);
+            task.setRejectionReason(null);
+            
+            // Notify staff
+            if (task.getAssignedStaff() != null) {
+                notificationService.createNotification(
+                        task.getAssignedStaff().getId(),
+                        "Task Approved",
+                        "Your work on task " + task.getTaskName() + " has been approved.",
+                        "TASK_APPROVED"
+                );
+            }
+        } else if ("REJECT".equalsIgnoreCase(request.getAction())) {
+            if (request.getRejectionReason() == null || request.getRejectionReason().trim().isEmpty()) {
+                throw new IllegalArgumentException("Rejection reason is required when rejecting a task evidence");
+            }
+            task.setStatus(ETaskStatus.REJECTED);
+            task.setRejectionReason(request.getRejectionReason());
+            
+            // Notify staff
+            if (task.getAssignedStaff() != null) {
+                notificationService.createNotification(
+                        task.getAssignedStaff().getId(),
+                        "Task Rejected",
+                        "Your work on task " + task.getTaskName() + " has been rejected. Reason: " + request.getRejectionReason(),
+                        "TASK_REJECTED"
+                );
+            }
+        } else {
+            throw new IllegalArgumentException("Invalid review action. Must be APPROVE or REJECT");
+        }
+
+        return gardeningTaskRepository.save(task);
     }
 }

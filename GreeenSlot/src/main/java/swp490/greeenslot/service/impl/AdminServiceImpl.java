@@ -25,6 +25,9 @@ public class AdminServiceImpl implements AdminService {
     private UserRepository userRepository;
 
     @Autowired
+    private LocationRepository locationRepository;
+
+    @Autowired
     private RoleRepository roleRepository;
 
     @Autowired
@@ -32,6 +35,57 @@ public class AdminServiceImpl implements AdminService {
 
     @Autowired
     private GlobalContentRepository globalContentRepository;
+
+    @Autowired
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
+    @Override
+    public UserAdminDTO createUser(UserAdminCreateDTO dto) {
+        if (userRepository.existsByUsername(dto.getUsername())) {
+            throw new IllegalArgumentException("Error: Username is already taken!");
+        }
+
+        if (userRepository.existsByEmail(dto.getEmail())) {
+            throw new IllegalArgumentException("Error: Email is already in use!");
+        }
+
+        User user = new User();
+        user.setUsername(dto.getUsername());
+        user.setEmail(dto.getEmail());
+        user.setPassword(passwordEncoder.encode(dto.getPassword()));
+        user.setFullName(dto.getFullName());
+        user.setPhone(dto.getPhone());
+        user.setAddress(dto.getAddress());
+        user.setEnabled(true);
+
+        Set<Role> roles = new HashSet<>();
+        if (dto.getRoles() == null || dto.getRoles().isEmpty()) {
+            Role userRole = roleRepository.findByName(ERole.ROLE_CUSTOMER)
+                    .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+            roles.add(userRole);
+        } else {
+            dto.getRoles().forEach(role -> {
+                try {
+                    ERole eRole = ERole.valueOf(role);
+                    Role roleEntity = roleRepository.findByName(eRole)
+                            .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+                    roles.add(roleEntity);
+                } catch (IllegalArgumentException e) {
+                    throw new RuntimeException("Error: Role " + role + " is invalid.");
+                }
+            });
+        }
+        user.setRoles(roles);
+
+        if (dto.getLocationId() != null && dto.getLocationId() > 0) {
+            Location location = locationRepository.findById(dto.getLocationId())
+                    .orElseThrow(() -> new IllegalArgumentException("Location not found"));
+            user.setLocation(location);
+        }
+
+        User savedUser = userRepository.save(user);
+        return convertToUserAdminDTO(savedUser);
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -85,6 +139,23 @@ public class AdminServiceImpl implements AdminService {
         }
 
         user.setEnabled(dto.getEnabled());
+        User updatedUser = userRepository.save(user);
+        return convertToUserAdminDTO(updatedUser);
+    }
+
+    @Override
+    public UserAdminDTO updateUserLocation(Long userId, Long locationId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+
+        if (locationId == null || locationId == 0) {
+            user.setLocation(null);
+        } else {
+            Location location = locationRepository.findById(locationId)
+                    .orElseThrow(() -> new IllegalArgumentException("Location not found with id: " + locationId));
+            user.setLocation(location);
+        }
+
         User updatedUser = userRepository.save(user);
         return convertToUserAdminDTO(updatedUser);
     }
@@ -149,7 +220,9 @@ public class AdminServiceImpl implements AdminService {
                 user.getPhone(),
                 user.getAddress(),
                 user.getEnabled() != null ? user.getEnabled() : true,
-                roles
+                roles,
+                user.getLocation() != null ? user.getLocation().getId() : null,
+                user.getLocation() != null ? user.getLocation().getName() : null
         );
     }
 

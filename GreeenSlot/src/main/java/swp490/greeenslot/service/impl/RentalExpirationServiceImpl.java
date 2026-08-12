@@ -23,6 +23,9 @@ public class RentalExpirationServiceImpl implements RentalExpirationService {
 
     @Autowired
     private SlotRentalRepository slotRentalRepository;
+    
+    @Autowired
+    private swp490.greeenslot.repository.GardenSlotRepository gardenSlotRepository;
 
     @Autowired
     private NotificationService notificationService;
@@ -89,6 +92,12 @@ public class RentalExpirationServiceImpl implements RentalExpirationService {
             try {
                 rental.setStatus(ERentalStatus.EXPIRED);
                 slotRentalRepository.save(rental);
+                
+                if (rental.getGardenSlot() != null) {
+                    swp490.greeenslot.entity.GardenSlot slot = rental.getGardenSlot();
+                    slot.setStatus(swp490.greeenslot.entity.ESlotStatus.AVAILABLE);
+                    gardenSlotRepository.save(slot);
+                }
 
                 String slotNumber = rental.getGardenSlot() != null ? rental.getGardenSlot().getSlotNumber() : "N/A";
                 String message = String.format("Your rental for slot %s has expired on %s. Please renew to continue using the service.",
