@@ -61,43 +61,46 @@ public interface SensorReadingRepository extends JpaRepository<SensorReading, Lo
             @Param("startTime") Instant startTime,
             @Param("endTime") Instant endTime);
 
-    // Pillar-based aggregation queries
-    @Query("SELECT AVG(sr.value) as avgValue, MIN(sr.value) as minValue, MAX(sr.value) as maxValue, " +
-           "COUNT(sr) as count, CONVERT(VARCHAR(13), sr.recordedAt, 120) as hourBucket " +
-           "FROM SensorReading sr JOIN Equipment e ON sr.deviceId = e.serialNumber " +
-           "WHERE e.pillar.id = :pillarId AND sr.sensorType = :sensorType " +
-           "AND sr.recordedAt >= :startTime AND sr.recordedAt <= :endTime " +
-           "GROUP BY CONVERT(VARCHAR(13), sr.recordedAt, 120) " +
-           "ORDER BY CONVERT(VARCHAR(13), sr.recordedAt, 120) ASC")
+    // Pillar-based aggregation queries.
+    // nativeQuery=true vi CONVERT/DATEADD/DATEDIFF la ham SQL Server, khong phai ham JPQL chuan.
+    // Bucket tra ve la 1 moc DATETIME2 dai dien (dau gio/ngay/tuan) thay vi String/DATE/so tuan
+    // de tranh loi ep kieu va co the sap xep/parse nhat quan o tang service.
+    @Query(value = "SELECT AVG(sr.value) as avgValue, MIN(sr.value) as minValue, MAX(sr.value) as maxValue, " +
+           "COUNT(*) as readingCount, DATEADD(HOUR, DATEDIFF(HOUR, 0, sr.recorded_at), 0) as bucketTime " +
+           "FROM sensor_readings sr JOIN equipment e ON sr.device_id = e.serial_number " +
+           "WHERE e.pillar_id = :pillarId AND sr.sensor_type = :sensorType " +
+           "AND sr.recorded_at >= :startTime AND sr.recorded_at <= :endTime " +
+           "GROUP BY DATEADD(HOUR, DATEDIFF(HOUR, 0, sr.recorded_at), 0) " +
+           "ORDER BY bucketTime ASC", nativeQuery = true)
     List<Object[]> findHourlyAggregatesByPillar(
             @Param("pillarId") Long pillarId,
-            @Param("sensorType") ESensorType sensorType,
+            @Param("sensorType") String sensorType,
             @Param("startTime") Instant startTime,
             @Param("endTime") Instant endTime);
 
-    @Query("SELECT AVG(sr.value) as avgValue, MIN(sr.value) as minValue, MAX(sr.value) as maxValue, " +
-           "COUNT(sr) as count, CAST(CONVERT(VARCHAR(10), sr.recordedAt, 120) AS DATE) as dateBucket " +
-           "FROM SensorReading sr JOIN Equipment e ON sr.deviceId = e.serialNumber " +
-           "WHERE e.pillar.id = :pillarId AND sr.sensorType = :sensorType " +
-           "AND sr.recordedAt >= :startTime AND sr.recordedAt <= :endTime " +
-           "GROUP BY CAST(CONVERT(VARCHAR(10), sr.recordedAt, 120) AS DATE) " +
-           "ORDER BY CAST(CONVERT(VARCHAR(10), sr.recordedAt, 120) AS DATE) ASC")
+    @Query(value = "SELECT AVG(sr.value) as avgValue, MIN(sr.value) as minValue, MAX(sr.value) as maxValue, " +
+           "COUNT(*) as readingCount, DATEADD(DAY, DATEDIFF(DAY, 0, sr.recorded_at), 0) as bucketTime " +
+           "FROM sensor_readings sr JOIN equipment e ON sr.device_id = e.serial_number " +
+           "WHERE e.pillar_id = :pillarId AND sr.sensor_type = :sensorType " +
+           "AND sr.recorded_at >= :startTime AND sr.recorded_at <= :endTime " +
+           "GROUP BY DATEADD(DAY, DATEDIFF(DAY, 0, sr.recorded_at), 0) " +
+           "ORDER BY bucketTime ASC", nativeQuery = true)
     List<Object[]> findDailyAggregatesByPillar(
             @Param("pillarId") Long pillarId,
-            @Param("sensorType") ESensorType sensorType,
+            @Param("sensorType") String sensorType,
             @Param("startTime") Instant startTime,
             @Param("endTime") Instant endTime);
 
-    @Query("SELECT AVG(sr.value) as avgValue, MIN(sr.value) as minValue, MAX(sr.value) as maxValue, " +
-           "COUNT(sr) as count, DATEPART(WEEK, sr.recordedAt) as weekBucket " +
-           "FROM SensorReading sr JOIN Equipment e ON sr.deviceId = e.serialNumber " +
-           "WHERE e.pillar.id = :pillarId AND sr.sensorType = :sensorType " +
-           "AND sr.recordedAt >= :startTime AND sr.recordedAt <= :endTime " +
-           "GROUP BY DATEPART(WEEK, sr.recordedAt) " +
-           "ORDER BY DATEPART(WEEK, sr.recordedAt) ASC")
+    @Query(value = "SELECT AVG(sr.value) as avgValue, MIN(sr.value) as minValue, MAX(sr.value) as maxValue, " +
+           "COUNT(*) as readingCount, DATEADD(WEEK, DATEDIFF(WEEK, 0, sr.recorded_at), 0) as bucketTime " +
+           "FROM sensor_readings sr JOIN equipment e ON sr.device_id = e.serial_number " +
+           "WHERE e.pillar_id = :pillarId AND sr.sensor_type = :sensorType " +
+           "AND sr.recorded_at >= :startTime AND sr.recorded_at <= :endTime " +
+           "GROUP BY DATEADD(WEEK, DATEDIFF(WEEK, 0, sr.recorded_at), 0) " +
+           "ORDER BY bucketTime ASC", nativeQuery = true)
     List<Object[]> findWeeklyAggregatesByPillar(
             @Param("pillarId") Long pillarId,
-            @Param("sensorType") ESensorType sensorType,
+            @Param("sensorType") String sensorType,
             @Param("startTime") Instant startTime,
             @Param("endTime") Instant endTime);
 }

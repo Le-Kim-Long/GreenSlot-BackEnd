@@ -321,16 +321,27 @@ public class SensorReadingServiceImpl implements SensorReadingService {
         }
     }
 
+    /** Cot bucket la DATETIME2 native tra ve tu SQL Server, driver map thanh java.sql.Timestamp. */
+    private static java.time.LocalDateTime toLocalDateTime(Object bucketColumn) {
+        if (bucketColumn instanceof java.sql.Timestamp ts) {
+            return ts.toLocalDateTime();
+        }
+        if (bucketColumn instanceof java.time.LocalDateTime ldt) {
+            return ldt;
+        }
+        throw new IllegalStateException("Unexpected bucket column type: " + bucketColumn.getClass());
+    }
+
     @Override
     public List<SensorAggregateDTO> getHourlyAggregates(Long pillarId, ESensorType sensorType, int hoursBack) {
         Instant now = Instant.now();
         Instant startTime = now.minusSeconds((long) hoursBack * 3600);
-        
+
         List<Object[]> results = sensorReadingRepository.findHourlyAggregatesByPillar(
-                pillarId, sensorType, startTime, now);
-        
+                pillarId, sensorType.name(), startTime, now);
+
         return results.stream().map(row -> SensorAggregateDTO.builder()
-                .timestamp(Instant.ofEpochMilli(((Number) row[4]).longValue()).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime())
+                .timestamp(toLocalDateTime(row[4]))
                 .sensorType(sensorType.name())
                 .avgValue(((Number) row[0]).doubleValue())
                 .minValue(((Number) row[1]).doubleValue())
@@ -343,12 +354,12 @@ public class SensorReadingServiceImpl implements SensorReadingService {
     public List<SensorAggregateDTO> getDailyAggregates(Long pillarId, ESensorType sensorType, int daysBack) {
         Instant now = Instant.now();
         Instant startTime = now.minusSeconds((long) daysBack * 86400);
-        
+
         List<Object[]> results = sensorReadingRepository.findDailyAggregatesByPillar(
-                pillarId, sensorType, startTime, now);
-        
+                pillarId, sensorType.name(), startTime, now);
+
         return results.stream().map(row -> SensorAggregateDTO.builder()
-                .timestamp(Instant.ofEpochMilli(((Number) row[4]).longValue()).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime())
+                .timestamp(toLocalDateTime(row[4]))
                 .sensorType(sensorType.name())
                 .avgValue(((Number) row[0]).doubleValue())
                 .minValue(((Number) row[1]).doubleValue())
@@ -361,12 +372,12 @@ public class SensorReadingServiceImpl implements SensorReadingService {
     public List<SensorAggregateDTO> getWeeklyAggregates(Long pillarId, ESensorType sensorType, int weeksBack) {
         Instant now = Instant.now();
         Instant startTime = now.minusSeconds((long) weeksBack * 604800);
-        
+
         List<Object[]> results = sensorReadingRepository.findWeeklyAggregatesByPillar(
-                pillarId, sensorType, startTime, now);
-        
+                pillarId, sensorType.name(), startTime, now);
+
         return results.stream().map(row -> SensorAggregateDTO.builder()
-                .timestamp(Instant.ofEpochMilli(((Number) row[4]).longValue()).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime())
+                .timestamp(toLocalDateTime(row[4]))
                 .sensorType(sensorType.name())
                 .avgValue(((Number) row[0]).doubleValue())
                 .minValue(((Number) row[1]).doubleValue())
