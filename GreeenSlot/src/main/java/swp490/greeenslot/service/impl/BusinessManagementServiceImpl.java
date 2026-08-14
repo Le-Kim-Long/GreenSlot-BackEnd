@@ -15,6 +15,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.Authentication;
+import swp490.greeenslot.service.impl.UserDetailsImpl;
+
+
 @Service
 public class BusinessManagementServiceImpl implements BusinessManagementService {
 
@@ -83,6 +88,19 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Override
     @Transactional(readOnly = true)
     public List<LocationDTO> getAllLocations() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof UserDetailsImpl) {
+            UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+            User currentUser = userRepository.findById(userDetails.getId()).orElse(null);
+            if (currentUser != null && currentUser.getRoles().stream().anyMatch(r -> r.getName() == ERole.ROLE_LOCATION_MANAGER)) {
+                if (currentUser.getLocation() != null) {
+                    return List.of(mapToLocationDTO(currentUser.getLocation()));
+                } else {
+                    return List.of();
+                }
+            }
+        }
+        
         return locationRepository.findAll().stream()
                 .map(this::mapToLocationDTO)
                 .collect(Collectors.toList());
@@ -374,8 +392,8 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
 
     @Override
     @Transactional(readOnly = true)
-    public RevenueAnalyticsResponseDTO getRevenueAnalytics(LocalDateTime start, LocalDateTime end) {
-        List<PaymentTransaction> transactions = paymentTransactionRepository.findSuccessfulTransactionsBetween(start, end);
+    public RevenueAnalyticsResponseDTO getRevenueAnalytics(Long locationId, LocalDateTime start, LocalDateTime end) {
+        List<PaymentTransaction> transactions = paymentTransactionRepository.findSuccessfulTransactionsByLocationBetween(locationId, start, end);
 
         // Compute total revenue
         BigDecimal totalRevenue = transactions.stream()
@@ -560,7 +578,9 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
                         user.getPhone(),
                         user.getAddress(),
                         user.getEnabled() != null ? user.getEnabled() : true,
-                        user.getRoles().stream().map(r -> r.getName().name()).collect(Collectors.toList())
+                        user.getRoles().stream().map(r -> r.getName().name()).collect(Collectors.toList()),
+                        user.getLocation() != null ? user.getLocation().getId() : null,
+                        user.getLocation() != null ? user.getLocation().getName() : null
                 ))
                 .collect(Collectors.toList());
     }

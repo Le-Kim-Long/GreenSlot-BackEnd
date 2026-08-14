@@ -11,6 +11,7 @@ import swp490.greeenslot.repository.EquipmentRepository;
 import swp490.greeenslot.repository.PillarRepository;
 import swp490.greeenslot.service.EquipmentService;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -40,6 +41,7 @@ public class EquipmentServiceImpl implements EquipmentService {
     @Override
     @Transactional
     public EquipmentDTO createEquipment(EquipmentDTO dto) {
+        validateEquipmentDates(dto);
         Equipment equipment = mapToEntity(dto);
         Equipment savedEquipment = equipmentRepository.save(equipment);
         return mapToDTO(savedEquipment);
@@ -48,12 +50,23 @@ public class EquipmentServiceImpl implements EquipmentService {
     @Override
     @Transactional
     public EquipmentDTO updateEquipment(Long id, EquipmentDTO dto) {
+        validateEquipmentDates(dto);
         Equipment existingEquipment = equipmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Equipment not found with id: " + id));
         
         updateEntityFromDTO(existingEquipment, dto);
         Equipment updatedEquipment = equipmentRepository.save(existingEquipment);
         return mapToDTO(updatedEquipment);
+    }
+
+    private void validateEquipmentDates(EquipmentDTO dto) {
+        LocalDateTime now = LocalDateTime.now();
+        if (dto.getPurchaseDate() != null && dto.getPurchaseDate().isAfter(now)) {
+            throw new IllegalArgumentException("Purchase date cannot be in the future");
+        }
+        if (dto.getLastMaintenanceDate() != null && dto.getLastMaintenanceDate().isAfter(now)) {
+            throw new IllegalArgumentException("Last maintenance date cannot be in the future");
+        }
     }
 
     @Override

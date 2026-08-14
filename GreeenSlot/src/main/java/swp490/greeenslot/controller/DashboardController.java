@@ -88,7 +88,7 @@ public class DashboardController {
         LocalDateTime startDateTime = java.time.LocalDate.parse(startDate).atStartOfDay();
         LocalDateTime endDateTime = java.time.LocalDate.parse(endDate).atTime(java.time.LocalTime.MAX);
         
-        swp490.greeenslot.dto.RevenueAnalyticsResponseDTO analytics = businessManagementService.getRevenueAnalytics(startDateTime, endDateTime);
+        swp490.greeenslot.dto.RevenueAnalyticsResponseDTO analytics = businessManagementService.getRevenueAnalytics(locationId, startDateTime, endDateTime);
         
         return ResponseEntity.ok(analytics);
     }

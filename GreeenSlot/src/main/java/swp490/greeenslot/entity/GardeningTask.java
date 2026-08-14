@@ -40,6 +40,10 @@ public class GardeningTask {
     @Column(name = "task_type", length = 30)
     private ETaskType taskType;
 
+    @Nationalized
+    @Column(name = "rejection_reason", length = 1000)
+    private String rejectionReason;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_staff_id")
     private User assignedStaff;

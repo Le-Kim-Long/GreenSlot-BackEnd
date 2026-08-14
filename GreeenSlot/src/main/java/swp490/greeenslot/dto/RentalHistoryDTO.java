@@ -6,6 +6,7 @@ import java.util.List;
 
 public class RentalHistoryDTO {
     private Long rentalId;
+    private Long slotId;
     private String slotNumber;
     private String pillarCode;
     private String locationName;
@@ -77,9 +78,10 @@ public class RentalHistoryDTO {
     public RentalHistoryDTO() {
     }
 
-    public RentalHistoryDTO(Long rentalId, String slotNumber, String pillarCode, String locationName, String locationAddress,
+    public RentalHistoryDTO(Long rentalId, Long slotId, String slotNumber, String pillarCode, String locationName, String locationAddress,
                             LocalDateTime startTime, LocalDateTime endTime, String rentalStatus, List<PaymentTransactionInfo> transactions) {
         this.rentalId = rentalId;
+        this.slotId = slotId;
         this.slotNumber = slotNumber;
         this.pillarCode = pillarCode;
         this.locationName = locationName;
@@ -96,6 +98,14 @@ public class RentalHistoryDTO {
 
     public void setRentalId(Long rentalId) {
         this.rentalId = rentalId;
+    }
+
+    public Long getSlotId() {
+        return slotId;
+    }
+
+    public void setSlotId(Long slotId) {
+        this.slotId = slotId;
     }
 
     public String getSlotNumber() {

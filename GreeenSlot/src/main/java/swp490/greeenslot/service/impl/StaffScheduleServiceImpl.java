@@ -45,6 +45,7 @@ public class StaffScheduleServiceImpl implements StaffScheduleService {
     @Override
     @Transactional
     public StaffScheduleDTO createSchedule(StaffScheduleDTO dto) {
+        validateScheduleDates(dto);
         StaffSchedule schedule = mapToEntity(dto);
         StaffSchedule savedSchedule = staffScheduleRepository.save(schedule);
         return mapToDTO(savedSchedule);
@@ -53,12 +54,24 @@ public class StaffScheduleServiceImpl implements StaffScheduleService {
     @Override
     @Transactional
     public StaffScheduleDTO updateSchedule(Long id, StaffScheduleDTO dto) {
+        validateScheduleDates(dto);
         StaffSchedule existingSchedule = staffScheduleRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
         
         updateEntityFromDTO(existingSchedule, dto);
         StaffSchedule updatedSchedule = staffScheduleRepository.save(existingSchedule);
         return mapToDTO(updatedSchedule);
+    }
+
+    private void validateScheduleDates(StaffScheduleDTO dto) {
+        if (dto.getScheduleDate() != null && dto.getScheduleDate().isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException("Schedule date cannot be in the past");
+        }
+        if (dto.getStartTime() != null && dto.getEndTime() != null) {
+            if (!dto.getStartTime().isBefore(dto.getEndTime())) {
+                throw new IllegalArgumentException("Start time must be before end time");
+            }
+        }
     }
 
     @Override

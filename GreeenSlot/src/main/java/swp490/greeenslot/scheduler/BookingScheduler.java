@@ -80,12 +80,12 @@ public class BookingScheduler {
     }
 
     /**
-     * Runs daily at midnight.
+     * Runs every 5 minutes.
      * Finds all ACTIVE rentals where endTime is in the past,
      * updates them to EXPIRED, and releases the GardenSlot back to AVAILABLE
      * if there are no other active or pending rentals.
      */
-    @Scheduled(cron = "0 0 0 * * *")
+    @Scheduled(cron = "0 */5 * * * *")
     @Transactional
     public void expireFinishedRentals() {
         LocalDateTime now = LocalDateTime.now();

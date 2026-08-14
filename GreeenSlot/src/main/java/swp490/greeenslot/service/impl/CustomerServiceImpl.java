@@ -70,6 +70,19 @@ public class CustomerServiceImpl implements CustomerService {
         GardenSlot slot = gardenSlotRepository.findById(slotId)
                 .orElseThrow(() -> new IllegalArgumentException("Slot not found with ID: " + slotId));
 
+        String currentUsername = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
+        boolean isAdmin = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MANAGER") || a.getAuthority().equals("ROLE_LOCATION_MANAGER"));
+
+        if (!isAdmin) {
+            boolean hasAccess = slotRentalRepository.findByUserUsernameWithSlotAndPillarAndLocation(currentUsername)
+                    .stream()
+                    .anyMatch(r -> r.getGardenSlot() != null && r.getGardenSlot().getId().equals(slotId));
+            if (!hasAccess) {
+                throw new org.springframework.security.access.AccessDeniedException("You do not have permission to access IoT data for this slot.");
+            }
+        }
+
         Pillar pillar = slot.getPillar();
         if (pillar == null) {
             throw new IllegalArgumentException("Slot is not associated with a pillar");
@@ -192,7 +205,8 @@ public class CustomerServiceImpl implements CustomerService {
                 task.getAssignedStaff() != null ? task.getAssignedStaff().getFullName() : null,
                 task.getTargetSlot() != null ? task.getTargetSlot().getId() : null,
                 task.getTargetSlot() != null ? task.getTargetSlot().getSlotNumber() : null,
-                task.getCreatedAt()
+                task.getCreatedAt(),
+                task.getRejectionReason()
         );
     }
 
@@ -203,6 +217,7 @@ public class CustomerServiceImpl implements CustomerService {
 
         return new RentalHistoryDTO(
                 rental.getId(),
+                slot != null ? slot.getId() : null,
                 slot != null ? slot.getSlotNumber() : null,
                 pillar != null ? pillar.getPillarCode() : null,
                 location != null ? location.getName() : null,

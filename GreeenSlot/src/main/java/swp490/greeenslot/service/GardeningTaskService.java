@@ -19,4 +19,6 @@ public interface GardeningTaskService {
     GardeningTask updateTaskStatus(Long taskId, TaskStatusUpdateDTO request, String username);
     
     GardeningTask reportIssue(Long taskId, IssueReportRequestDTO request, String username);
+
+    GardeningTask reviewTaskEvidence(Long taskId, TaskReviewRequestDTO request);
 }

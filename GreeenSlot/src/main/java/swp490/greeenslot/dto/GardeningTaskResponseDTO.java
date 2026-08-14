@@ -23,4 +23,5 @@ public class GardeningTaskResponseDTO {
     private Long targetSlotId;
     private String targetSlotNumber;
     private LocalDateTime createdAt;
+    private String rejectionReason;
 }

@@ -101,6 +101,17 @@ public class GardeningTaskController {
         return ResponseEntity.ok(mapToDTO(task));
     }
 
+    @PostMapping("/tasks/{id}/review")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER')")
+    @Operation(summary = "Review task evidence", description = "Allows a Location Manager to approve or reject a task submitted by staff.")
+    public ResponseEntity<GardeningTaskResponseDTO> reviewTaskEvidence(
+            @PathVariable Long id,
+            @Valid @RequestBody TaskReviewRequestDTO request) {
+        
+        GardeningTask task = gardeningTaskService.reviewTaskEvidence(id, request);
+        return ResponseEntity.ok(mapToDTO(task));
+    }
+
     private GardeningTaskResponseDTO mapToDTO(GardeningTask task) {
         return new GardeningTaskResponseDTO(
                 task.getId(),
@@ -113,7 +124,8 @@ public class GardeningTaskController {
                 task.getAssignedStaff() != null ? task.getAssignedStaff().getFullName() : null,
                 task.getTargetSlot() != null ? task.getTargetSlot().getId() : null,
                 task.getTargetSlot() != null ? task.getTargetSlot().getSlotNumber() : null,
-                task.getCreatedAt()
+                task.getCreatedAt(),
+                task.getRejectionReason()
         );
     }
 }

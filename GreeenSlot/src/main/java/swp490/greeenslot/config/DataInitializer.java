@@ -62,7 +62,8 @@ public class DataInitializer {
             AlertRepository alertRepository,
             StaffScheduleRepository staffScheduleRepository,
             TreePlantingRequestRepository treePlantingRequestRepository,
-            SlotRentalRepository slotRentalRepository) {
+            SlotRentalRepository slotRentalRepository,
+            @org.springframework.beans.factory.annotation.Value("${app.default.password:GreenSlot@2024}") String defaultPassword) {
         return args -> {
 
             // 1. Tạo các Role nếu chưa tồn tại
@@ -88,18 +89,18 @@ public class DataInitializer {
 
             // 2. Tạo tài khoản mặc định cho từng role nếu chưa tồn tại
             createDefaultUser(userRepository, roleRepository, passwordEncoder,
-                    "admin", "admin@greenslot.vn", "Admin@123", "Quản trị viên", "0900000001", ERole.ROLE_ADMIN);
+                    "admin", "admin@greenslot.vn", defaultPassword, "Quản trị viên", "0900000001", ERole.ROLE_ADMIN);
             createDefaultUser(userRepository, roleRepository, passwordEncoder,
-                    "manager", "manager@greenslot.vn", "Manager@123", "Quản lý", "0900000002", ERole.ROLE_MANAGER);
+                    "manager", "manager@greenslot.vn", defaultPassword, "Quản lý", "0900000002", ERole.ROLE_MANAGER);
 
             createDefaultUser(userRepository, roleRepository, passwordEncoder,
-                    "location_manager", "location@greenslot.vn", "Location@123", "Quản lý Cơ sở", "0900000003", ERole.ROLE_LOCATION_MANAGER);
+                    "location_manager", "location@greenslot.vn", defaultPassword, "Quản lý Cơ sở", "0900000003", ERole.ROLE_LOCATION_MANAGER);
 
             createDefaultUser(userRepository, roleRepository, passwordEncoder,
-                    "garden_staff", "staff@greenslot.vn", "Staff@123", "Nhân viên Vườn", "0900000004", ERole.ROLE_GARDEN_STAFF);
+                    "garden_staff", "staff@greenslot.vn", defaultPassword, "Nhân viên Vườn", "0900000004", ERole.ROLE_GARDEN_STAFF);
 
             createDefaultUser(userRepository, roleRepository, passwordEncoder,
-                    "customer", "customer@greenslot.vn", "Customer@123", "Khách hàng mẫu", "0900000005",
+                    "customer", "customer@greenslot.vn", defaultPassword, "Khách hàng mẫu", "0900000005",
                     ERole.ROLE_CUSTOMER);
 
             // 3. Khởi tạo dữ liệu mẫu cho Location, Pillar, GardenSlot

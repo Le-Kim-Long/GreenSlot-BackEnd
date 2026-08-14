@@ -20,9 +20,16 @@ public class AuthController {
 
     @Autowired
     AuthService authService;
+    
+    @Autowired
+    swp490.greeenslot.service.RateLimiterService rateLimiterService;
 
     @PostMapping("/login")
-    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequestDTO loginRequest) {
+    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequestDTO loginRequest, jakarta.servlet.http.HttpServletRequest request) {
+        if (!rateLimiterService.isAllowed(request.getRemoteAddr())) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS)
+                    .body(new MessageResponseDTO("Too many login attempts. Please try again later."));
+        }
         JwtResponseDTO jwtResponse = authService.authenticateUser(loginRequest);
         return ResponseEntity.ok(jwtResponse);
     }
@@ -34,9 +41,13 @@ public class AuthController {
     }
 
     @PostMapping("/forgot-password")
-    public ResponseEntity<ForgotPasswordResponseDTO> forgotPassword(
-            @Valid @RequestBody ForgotPasswordRequestDTO request) {
-        return ResponseEntity.ok(authService.forgotPassword(request));
+    public ResponseEntity<?> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequestDTO passwordRequest, jakarta.servlet.http.HttpServletRequest request) {
+        if (!rateLimiterService.isAllowed(request.getRemoteAddr())) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS)
+                    .body(new MessageResponseDTO("Too many requests. Please try again later."));
+        }
+        return ResponseEntity.ok(authService.forgotPassword(passwordRequest));
     }
 
     @PostMapping("/reset-password")
