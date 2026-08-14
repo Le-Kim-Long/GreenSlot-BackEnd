@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import swp490.greeenslot.dto.TreePlantingRequestCreateDTO;
 import swp490.greeenslot.dto.TreePlantingRequestDTO;
 import swp490.greeenslot.entity.EPlantingRequestStatus;
+import swp490.greeenslot.entity.ERentalStatus;
 import swp490.greeenslot.entity.SlotRental;
 import swp490.greeenslot.entity.Tree;
 import swp490.greeenslot.entity.TreePlantingRequest;
@@ -17,6 +18,7 @@ import swp490.greeenslot.repository.UserRepository;
 import swp490.greeenslot.service.TreePlantingService;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -53,13 +55,57 @@ public class TreePlantingServiceImpl implements TreePlantingService {
     @Transactional
     public TreePlantingRequestDTO createRequest(TreePlantingRequestCreateDTO dto, String username) {
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
+                .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
         
         SlotRental rental = slotRentalRepository.findById(dto.getRentalId())
-                .orElseThrow(() -> new RuntimeException("Rental not found with id: " + dto.getRentalId()));
+                .orElseThrow(() -> new IllegalArgumentException("Rental not found with id: " + dto.getRentalId()));
         
+        // 1. Check rental ownership
+        if (rental.getUser() == null || !rental.getUser().getId().equals(user.getId())) {
+            throw new IllegalArgumentException("Unauthorized: You do not own this rental contract.");
+        }
+        
+        // 2. Check rental status is ACTIVE
+        if (rental.getStatus() != ERentalStatus.ACTIVE) {
+            throw new IllegalArgumentException("Cannot request planting: Slot rental is not ACTIVE (current status: " + rental.getStatus() + ").");
+        }
+        
+        // 3. Check rental has not expired
+        LocalDateTime now = LocalDateTime.now();
+        if (rental.getEndTime() == null || rental.getEndTime().isBefore(now)) {
+            throw new IllegalArgumentException("Cannot request planting: Slot rental has already expired.");
+        }
+        
+        // 4. Check tree exists and is active
         Tree newTree = treeRepository.findById(dto.getNewTreeId())
-                .orElseThrow(() -> new RuntimeException("Tree not found with id: " + dto.getNewTreeId()));
+                .orElseThrow(() -> new IllegalArgumentException("Tree not found with id: " + dto.getNewTreeId()));
+        
+        if (Boolean.FALSE.equals(newTree.getIsActive())) {
+            throw new IllegalArgumentException("Cannot request planting: Selected tree type is inactive.");
+        }
+        
+        // 5. Check tree growth duration vs remaining rental duration
+        long remainingDays = ChronoUnit.DAYS.between(now, rental.getEndTime());
+        Integer harvestDays = newTree.getHarvestDays();
+        Integer minRentalDays = newTree.getMinRentalDays();
+        
+        int requiredDays = 0;
+        if (harvestDays != null && harvestDays > 0) {
+            requiredDays = Math.max(requiredDays, harvestDays);
+        }
+        if (minRentalDays != null && minRentalDays > 0) {
+            requiredDays = Math.max(requiredDays, minRentalDays);
+        }
+        
+        if (requiredDays > 0 && remainingDays < requiredDays) {
+            throw new IllegalArgumentException(String.format(
+                "Cannot request planting: Tree '%s' requires at least %d days to grow/harvest, but your rental only has %d day(s) remaining (until %s). Please extend your rental duration.",
+                newTree.getTreeName(),
+                requiredDays,
+                remainingDays,
+                rental.getEndTime()
+            ));
+        }
         
         TreePlantingRequest request = new TreePlantingRequest();
         request.setRental(rental);

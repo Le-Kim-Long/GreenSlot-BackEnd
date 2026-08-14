@@ -98,6 +98,8 @@ public class BookingServiceImpl implements BookingService {
         LocalDateTime start = request.getStartTime();
         if (start == null) {
             start = LocalDateTime.now();
+        } else if (start.isBefore(LocalDateTime.now().minusMinutes(5))) {
+            throw new IllegalArgumentException("Start time cannot be in the past");
         }
         LocalDateTime end = start.plusMonths(months);
 

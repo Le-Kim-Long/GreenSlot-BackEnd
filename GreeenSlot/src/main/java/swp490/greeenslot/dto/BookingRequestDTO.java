@@ -1,5 +1,6 @@
 package swp490.greeenslot.dto;
 
+import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -13,6 +14,7 @@ public class BookingRequestDTO {
     @Min(value = 1, message = "Duration must be at least 1 month")
     private int durationInMonths;
 
+    @FutureOrPresent(message = "Start time must be in the present or future")
     private LocalDateTime startTime;
 
     public Long getSlotId() {

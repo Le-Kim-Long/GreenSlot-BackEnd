@@ -1,5 +1,6 @@
 package swp490.greeenslot.dto;
 
+import jakarta.validation.constraints.PastOrPresent;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -19,7 +20,12 @@ public class EquipmentDTO {
     private String status;
     private Long pillarId;
     private String pillarCode;
+
+    @PastOrPresent(message = "Purchase date cannot be in the future")
     private LocalDateTime purchaseDate;
+
+    @PastOrPresent(message = "Last maintenance date cannot be in the future")
     private LocalDateTime lastMaintenanceDate;
+
     private String imageUrl;
 }
