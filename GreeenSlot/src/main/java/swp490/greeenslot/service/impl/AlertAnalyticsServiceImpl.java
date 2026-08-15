@@ -22,12 +22,22 @@ public class AlertAnalyticsServiceImpl implements AlertAnalyticsService {
     private AlertRepository alertRepository;
 
     @Override
-    public AlertAnalyticsDTO getAlertAnalytics(Instant startDate, Instant endDate) {
+    public AlertAnalyticsDTO getAlertAnalytics(Instant startDate, Instant endDate, Long locationId) {
         LocalDateTime start = LocalDateTime.ofInstant(startDate, java.time.ZoneId.systemDefault());
         LocalDateTime end = LocalDateTime.ofInstant(endDate, java.time.ZoneId.systemDefault());
 
         List<Alert> alerts = alertRepository.findAll().stream()
-                .filter(a -> a.getCreatedAt().isAfter(start) && a.getCreatedAt().isBefore(end))
+                .filter(a -> a.getCreatedAt() != null && a.getCreatedAt().isAfter(start) && a.getCreatedAt().isBefore(end))
+                .filter(a -> {
+                    if (locationId == null) return true;
+                    if (a.getPillar() != null && a.getPillar().getLocation() != null) {
+                        return locationId.equals(a.getPillar().getLocation().getId());
+                    }
+                    if (a.getGardenSlot() != null && a.getGardenSlot().getPillar() != null && a.getGardenSlot().getPillar().getLocation() != null) {
+                        return locationId.equals(a.getGardenSlot().getPillar().getLocation().getId());
+                    }
+                    return false;
+                })
                 .toList();
 
         AlertAnalyticsDTO analytics = new AlertAnalyticsDTO();

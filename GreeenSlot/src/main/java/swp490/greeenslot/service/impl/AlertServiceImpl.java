@@ -29,24 +29,50 @@ public class AlertServiceImpl implements AlertService {
     @Autowired
     private PillarRepository pillarRepository;
 
+    @Autowired
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
+    private Long getAlertLocationId(Alert alert) {
+        if (alert == null) return null;
+        if (alert.getPillar() != null && alert.getPillar().getLocation() != null) {
+            return alert.getPillar().getLocation().getId();
+        }
+        if (alert.getGardenSlot() != null && alert.getGardenSlot().getPillar() != null && alert.getGardenSlot().getPillar().getLocation() != null) {
+            return alert.getGardenSlot().getPillar().getLocation().getId();
+        }
+        return null;
+    }
+
+    private boolean isAlertAccessible(Alert alert, Long locationId) {
+        if (locationId == null) return true;
+        Long alertLocId = getAlertLocationId(alert);
+        return alertLocId != null && alertLocId.equals(locationId);
+    }
+
     @Override
     public List<AlertDTO> getAllAlerts() {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         return alertRepository.findAll().stream()
+                .filter(a -> isAlertAccessible(a, targetLocationId))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     public AlertDTO getAlertById(Long id) {
-        return alertRepository.findById(id)
-                .map(this::mapToDTO)
+        Alert alert = alertRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Alert not found with id: " + id));
+        Long alertLocId = getAlertLocationId(alert);
+        locationContextService.validateLocationAccess(alertLocId);
+        return mapToDTO(alert);
     }
 
     @Override
     public List<AlertDTO> getAlertsByStatus(String status) {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         EAlertStatus alertStatus = EAlertStatus.valueOf(status.toUpperCase());
         return alertRepository.findByStatus(alertStatus).stream()
+                .filter(a -> isAlertAccessible(a, targetLocationId))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
@@ -55,6 +81,9 @@ public class AlertServiceImpl implements AlertService {
     public List<AlertDTO> getAlertsByPillar(Long pillarId) {
         Pillar pillar = pillarRepository.findById(pillarId)
                 .orElseThrow(() -> new RuntimeException("Pillar not found with id: " + pillarId));
+        if (pillar.getLocation() != null) {
+            locationContextService.validateLocationAccess(pillar.getLocation().getId());
+        }
         return alertRepository.findByPillar(pillar).stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
@@ -62,7 +91,9 @@ public class AlertServiceImpl implements AlertService {
 
     @Override
     public List<AlertDTO> getPendingAlerts() {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         return alertRepository.findByStatusOrderByCreatedAtDesc(EAlertStatus.PENDING).stream()
+                .filter(a -> isAlertAccessible(a, targetLocationId))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
@@ -72,6 +103,8 @@ public class AlertServiceImpl implements AlertService {
     public AlertProcessingLogDTO processAlert(AlertProcessingRequestDTO request, String username) {
         Alert alert = alertRepository.findById(request.getAlertId())
                 .orElseThrow(() -> new RuntimeException("Alert not found with id: " + request.getAlertId()));
+        Long alertLocId = getAlertLocationId(alert);
+        locationContextService.validateLocationAccess(alertLocId);
         
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
@@ -110,6 +143,8 @@ public class AlertServiceImpl implements AlertService {
     public List<AlertProcessingLogDTO> getAlertProcessingLogs(Long alertId) {
         Alert alert = alertRepository.findById(alertId)
                 .orElseThrow(() -> new RuntimeException("Alert not found with id: " + alertId));
+        Long alertLocId = getAlertLocationId(alert);
+        locationContextService.validateLocationAccess(alertLocId);
         return alertProcessingLogRepository.findByAlert(alert).stream()
                 .map(this::mapToLogDTO)
                 .collect(Collectors.toList());
@@ -126,6 +161,8 @@ public class AlertServiceImpl implements AlertService {
     public AlertDTO escalateAlert(Long alertId, Long escalateToUserId, String reason) {
         Alert alert = alertRepository.findById(alertId)
                 .orElseThrow(() -> new RuntimeException("Alert not found with id: " + alertId));
+        Long alertLocId = getAlertLocationId(alert);
+        locationContextService.validateLocationAccess(alertLocId);
 
         User escalateToUser = userRepository.findById(escalateToUserId)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + escalateToUserId));

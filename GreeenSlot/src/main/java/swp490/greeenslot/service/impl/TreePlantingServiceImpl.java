@@ -37,18 +37,42 @@ public class TreePlantingServiceImpl implements TreePlantingService {
     @Autowired
     private TreeRepository treeRepository;
 
+    @Autowired
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
+    private Long getRequestLocationId(TreePlantingRequest request) {
+        if (request != null && request.getRental() != null && request.getRental().getGardenSlot() != null 
+                && request.getRental().getGardenSlot().getPillar() != null 
+                && request.getRental().getGardenSlot().getPillar().getLocation() != null) {
+            return request.getRental().getGardenSlot().getPillar().getLocation().getId();
+        }
+        return null;
+    }
+
+    private boolean isRequestAccessible(TreePlantingRequest request, Long locationId) {
+        if (locationId == null) return true;
+        Long reqLocId = getRequestLocationId(request);
+        return reqLocId != null && reqLocId.equals(locationId);
+    }
+
     @Override
     public List<TreePlantingRequestDTO> getAllRequests() {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         return treePlantingRequestRepository.findAll().stream()
+                .filter(r -> isRequestAccessible(r, targetLocationId))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     public TreePlantingRequestDTO getRequestById(Long id) {
-        return treePlantingRequestRepository.findById(id)
-                .map(this::mapToDTO)
+        TreePlantingRequest request = treePlantingRequestRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Tree planting request not found with id: " + id));
+        if (locationContextService.isLocationManager()) {
+            Long locId = getRequestLocationId(request);
+            locationContextService.validateLocationAccess(locId);
+        }
+        return mapToDTO(request);
     }
 
     @Override
@@ -124,6 +148,10 @@ public class TreePlantingServiceImpl implements TreePlantingService {
     public TreePlantingRequestDTO approveRequest(Long id, String username) {
         TreePlantingRequest request = treePlantingRequestRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Tree planting request not found with id: " + id));
+        if (locationContextService.isLocationManager()) {
+            Long locId = getRequestLocationId(request);
+            locationContextService.validateLocationAccess(locId);
+        }
         
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
@@ -141,6 +169,10 @@ public class TreePlantingServiceImpl implements TreePlantingService {
     public TreePlantingRequestDTO rejectRequest(Long id, String reason, String username) {
         TreePlantingRequest request = treePlantingRequestRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Tree planting request not found with id: " + id));
+        if (locationContextService.isLocationManager()) {
+            Long locId = getRequestLocationId(request);
+            locationContextService.validateLocationAccess(locId);
+        }
         
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
@@ -161,6 +193,10 @@ public class TreePlantingServiceImpl implements TreePlantingService {
     public TreePlantingRequestDTO completeRequest(Long id, String username) {
         TreePlantingRequest request = treePlantingRequestRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Tree planting request not found with id: " + id));
+        if (locationContextService.isLocationManager()) {
+            Long locId = getRequestLocationId(request);
+            locationContextService.validateLocationAccess(locId);
+        }
         
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
@@ -189,7 +225,9 @@ public class TreePlantingServiceImpl implements TreePlantingService {
 
     @Override
     public List<TreePlantingRequestDTO> getPendingRequests() {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         return treePlantingRequestRepository.findByStatus(EPlantingRequestStatus.PENDING).stream()
+                .filter(r -> isRequestAccessible(r, targetLocationId))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
