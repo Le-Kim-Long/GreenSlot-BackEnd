@@ -389,29 +389,7 @@ public class IoTSensorController {
         ));
     }
 
-    @GetMapping("/pump/status")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
-    @Operation(summary = "Get pump status", description = "Get current status of the pump")
-    public ResponseEntity<Map<String, Object>> getPumpStatus() {
-        // Placeholder for IoT integration
-        return ResponseEntity.ok(Map.of(
-                "status", "OFF",
-                "lastUpdated", java.time.LocalDateTime.now()
-        ));
-    }
 
-    @PostMapping("/pump/status")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
-    @Operation(summary = "Control water pump", description = "Send ON/OFF commands to the water pump")
-    public ResponseEntity<Map<String, Object>> updatePumpStatus(
-            @RequestBody Map<String, Object> controlRequest) {
-        
-        // Placeholder for IoT integration
-        return ResponseEntity.ok(Map.of(
-                "message", "Pump status updated",
-                "status", controlRequest.get("status") != null ? controlRequest.get("status") : "OFF"
-        ));
-    }
 
     @PostMapping("/device/{slotId}/plant")
     @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")

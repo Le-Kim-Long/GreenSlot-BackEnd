@@ -58,7 +58,7 @@ class EquipmentValidationTest {
         validDTO = new EquipmentDTO();
         validDTO.setEquipmentName("Water Pump Auto");
         validDTO.setSerialNumber("WP-100234");
-        validDTO.setStatus("ACTIVE");
+        validDTO.setStatus("AVAILABLE");
         validDTO.setPurchaseDate(LocalDateTime.now().minusMonths(6));
         validDTO.setLastMaintenanceDate(LocalDateTime.now().minusDays(10));
     }

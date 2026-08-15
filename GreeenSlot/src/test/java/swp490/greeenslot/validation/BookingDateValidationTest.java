@@ -24,7 +24,7 @@ import swp490.greeenslot.repository.PaymentTransactionRepository;
 import swp490.greeenslot.repository.SlotRentalRepository;
 import swp490.greeenslot.repository.UserRepository;
 import swp490.greeenslot.service.impl.BookingServiceImpl;
-import swp490.greeenslot.vnpay.VNPayUtils;
+import swp490.greeenslot.config.VNPayUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
