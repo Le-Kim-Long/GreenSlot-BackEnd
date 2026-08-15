@@ -41,10 +41,19 @@ public class TreePlantingServiceImpl implements TreePlantingService {
     private swp490.greeenslot.service.LocationContextService locationContextService;
 
     private Long getRequestLocationId(TreePlantingRequest request) {
-        if (request != null && request.getRental() != null && request.getRental().getGardenSlot() != null 
-                && request.getRental().getGardenSlot().getPillar() != null 
+        if (request != null && request.getRental() != null && request.getRental().getGardenSlot() != null
+                && request.getRental().getGardenSlot().getPillar() != null
                 && request.getRental().getGardenSlot().getPillar().getLocation() != null) {
             return request.getRental().getGardenSlot().getPillar().getLocation().getId();
+        }
+        return null;
+    }
+
+    private String getRequestLocationName(TreePlantingRequest request) {
+        if (request != null && request.getRental() != null && request.getRental().getGardenSlot() != null
+                && request.getRental().getGardenSlot().getPillar() != null
+                && request.getRental().getGardenSlot().getPillar().getLocation() != null) {
+            return request.getRental().getGardenSlot().getPillar().getLocation().getName();
         }
         return null;
     }
@@ -236,8 +245,10 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         return new TreePlantingRequestDTO(
                 request.getId(),
                 request.getRental() != null ? request.getRental().getId() : null,
-                request.getRental() != null && request.getRental().getGardenSlot() != null ? 
+                request.getRental() != null && request.getRental().getGardenSlot() != null ?
                     request.getRental().getGardenSlot().getSlotNumber() : null,
+                getRequestLocationId(request),
+                getRequestLocationName(request),
                 request.getNewTree() != null ? request.getNewTree().getId() : null,
                 request.getNewTree() != null ? request.getNewTree().getTreeName() : null,
                 request.getRequestedBy() != null ? request.getRequestedBy().getId() : null,
