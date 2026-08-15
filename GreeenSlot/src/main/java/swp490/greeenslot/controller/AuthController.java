@@ -51,7 +51,35 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<MessageResponseDTO> register(@Valid @RequestBody SignupRequestDTO signUpRequest) {
         authService.registerUser(signUpRequest);
-        return ResponseEntity.ok(new MessageResponseDTO("User registered successfully!"));
+        return ResponseEntity.ok(new MessageResponseDTO("Mã OTP xác thực đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư!"));
+    }
+
+    @PostMapping("/verify-otp")
+    public ResponseEntity<?> verifyOtp(@Valid @RequestBody swp490.greeenslot.dto.VerifyOtpRequestDTO request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+        if (!rateLimiterService.isAllowed(httpRequest.getRemoteAddr())) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS)
+                    .body(new MessageResponseDTO("Too many requests. Please try again later."));
+        }
+        try {
+            JwtResponseDTO jwtResponse = authService.verifyRegistrationOtp(request);
+            return ResponseEntity.ok(jwtResponse);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new MessageResponseDTO(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/resend-otp")
+    public ResponseEntity<?> resendOtp(@Valid @RequestBody swp490.greeenslot.dto.ResendOtpRequestDTO request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+        if (!rateLimiterService.isAllowed(httpRequest.getRemoteAddr())) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS)
+                    .body(new MessageResponseDTO("Too many requests. Please try again later."));
+        }
+        try {
+            authService.resendRegistrationOtp(request.getEmail());
+            return ResponseEntity.ok(new MessageResponseDTO("Mã OTP mới đã được gửi đến email của bạn!"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new MessageResponseDTO(e.getMessage()));
+        }
     }
 
     @PostMapping("/forgot-password")

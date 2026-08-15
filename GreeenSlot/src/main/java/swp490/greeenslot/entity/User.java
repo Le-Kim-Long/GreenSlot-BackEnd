@@ -41,6 +41,12 @@ public class User {
     @Column(name = "reset_token_expiry")
     private Instant resetTokenExpiry;
 
+    @Column(name = "verification_otp")
+    private String verificationOtp;
+
+    @Column(name = "otp_expiry")
+    private Instant otpExpiry;
+
     @Column(name = "enabled")
     private Boolean enabled = true;
 
@@ -155,6 +161,10 @@ public class User {
         return enabled;
     }
 
+    public boolean isEnabled() {
+        return Boolean.TRUE.equals(this.enabled);
+    }
+
     public void setEnabled(Boolean enabled) {
         this.enabled = enabled;
     }
@@ -194,5 +204,21 @@ public class User {
 
     public void setDeletedAt(LocalDateTime deletedAt) {
         this.deletedAt = deletedAt;
+    }
+
+    public String getVerificationOtp() {
+        return verificationOtp;
+    }
+
+    public void setVerificationOtp(String verificationOtp) {
+        this.verificationOtp = verificationOtp;
+    }
+
+    public Instant getOtpExpiry() {
+        return otpExpiry;
+    }
+
+    public void setOtpExpiry(Instant otpExpiry) {
+        this.otpExpiry = otpExpiry;
     }
 }
