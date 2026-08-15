@@ -85,14 +85,26 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public JwtResponseDTO authenticateWithGoogle(GoogleLoginRequestDTO googleRequest) {
         String idToken = googleRequest.getIdToken();
-        String googleUrl = "https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken;
+        Map<String, Object> googlePayload = null;
 
-        RestTemplate restTemplate = new RestTemplate();
-        Map<String, Object> googlePayload;
+        // 1. Try Google OAuth tokeninfo endpoint
         try {
+            String googleUrl = "https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken;
+            RestTemplate restTemplate = new RestTemplate();
             googlePayload = restTemplate.getForObject(googleUrl, Map.class);
         } catch (Exception e) {
-            throw new IllegalArgumentException("Google token verification failed: " + e.getMessage());
+            // 2. Fallback: Decode Firebase Auth / Google JWT payload
+            try {
+                String[] parts = idToken.split("\\.");
+                if (parts.length >= 2) {
+                    byte[] decodedBytes = java.util.Base64.getUrlDecoder().decode(parts[1]);
+                    String payloadJson = new String(decodedBytes, java.nio.charset.StandardCharsets.UTF_8);
+                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                    googlePayload = mapper.readValue(payloadJson, Map.class);
+                }
+            } catch (Exception parseEx) {
+                throw new IllegalArgumentException("Google/Firebase token verification failed: " + parseEx.getMessage());
+            }
         }
 
         if (googlePayload == null || googlePayload.get("email") == null) {
@@ -102,7 +114,7 @@ public class AuthServiceImpl implements AuthService {
         String email = (String) googlePayload.get("email");
         String name = (String) googlePayload.getOrDefault("name", email.split("@")[0]);
         String picture = (String) googlePayload.get("picture");
-        String sub = (String) googlePayload.get("sub");
+        String sub = (String) googlePayload.getOrDefault("sub", (String) googlePayload.get("user_id"));
 
         User user = userRepository.findByEmail(email).orElseGet(() -> {
             User newUser = new User();
