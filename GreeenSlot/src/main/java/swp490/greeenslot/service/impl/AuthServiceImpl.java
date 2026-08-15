@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import swp490.greeenslot.config.JwtUtils;
 import swp490.greeenslot.dto.ForgotPasswordRequestDTO;
 import swp490.greeenslot.dto.ForgotPasswordResponseDTO;
+import swp490.greeenslot.dto.GoogleLoginRequestDTO;
 import swp490.greeenslot.dto.JwtResponseDTO;
 import swp490.greeenslot.dto.LoginRequestDTO;
 import swp490.greeenslot.dto.ResetPasswordRequestDTO;
@@ -25,10 +26,12 @@ import swp490.greeenslot.entity.User;
 import swp490.greeenslot.repository.RoleRepository;
 import swp490.greeenslot.repository.UserRepository;
 import swp490.greeenslot.service.AuthService;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -76,6 +79,76 @@ public class AuthServiceImpl implements AuthService {
                 userDetails.getEmail(),
                 userDetails.getFullName(),
                 roles);
+    }
+
+    @Override
+    @Transactional
+    public JwtResponseDTO authenticateWithGoogle(GoogleLoginRequestDTO googleRequest) {
+        String idToken = googleRequest.getIdToken();
+        String googleUrl = "https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken;
+
+        RestTemplate restTemplate = new RestTemplate();
+        Map<String, Object> googlePayload;
+        try {
+            googlePayload = restTemplate.getForObject(googleUrl, Map.class);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Google token verification failed: " + e.getMessage());
+        }
+
+        if (googlePayload == null || googlePayload.get("email") == null) {
+            throw new IllegalArgumentException("Invalid Google authentication response");
+        }
+
+        String email = (String) googlePayload.get("email");
+        String name = (String) googlePayload.getOrDefault("name", email.split("@")[0]);
+        String picture = (String) googlePayload.get("picture");
+        String sub = (String) googlePayload.get("sub");
+
+        User user = userRepository.findByEmail(email).orElseGet(() -> {
+            User newUser = new User();
+            String baseUsername = email.split("@")[0].replaceAll("[^a-zA-Z0-9_]", "");
+            if (baseUsername.length() < 3) {
+                baseUsername = "user_" + baseUsername;
+            }
+            String generatedUsername = baseUsername;
+            if (userRepository.existsByUsername(generatedUsername)) {
+                String suffix = sub != null && sub.length() >= 4 ? sub.substring(sub.length() - 4) : UUID.randomUUID().toString().substring(0, 4);
+                generatedUsername = baseUsername + "_" + suffix;
+            }
+
+            newUser.setUsername(generatedUsername);
+            newUser.setEmail(email);
+            newUser.setFullName(name);
+            newUser.setImageUrl(picture);
+            newUser.setPassword(encoder.encode(UUID.randomUUID().toString()));
+            newUser.setEnabled(true);
+
+            Set<Role> roles = new HashSet<>();
+            Role customerRole = roleRepository.findByName(ERole.ROLE_CUSTOMER)
+                    .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+            roles.add(customerRole);
+            newUser.setRoles(roles);
+
+            return userRepository.save(newUser);
+        });
+
+        if (!Boolean.TRUE.equals(user.getEnabled())) {
+            throw new IllegalArgumentException("Your account has been deactivated. Please contact support.");
+        }
+
+        String jwt = jwtUtils.generateTokenFromUsername(user.getUsername());
+        List<String> roles = user.getRoles().stream()
+                .map(r -> r.getName().name())
+                .collect(Collectors.toList());
+
+        return new JwtResponseDTO(
+                jwt,
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getFullName(),
+                roles
+        );
     }
 
     @Override

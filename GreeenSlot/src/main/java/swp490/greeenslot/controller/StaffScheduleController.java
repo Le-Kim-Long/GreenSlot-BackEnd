@@ -23,67 +23,100 @@ public class StaffScheduleController {
     @Autowired
     private StaffScheduleService staffScheduleService;
 
+    @Autowired
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
     @GetMapping
-    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
-    @Operation(summary = "Get all schedules")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
+    @Operation(summary = "Get all schedules (scoped to location for Location Managers)")
     public ResponseEntity<List<StaffScheduleDTO>> getAllSchedules() {
+        if (locationContextService.isLocationManager()) {
+            Long managerLocationId = locationContextService.getCurrentUserLocationId();
+            if (managerLocationId != null) {
+                return ResponseEntity.ok(staffScheduleService.getSchedulesByLocation(managerLocationId));
+            }
+        }
         return ResponseEntity.ok(staffScheduleService.getAllSchedules());
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Get schedule by ID")
     public ResponseEntity<StaffScheduleDTO> getScheduleById(@PathVariable Long id) {
-        return ResponseEntity.ok(staffScheduleService.getScheduleById(id));
+        StaffScheduleDTO dto = staffScheduleService.getScheduleById(id);
+        if (dto != null && dto.getLocationId() != null) {
+            locationContextService.validateLocationAccess(dto.getLocationId());
+        }
+        return ResponseEntity.ok(dto);
     }
 
     @GetMapping("/staff/{staffId}")
-    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Get schedules by staff")
     public ResponseEntity<List<StaffScheduleDTO>> getSchedulesByStaff(@PathVariable Long staffId) {
         return ResponseEntity.ok(staffScheduleService.getSchedulesByStaff(staffId));
     }
 
     @GetMapping("/location/{locationId}")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Get schedules by location")
     public ResponseEntity<List<StaffScheduleDTO>> getSchedulesByLocation(@PathVariable Long locationId) {
+        locationContextService.validateLocationAccess(locationId);
         return ResponseEntity.ok(staffScheduleService.getSchedulesByLocation(locationId));
     }
 
     @GetMapping("/date/{date}")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
-    @Operation(summary = "Get schedules by date")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
+    @Operation(summary = "Get schedules by date (scoped for Location Managers)")
     public ResponseEntity<List<StaffScheduleDTO>> getSchedulesByDate(
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        if (locationContextService.isLocationManager()) {
+            Long managerLocationId = locationContextService.getCurrentUserLocationId();
+            if (managerLocationId != null) {
+                return ResponseEntity.ok(staffScheduleService.getSchedulesByLocationAndDate(managerLocationId, date));
+            }
+        }
         return ResponseEntity.ok(staffScheduleService.getSchedulesByDate(date));
     }
 
     @GetMapping("/location/{locationId}/date/{date}")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Get schedules by location and date")
     public ResponseEntity<List<StaffScheduleDTO>> getSchedulesByLocationAndDate(
             @PathVariable Long locationId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        locationContextService.validateLocationAccess(locationId);
         return ResponseEntity.ok(staffScheduleService.getSchedulesByLocationAndDate(locationId, date));
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Create a new schedule")
     public ResponseEntity<StaffScheduleDTO> createSchedule(@Valid @RequestBody StaffScheduleDTO dto) {
+        if (locationContextService.isLocationManager()) {
+            Long managerLocationId = locationContextService.getCurrentUserLocationId();
+            if (managerLocationId != null) {
+                dto.setLocationId(managerLocationId);
+            }
+        }
         return ResponseEntity.ok(staffScheduleService.createSchedule(dto));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Update a schedule")
     public ResponseEntity<StaffScheduleDTO> updateSchedule(@PathVariable Long id, @Valid @RequestBody StaffScheduleDTO dto) {
+        if (locationContextService.isLocationManager()) {
+            Long managerLocationId = locationContextService.getCurrentUserLocationId();
+            if (managerLocationId != null) {
+                dto.setLocationId(managerLocationId);
+            }
+        }
         return ResponseEntity.ok(staffScheduleService.updateSchedule(id, dto));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Delete a schedule")
     public ResponseEntity<Void> deleteSchedule(@PathVariable Long id) {
         staffScheduleService.deleteSchedule(id);

@@ -24,6 +24,9 @@ public class UserController {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
     @GetMapping("/profile")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Get current user profile", description = "Retrieves the safe identity profile of the currently authenticated user.")
@@ -43,7 +46,8 @@ public class UserController {
     @PreAuthorize("hasAnyRole('ROLE_LOCATION_MANAGER', 'ROLE_MANAGER', 'ROLE_ADMIN')")
     @Operation(summary = "Get list of garden staffs", description = "Retrieves a list of garden staffs, optionally filtered by location.")
     public ResponseEntity<java.util.List<ProfileResponseDTO>> getStaffs(@RequestParam(required = false) Long locationId) {
-        return ResponseEntity.ok(userService.getStaffs(locationId));
+        Long targetLocationId = locationContextService.resolveTargetLocationId(locationId);
+        return ResponseEntity.ok(userService.getStaffs(targetLocationId));
     }
 
     @PatchMapping("/profile")

@@ -28,6 +28,9 @@ public class DashboardController {
     @Autowired
     private AlertService alertService;
 
+    @Autowired
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
     @GetMapping("/public")
     public String publicAccess() {
         return "Trang cong khai - tat ca deu truy cap duoc.";
@@ -46,9 +49,11 @@ public class DashboardController {
     }
 
     @GetMapping("/metrics/{locationId}")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_GARDEN_STAFF')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
     @Operation(summary = "Get dashboard metrics for a specific location")
     public ResponseEntity<DashboardMetricsDTO> getDashboardMetrics(@PathVariable Long locationId) {
+        locationContextService.validateLocationAccess(locationId);
+
         DashboardMetricsDTO metrics = new DashboardMetricsDTO();
         
         String locationName = businessManagementService.getLocationById(locationId).getName();
@@ -78,13 +83,15 @@ public class DashboardController {
     }
 
     @GetMapping("/metrics/{locationId}/revenue")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Get revenue metrics for a specific location")
     public ResponseEntity<swp490.greeenslot.dto.RevenueAnalyticsResponseDTO> getLocationRevenue(
             @PathVariable Long locationId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) String startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) String endDate) {
         
+        locationContextService.validateLocationAccess(locationId);
+
         LocalDateTime startDateTime = java.time.LocalDate.parse(startDate).atStartOfDay();
         LocalDateTime endDateTime = java.time.LocalDate.parse(endDate).atTime(java.time.LocalTime.MAX);
         

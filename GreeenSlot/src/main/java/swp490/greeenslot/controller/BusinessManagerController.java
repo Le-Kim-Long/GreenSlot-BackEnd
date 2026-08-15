@@ -25,6 +25,9 @@ public class BusinessManagerController {
     @Autowired
     private BusinessManagementService businessManagementService;
 
+    @Autowired
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
     // ==========================================
     // Location Management
     // ==========================================
@@ -217,19 +220,19 @@ public class BusinessManagerController {
     // ==========================================
 
     @GetMapping("/analytics/revenue")
-    @PreAuthorize("hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Get total financial revenue and transaction breakdowns within date bounds")
     public ResponseEntity<RevenueAnalyticsResponseDTO> getRevenueAnalytics(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            org.springframework.security.core.Authentication authentication) {
+            @RequestParam(required = false) Long locationId) {
 
         LocalDateTime startDateTime = startDate.atStartOfDay();
         LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
         
-        swp490.greeenslot.service.impl.UserDetailsImpl userDetails = (swp490.greeenslot.service.impl.UserDetailsImpl) authentication.getPrincipal();
+        Long targetLocationId = locationContextService.resolveTargetLocationId(locationId);
 
-        return ResponseEntity.ok(businessManagementService.getRevenueAnalytics(userDetails.getId(), startDateTime, endDateTime));
+        return ResponseEntity.ok(businessManagementService.getRevenueAnalytics(targetLocationId, startDateTime, endDateTime));
     }
 
     // ==========================================
@@ -275,8 +278,9 @@ public class BusinessManagerController {
     @GetMapping("/staffs")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER')")
     @Operation(summary = "Get list of garden staffs isolated by location")
-    public ResponseEntity<List<UserAdminDTO>> getGardenStaffsByLocation(@RequestParam Long locationId) {
-        return ResponseEntity.ok(businessManagementService.getGardenStaffsByLocation(locationId));
+    public ResponseEntity<List<UserAdminDTO>> getGardenStaffsByLocation(@RequestParam(required = false) Long locationId) {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(locationId);
+        return ResponseEntity.ok(businessManagementService.getGardenStaffsByLocation(targetLocationId));
     }
 
     // ==========================================

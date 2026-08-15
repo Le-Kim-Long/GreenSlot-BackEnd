@@ -34,6 +34,20 @@ public class AuthController {
         return ResponseEntity.ok(jwtResponse);
     }
 
+    @PostMapping("/google")
+    public ResponseEntity<?> authenticateGoogle(@Valid @RequestBody swp490.greeenslot.dto.GoogleLoginRequestDTO googleRequest, jakarta.servlet.http.HttpServletRequest request) {
+        if (!rateLimiterService.isAllowed(request.getRemoteAddr())) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS)
+                    .body(new MessageResponseDTO("Too many requests. Please try again later."));
+        }
+        try {
+            JwtResponseDTO jwtResponse = authService.authenticateWithGoogle(googleRequest);
+            return ResponseEntity.ok(jwtResponse);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new MessageResponseDTO(e.getMessage()));
+        }
+    }
+
     @PostMapping("/register")
     public ResponseEntity<MessageResponseDTO> register(@Valid @RequestBody SignupRequestDTO signUpRequest) {
         authService.registerUser(signUpRequest);
