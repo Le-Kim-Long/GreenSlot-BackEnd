@@ -10,14 +10,22 @@ public class JwtResponseDTO {
     private String email;
     private String fullName;
     private List<String> roles;
+    private Long locationId;
+    private String locationName;
 
     public JwtResponseDTO(String accessToken, Long id, String username, String email, String fullName, List<String> roles) {
+        this(accessToken, id, username, email, fullName, roles, null, null);
+    }
+
+    public JwtResponseDTO(String accessToken, Long id, String username, String email, String fullName, List<String> roles, Long locationId, String locationName) {
         this.token = accessToken;
         this.id = id;
         this.username = username;
         this.email = email;
         this.fullName = fullName;
         this.roles = roles;
+        this.locationId = locationId;
+        this.locationName = locationName;
     }
 
     public String getToken() {
@@ -74,5 +82,21 @@ public class JwtResponseDTO {
 
     public void setRoles(List<String> roles) {
         this.roles = roles;
+    }
+
+    public Long getLocationId() {
+        return locationId;
+    }
+
+    public void setLocationId(Long locationId) {
+        this.locationId = locationId;
+    }
+
+    public String getLocationName() {
+        return locationName;
+    }
+
+    public void setLocationName(String locationName) {
+        this.locationName = locationName;
     }
 }

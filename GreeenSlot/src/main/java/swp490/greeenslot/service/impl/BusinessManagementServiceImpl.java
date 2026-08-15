@@ -50,6 +50,9 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Autowired
     private GardeningTaskRepository gardeningTaskRepository;
 
+    @Autowired
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
     // ==========================================
     // Location CRUD
     // ==========================================
@@ -88,16 +91,12 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Override
     @Transactional(readOnly = true)
     public List<LocationDTO> getAllLocations() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof UserDetailsImpl) {
-            UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-            User currentUser = userRepository.findById(userDetails.getId()).orElse(null);
-            if (currentUser != null && currentUser.getRoles().stream().anyMatch(r -> r.getName() == ERole.ROLE_LOCATION_MANAGER)) {
-                if (currentUser.getLocation() != null) {
-                    return List.of(mapToLocationDTO(currentUser.getLocation()));
-                } else {
-                    return List.of();
-                }
+        if (locationContextService.isLocationManager()) {
+            User currentUser = locationContextService.getCurrentUser();
+            if (currentUser != null && currentUser.getLocation() != null) {
+                return List.of(mapToLocationDTO(currentUser.getLocation()));
+            } else {
+                return List.of();
             }
         }
         
@@ -172,7 +171,9 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Override
     @Transactional(readOnly = true)
     public List<PillarDTO> getAllPillars() {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         return pillarRepository.findAll().stream()
+                .filter(p -> targetLocationId == null || (p.getLocation() != null && targetLocationId.equals(p.getLocation().getId())))
                 .map(this::mapToPillarDTO)
                 .collect(Collectors.toList());
     }
@@ -245,7 +246,9 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Override
     @Transactional(readOnly = true)
     public List<GardenSlotDTO> getAllSlots() {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         return gardenSlotRepository.findAll().stream()
+                .filter(s -> targetLocationId == null || (s.getPillar() != null && s.getPillar().getLocation() != null && targetLocationId.equals(s.getPillar().getLocation().getId())))
                 .map(this::mapToSlotDTO)
                 .collect(Collectors.toList());
     }
@@ -372,18 +375,21 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Override
     @Transactional(readOnly = true)
     public List<ActiveRentalDTO> getActiveRentals() {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         List<SlotRental> rentals = slotRentalRepository.findAllActiveRentals();
-        return rentals.stream().map(r -> new ActiveRentalDTO(
-                r.getId(),
-                r.getUser().getUsername(),
-                r.getUser().getFullName(),
-                r.getGardenSlot().getSlotNumber(),
-                r.getGardenSlot().getPillar().getPillarCode(),
-                r.getGardenSlot().getPillar().getLocation().getName(),
-                r.getStartTime(),
-                r.getEndTime(),
-                r.getStatus().name()
-        )).collect(Collectors.toList());
+        return rentals.stream()
+                .filter(r -> targetLocationId == null || (r.getGardenSlot() != null && r.getGardenSlot().getPillar() != null && r.getGardenSlot().getPillar().getLocation() != null && targetLocationId.equals(r.getGardenSlot().getPillar().getLocation().getId())))
+                .map(r -> new ActiveRentalDTO(
+                        r.getId(),
+                        r.getUser().getUsername(),
+                        r.getUser().getFullName(),
+                        r.getGardenSlot().getSlotNumber(),
+                        r.getGardenSlot().getPillar().getPillarCode(),
+                        r.getGardenSlot().getPillar().getLocation().getName(),
+                        r.getStartTime(),
+                        r.getEndTime(),
+                        r.getStatus().name()
+                )).collect(Collectors.toList());
     }
 
     // ==========================================

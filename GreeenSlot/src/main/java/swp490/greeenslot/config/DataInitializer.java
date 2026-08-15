@@ -94,10 +94,16 @@ public class DataInitializer {
                     "manager", "manager@greenslot.vn", defaultPassword, "Quản lý", "0900000002", ERole.ROLE_MANAGER);
 
             createDefaultUser(userRepository, roleRepository, passwordEncoder,
-                    "location_manager", "location@greenslot.vn", defaultPassword, "Quản lý Cơ sở", "0900000003", ERole.ROLE_LOCATION_MANAGER);
+                    "location_manager", "location@greenslot.vn", defaultPassword, "Quản lý Cơ sở Quận 1", "0900000003", ERole.ROLE_LOCATION_MANAGER);
 
             createDefaultUser(userRepository, roleRepository, passwordEncoder,
-                    "garden_staff", "staff@greenslot.vn", defaultPassword, "Nhân viên Vườn", "0900000004", ERole.ROLE_GARDEN_STAFF);
+                    "location_manager_q7", "location_q7@greenslot.vn", defaultPassword, "Quản lý Cơ sở Quận 7", "0900000007", ERole.ROLE_LOCATION_MANAGER);
+
+            createDefaultUser(userRepository, roleRepository, passwordEncoder,
+                    "garden_staff", "staff@greenslot.vn", defaultPassword, "Nhân viên Vườn Quận 1", "0900000004", ERole.ROLE_GARDEN_STAFF);
+
+            createDefaultUser(userRepository, roleRepository, passwordEncoder,
+                    "garden_staff_q7", "staff_q7@greenslot.vn", defaultPassword, "Nhân viên Vườn Quận 7", "0900000008", ERole.ROLE_GARDEN_STAFF);
 
             createDefaultUser(userRepository, roleRepository, passwordEncoder,
                     "customer", "customer@greenslot.vn", defaultPassword, "Khách hàng mẫu", "0900000005",
@@ -113,13 +119,29 @@ public class DataInitializer {
                 location1.setArea(1000.0);
                 locationRepository.save(location1);
 
-                // Assign default location to default staff users
+                Location location2 = new Location();
+                location2.setName("Cơ sở Quận 7");
+                location2.setAddress("456 Nguyễn Văn Linh, Quận 7, TP.HCM");
+                location2.setContactPhone("0907654321");
+                location2.setStatus("ACTIVE");
+                location2.setArea(1500.0);
+                locationRepository.save(location2);
+
+                // Assign location to staff users
                 userRepository.findByUsername("location_manager").ifPresent(u -> {
                     u.setLocation(location1);
                     userRepository.save(u);
                 });
                 userRepository.findByUsername("garden_staff").ifPresent(u -> {
                     u.setLocation(location1);
+                    userRepository.save(u);
+                });
+                userRepository.findByUsername("location_manager_q7").ifPresent(u -> {
+                    u.setLocation(location2);
+                    userRepository.save(u);
+                });
+                userRepository.findByUsername("garden_staff_q7").ifPresent(u -> {
+                    u.setLocation(location2);
                     userRepository.save(u);
                 });
 
@@ -143,7 +165,47 @@ public class DataInitializer {
                 slot2.setPillar(pillar1);
                 gardenSlotRepository.save(slot2);
 
-                System.out.println("[DataInitializer] Created sample Location, Pillar, and GardenSlots.");
+                Pillar pillar2 = new Pillar();
+                pillar2.setPillarCode("P-Q7-01");
+                pillar2.setStatus(EPillarStatus.ACTIVE);
+                pillar2.setLocation(location2);
+                pillarRepository.save(pillar2);
+
+                GardenSlot slot3 = new GardenSlot();
+                slot3.setSlotNumber("S-Q7-01-A");
+                slot3.setStatus(ESlotStatus.AVAILABLE);
+                slot3.setPrice(BigDecimal.valueOf(600000));
+                slot3.setPillar(pillar2);
+                gardenSlotRepository.save(slot3);
+
+                GardenSlot slot4 = new GardenSlot();
+                slot4.setSlotNumber("S-Q7-01-B");
+                slot4.setStatus(ESlotStatus.AVAILABLE);
+                slot4.setPrice(BigDecimal.valueOf(600000));
+                slot4.setPillar(pillar2);
+                gardenSlotRepository.save(slot4);
+
+                System.out.println("[DataInitializer] Created sample Locations (Q1 & Q7), Pillars, and GardenSlots.");
+            } else {
+                // Ensure Q7 exists and location_manager_q7 is mapped if present
+                if (locationRepository.findByName("Cơ sở Quận 7").isEmpty()) {
+                    Location location2 = new Location();
+                    location2.setName("Cơ sở Quận 7");
+                    location2.setAddress("456 Nguyễn Văn Linh, Quận 7, TP.HCM");
+                    location2.setContactPhone("0907654321");
+                    location2.setStatus("ACTIVE");
+                    location2.setArea(1500.0);
+                    Location savedQ7 = locationRepository.save(location2);
+
+                    userRepository.findByUsername("location_manager_q7").ifPresent(u -> {
+                        u.setLocation(savedQ7);
+                        userRepository.save(u);
+                    });
+                    userRepository.findByUsername("garden_staff_q7").ifPresent(u -> {
+                        u.setLocation(savedQ7);
+                        userRepository.save(u);
+                    });
+                }
             }
 
             // 4. Khởi tạo dữ liệu mẫu cho Tree

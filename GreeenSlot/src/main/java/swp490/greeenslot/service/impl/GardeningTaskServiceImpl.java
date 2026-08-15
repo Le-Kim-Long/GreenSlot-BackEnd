@@ -35,6 +35,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
     @Autowired
     private swp490.greeenslot.service.FirebaseMessagingService firebaseMessagingService;
 
+    @Autowired
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
     @Override
     @Transactional
     public GardeningTask requestService(ServiceRequestDTO request, String username) {
@@ -163,7 +166,20 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
     @Override
     public List<GardeningTask> getAllTasks() {
-        return gardeningTaskRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
+        List<GardeningTask> all = gardeningTaskRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
+        if (targetLocationId == null) {
+            return all;
+        }
+        return all.stream().filter(t -> {
+            if (t.getTargetSlot() != null && t.getTargetSlot().getPillar() != null && t.getTargetSlot().getPillar().getLocation() != null) {
+                return targetLocationId.equals(t.getTargetSlot().getPillar().getLocation().getId());
+            }
+            if (t.getAssignedStaff() != null && t.getAssignedStaff().getLocation() != null) {
+                return targetLocationId.equals(t.getAssignedStaff().getLocation().getId());
+            }
+            return false;
+        }).collect(java.util.stream.Collectors.toList());
     }
 
     @Override

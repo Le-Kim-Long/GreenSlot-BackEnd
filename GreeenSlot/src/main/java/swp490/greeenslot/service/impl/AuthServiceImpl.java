@@ -71,6 +71,10 @@ public class AuthServiceImpl implements AuthService {
         String jwt = jwtUtils.generateJwtToken(authentication);
 
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        User user = userRepository.findById(userDetails.getId()).orElse(null);
+        Long locationId = (user != null && user.getLocation() != null) ? user.getLocation().getId() : null;
+        String locationName = (user != null && user.getLocation() != null) ? user.getLocation().getName() : null;
+
         List<String> roles = userDetails.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList());
@@ -80,7 +84,9 @@ public class AuthServiceImpl implements AuthService {
                 userDetails.getUsername(),
                 userDetails.getEmail(),
                 userDetails.getFullName(),
-                roles);
+                roles,
+                locationId,
+                locationName);
     }
 
     @Override
@@ -166,13 +172,18 @@ public class AuthServiceImpl implements AuthService {
                 .map(r -> r.getName().name())
                 .collect(Collectors.toList());
 
+        Long googleLocationId = user.getLocation() != null ? user.getLocation().getId() : null;
+        String googleLocationName = user.getLocation() != null ? user.getLocation().getName() : null;
+
         return new JwtResponseDTO(
                 jwt,
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
                 user.getFullName(),
-                roles
+                roles,
+                googleLocationId,
+                googleLocationName
         );
     }
 
@@ -267,13 +278,18 @@ public class AuthServiceImpl implements AuthService {
                 .map(r -> r.getName().name())
                 .collect(Collectors.toList());
 
+        Long otpLocationId = user.getLocation() != null ? user.getLocation().getId() : null;
+        String otpLocationName = user.getLocation() != null ? user.getLocation().getName() : null;
+
         return new JwtResponseDTO(
                 jwt,
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
                 user.getFullName(),
-                roles
+                roles,
+                otpLocationId,
+                otpLocationName
         );
     }
 

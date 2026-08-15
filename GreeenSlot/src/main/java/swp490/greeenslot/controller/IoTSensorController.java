@@ -81,7 +81,7 @@ public class IoTSensorController {
     // --- EXISTING SENSOR READINGS READ APIS ---
 
     @GetMapping("/sensors/latest")
-    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Gia tri moi nhat tung loai cam bien theo device")
     public ResponseEntity<List<SensorReadingResponseDTO>> getLatest(
             @Parameter(example = "arduino-greenhouse-01") @RequestParam String deviceId) {
@@ -89,7 +89,7 @@ public class IoTSensorController {
     }
 
     @GetMapping("/sensors/history")
-    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Lich su doc cam bien")
     public ResponseEntity<List<SensorReadingResponseDTO>> getHistory(
             @RequestParam String deviceId,
@@ -99,7 +99,7 @@ public class IoTSensorController {
     }
 
     @GetMapping("/sensors/aggregated")
-    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Aggregated sensor data for charts",
             description = "Returns time-series aggregated data (daily or hourly) for chart visualization")
     public ResponseEntity<List<SensorAggregationDTO>> getAggregatedData(
