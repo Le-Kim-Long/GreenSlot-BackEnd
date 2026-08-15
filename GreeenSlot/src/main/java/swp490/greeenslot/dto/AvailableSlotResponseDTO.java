@@ -10,6 +10,8 @@ public class AvailableSlotResponseDTO {
     private String pillarCode;
     private String locationName;
     private String imageUrl;
+    private Long locationId;
+    private String locationAddress;
 
     public AvailableSlotResponseDTO() {
     }
@@ -31,6 +33,18 @@ public class AvailableSlotResponseDTO {
         this.pillarCode = pillarCode;
         this.locationName = locationName;
         this.imageUrl = imageUrl;
+    }
+
+    public AvailableSlotResponseDTO(Long id, String slotNumber, BigDecimal price, String status, String pillarCode, String locationName, String imageUrl, Long locationId, String locationAddress) {
+        this.id = id;
+        this.slotNumber = slotNumber;
+        this.price = price;
+        this.status = status;
+        this.pillarCode = pillarCode;
+        this.locationName = locationName;
+        this.imageUrl = imageUrl;
+        this.locationId = locationId;
+        this.locationAddress = locationAddress;
     }
 
     public Long getId() {
@@ -87,5 +101,21 @@ public class AvailableSlotResponseDTO {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public Long getLocationId() {
+        return locationId;
+    }
+
+    public void setLocationId(Long locationId) {
+        this.locationId = locationId;
+    }
+
+    public String getLocationAddress() {
+        return locationAddress;
+    }
+
+    public void setLocationAddress(String locationAddress) {
+        this.locationAddress = locationAddress;
     }
 }
