@@ -39,6 +39,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
     @Autowired
     private swp490.greeenslot.service.LocationContextService locationContextService;
 
+    @Autowired
+    private swp490.greeenslot.service.HarvestHistoryService harvestHistoryService;
+
     private Long getSlotLocationId(GardenSlot slot) {
         if (slot != null && slot.getPillar() != null && slot.getPillar().getLocation() != null) {
             return slot.getPillar().getLocation().getId();
@@ -541,6 +544,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                     String.format("%s đã thu hoạch cây %s tại ô %s", staffName, treeName, slotNumber)
             );
         }
+
+        // Lưu lại lịch sử thu hoạch TRƯỚC khi xóa dữ liệu cây khỏi rental
+        harvestHistoryService.recordHarvest(rental, "STAFF", task.getAssignedStaff());
 
         // Thu hoạch xong -> ô đất trở lại trạng thái "chưa trồng", sẵn sàng cho yêu cầu trồng cây mới
         rental.setTree(null);

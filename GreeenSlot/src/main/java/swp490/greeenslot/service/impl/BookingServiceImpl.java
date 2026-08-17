@@ -52,6 +52,9 @@ public class BookingServiceImpl implements BookingService {
     @Autowired
     private swp490.greeenslot.service.FirebaseMessagingService firebaseMessagingService;
 
+    @Autowired
+    private swp490.greeenslot.service.HarvestHistoryService harvestHistoryService;
+
     @Override
     @Transactional(readOnly = true)
     public List<GardenSlot> getAvailableSlots(Long locationId) {
@@ -530,6 +533,8 @@ public class BookingServiceImpl implements BookingService {
         rental.setHarvestDecision(decision);
 
         if ("SELF".equals(decision)) {
+            // Lưu lại lịch sử thu hoạch TRƯỚC khi xóa dữ liệu cây khỏi rental
+            harvestHistoryService.recordHarvest(rental, "SELF", null);
             // Khách tự nhận đã thu hoạch xong -> ô đất coi như trống ngay, sẵn sàng cho yêu cầu trồng cây mới
             resetHarvestedTree(rental);
         }
