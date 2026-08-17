@@ -16,7 +16,6 @@ public class BookingRequestDTO {
     @Max(value = 120, message = "Duration cannot exceed 120 months")
     private int durationInMonths;
 
-    @FutureOrPresent(message = "Start time must be in the present or future")
     private LocalDateTime startTime;
 
     private Boolean isMobile;

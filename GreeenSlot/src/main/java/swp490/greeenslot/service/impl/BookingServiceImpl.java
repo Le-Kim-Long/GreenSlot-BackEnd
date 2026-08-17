@@ -99,10 +99,13 @@ public class BookingServiceImpl implements BookingService {
         BigDecimal amount = slot.getPrice().multiply(new BigDecimal(months));
 
         LocalDateTime start = request.getStartTime();
+        LocalDateTime now = LocalDateTime.now();
         if (start == null) {
-            start = LocalDateTime.now();
-        } else if (start.isBefore(LocalDateTime.now().minusMinutes(5))) {
+            start = now;
+        } else if (start.toLocalDate().isBefore(now.toLocalDate())) {
             throw new IllegalArgumentException("Start time cannot be in the past");
+        } else if (start.toLocalDate().isEqual(now.toLocalDate()) && start.isBefore(now)) {
+            start = now;
         }
         LocalDateTime end = start.plusMonths(months);
 

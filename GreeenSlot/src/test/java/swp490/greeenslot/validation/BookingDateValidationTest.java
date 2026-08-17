@@ -92,29 +92,30 @@ class BookingDateValidationTest {
     // ================= DTO Bean Validation Tests =================
 
     @Test
-    @DisplayName("DTO Validation: Should fail when startTime is in the past")
-    void testDTO_WithPastStartTime_ShouldHaveConstraintViolation() {
+    @DisplayName("DTO Validation: Should validate slotId and durationInMonths constraints")
+    void testDTO_Validation_Constraints() {
         BookingRequestDTO dto = new BookingRequestDTO();
-        dto.setSlotId(1L);
-        dto.setDurationInMonths(3);
-        dto.setStartTime(LocalDateTime.now().minusDays(2));
+        dto.setSlotId(null);
+        dto.setDurationInMonths(0);
 
         Set<ConstraintViolation<BookingRequestDTO>> violations = validator.validate(dto);
 
         assertFalse(violations.isEmpty());
-        boolean hasStartTimeViolation = violations.stream()
-                .anyMatch(v -> v.getPropertyPath().toString().equals("startTime")
-                        && v.getMessage().contains("must be in the present or future"));
-        assertTrue(hasStartTimeViolation);
+        boolean hasSlotIdViolation = violations.stream()
+                .anyMatch(v -> v.getPropertyPath().toString().equals("slotId"));
+        boolean hasDurationViolation = violations.stream()
+                .anyMatch(v -> v.getPropertyPath().toString().equals("durationInMonths"));
+        assertTrue(hasSlotIdViolation);
+        assertTrue(hasDurationViolation);
     }
 
     @Test
-    @DisplayName("DTO Validation: Should pass when startTime is in the future")
-    void testDTO_WithFutureStartTime_ShouldHaveNoViolations() {
+    @DisplayName("DTO Validation: Should pass when valid slotId and duration are provided")
+    void testDTO_WithValidData_ShouldHaveNoViolations() {
         BookingRequestDTO dto = new BookingRequestDTO();
         dto.setSlotId(1L);
         dto.setDurationInMonths(3);
-        dto.setStartTime(LocalDateTime.now().plusDays(2));
+        dto.setStartTime(LocalDateTime.now());
 
         Set<ConstraintViolation<BookingRequestDTO>> violations = validator.validate(dto);
 
@@ -137,12 +138,12 @@ class BookingDateValidationTest {
     // ================= Service Level Validation Tests =================
 
     @Test
-    @DisplayName("Service Validation: Should throw IllegalArgumentException when startTime is in the past (> 5 mins)")
+    @DisplayName("Service Validation: Should throw IllegalArgumentException when startTime is a past calendar day")
     void testService_CreateBooking_WithPastStartTime_ThrowsException() {
         BookingRequestDTO request = new BookingRequestDTO();
         request.setSlotId(10L);
         request.setDurationInMonths(3);
-        request.setStartTime(LocalDateTime.now().minusHours(2));
+        request.setStartTime(LocalDateTime.now().minusDays(2));
 
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
         when(gardenSlotRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testSlot));
