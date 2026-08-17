@@ -1,0 +1,9 @@
+.idea/
+.agent/
+*.md
+GreeenSlot/target/
+GreeenSlot/uploads/
+uploads/
+.vscode/
+GreeenSlot/src/main/resources/firebase/
+GreeenSlot/src/main/resources/firebase/*.json

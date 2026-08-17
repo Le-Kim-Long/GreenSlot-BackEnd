@@ -27,4 +27,6 @@ public interface GardeningTaskService {
     GardeningTask claimTask(Long taskId, String username);
 
     GardeningTask notifyHarvestChoice(Long taskId, String username);
+
+    GardeningTask updateEvidenceImage(Long taskId, String evidenceImageUrl);
 }

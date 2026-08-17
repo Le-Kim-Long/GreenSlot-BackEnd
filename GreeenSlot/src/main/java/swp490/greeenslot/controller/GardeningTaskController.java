@@ -139,6 +139,17 @@ public class GardeningTaskController {
         return ResponseEntity.ok(mapToDTO(task));
     }
 
+    @PatchMapping("/tasks/{id}/evidence")
+    @PreAuthorize("hasAnyRole('ROLE_GARDEN_STAFF', 'ROLE_LOCATION_MANAGER', 'ROLE_MANAGER')")
+    @Operation(summary = "Update task evidence image", description = "Update or re-upload evidence image for a task")
+    public ResponseEntity<GardeningTaskResponseDTO> updateTaskEvidence(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, String> body) {
+        String evidenceImageUrl = body.get("evidenceImageUrl");
+        GardeningTask task = gardeningTaskService.updateEvidenceImage(id, evidenceImageUrl);
+        return ResponseEntity.ok(mapToDTO(task));
+    }
+
     private GardeningTaskResponseDTO mapToDTO(GardeningTask task) {
         return new GardeningTaskResponseDTO(
                 task.getId(),

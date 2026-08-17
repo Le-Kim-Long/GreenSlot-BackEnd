@@ -387,6 +387,30 @@ public class ImageController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/view/{folder}/{fileName:.+}")
+    @Operation(summary = "View uploaded file", description = "Stream uploaded file content directly")
+    public ResponseEntity<byte[]> viewFile(
+            @PathVariable String folder,
+            @PathVariable String fileName) {
+        try {
+            java.nio.file.Path filePath = java.nio.file.Paths.get("uploads", folder, fileName);
+            if (!java.nio.file.Files.exists(filePath)) {
+                return ResponseEntity.notFound().build();
+            }
+            byte[] data = java.nio.file.Files.readAllBytes(filePath);
+            String contentType = java.nio.file.Files.probeContentType(filePath);
+            if (contentType == null) {
+                contentType = org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE;
+            }
+            return ResponseEntity.ok()
+                    .contentType(org.springframework.http.MediaType.parseMediaType(contentType))
+                    .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "max-age=86400")
+                    .body(data);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
     private ImageFileDTO mapToDTO(ImageFile imageFile) {
         return ImageFileDTO.builder()
                 .id(imageFile.getId())
