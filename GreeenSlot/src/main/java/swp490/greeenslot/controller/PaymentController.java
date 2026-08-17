@@ -17,6 +17,9 @@ import java.util.Map;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 @CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
 @RestController
@@ -66,6 +69,10 @@ public class PaymentController {
 
         String responseCode = fields.getOrDefault("vnp_ResponseCode", "");
         String txnRef = fields.getOrDefault("vnp_TxnRef", "");
+        String transactionStatus = fields.getOrDefault("vnp_TransactionStatus", "");
+        String amount = fields.getOrDefault("vnp_Amount", "");
+        String orderInfo = fields.getOrDefault("vnp_OrderInfo", "");
+        String payDate = fields.getOrDefault("vnp_PayDate", "");
         String status = "00".equals(responseCode) ? "success" : "failed";
 
         // Determine whether target is Mobile App or Web Frontend
@@ -84,7 +91,22 @@ public class PaymentController {
         }
 
         String delimiter = targetUrl.contains("?") ? "&" : "?";
-        String redirectUrl = targetUrl + delimiter + "status=" + status + "&vnp_ResponseCode=" + responseCode + "&vnp_TxnRef=" + txnRef;
+        String redirectUrl = targetUrl + delimiter
+                + "status=" + urlEncode(status)
+                + "&vnp_ResponseCode=" + urlEncode(responseCode)
+                + "&vnp_TxnRef=" + urlEncode(txnRef)
+                + "&vnp_TransactionStatus=" + urlEncode(transactionStatus)
+                + "&vnp_Amount=" + urlEncode(amount)
+                + "&vnp_OrderInfo=" + urlEncode(orderInfo)
+                + "&vnp_PayDate=" + urlEncode(payDate);
         response.sendRedirect(redirectUrl);
+    }
+
+    private String urlEncode(String value) {
+        try {
+            return URLEncoder.encode(value, StandardCharsets.UTF_8.toString());
+        } catch (UnsupportedEncodingException e) {
+            return value;
+        }
     }
 }

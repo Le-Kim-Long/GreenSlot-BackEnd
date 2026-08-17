@@ -135,7 +135,7 @@ public class BookingServiceImpl implements BookingService {
         txn.setStatus(EPaymentStatus.PENDING);
         paymentTransactionRepository.save(txn);
 
-        String orderInfo = "GreenSlot Booking: Slot " + slot.getSlotNumber() + " for " + months + " months";
+        String orderInfo = "GreenSlot - Thue vuon " + slot.getSlotNumber() + " trong " + months + " thang";
         boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
         String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile);
 
@@ -183,7 +183,7 @@ public class BookingServiceImpl implements BookingService {
         txn.setStatus(EPaymentStatus.PENDING);
         paymentTransactionRepository.save(txn);
 
-        String orderInfo = "GreenSlot Extension: Rental " + rental.getId() + " for " + months + " months";
+        String orderInfo = "GreenSlot - Gia han vuon #" + rental.getId() + " them " + months + " thang";
         boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
         String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile);
 
@@ -494,7 +494,7 @@ public class BookingServiceImpl implements BookingService {
         pendingTxn.setPaymentDate(LocalDateTime.now());
         paymentTransactionRepository.save(pendingTxn);
 
-        String orderInfo = "Thanh toan don thue vuon GreenSlot ID: " + rentalId;
+        String orderInfo = "GreenSlot - Thanh toan don thue vuon #" + rentalId;
         String paymentUrl = vnPayUtils.buildPaymentUrl(newTxnRef, pendingTxn.getAmount(), ipAddress, orderInfo, isMobile);
 
         return new BookingResponseDTO(rentalId, paymentUrl, newTxnRef);
