@@ -1,5 +1,6 @@
 package swp490.greeenslot.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -18,6 +19,9 @@ public class NotificationResponseDTO {
     private String title;
     private String message;
     private String type;
+    // Lombok sinh getter isRead() cho field boolean này -> Jackson mặc định cắt tiền tố "is"
+    // và serialize thành "read" thay vì "isRead". Ép rõ tên field JSON để khớp với frontend.
+    @JsonProperty("isRead")
     private boolean isRead;
     private LocalDateTime createdAt;
 
