@@ -7,16 +7,19 @@ import org.springframework.stereotype.Repository;
 import swp490.greeenslot.entity.Alert;
 import swp490.greeenslot.entity.EAlertStatus;
 import swp490.greeenslot.entity.Pillar;
+import swp490.greeenslot.entity.Tree;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
 public interface AlertRepository extends JpaRepository<Alert, Long> {
-    
+
     List<Alert> findByStatus(EAlertStatus status);
-    
+
     List<Alert> findByPillar(Pillar pillar);
+
+    List<Alert> findByTree(Tree tree);
     
     List<Alert> findByPillarAndStatus(Pillar pillar, EAlertStatus status);
     
