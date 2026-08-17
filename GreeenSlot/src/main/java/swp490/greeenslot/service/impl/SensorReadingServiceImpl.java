@@ -146,13 +146,39 @@ public class SensorReadingServiceImpl implements SensorReadingService {
             thresholdOpt = sensorThresholdRepository.findByDeviceIdAndSensorType(deviceId, sensorType.getCode());
         }
 
+        SensorThreshold threshold;
         if (thresholdOpt.isPresent()) {
-            SensorThreshold threshold = thresholdOpt.get();
-            if (value < threshold.getMinValue() || value > threshold.getMaxValue()) {
-                // Threshold violation detected!
-                Optional<Pillar> pillarOpt = pillarRepository.findByPillarCode(deviceId);
-                if (pillarOpt.isPresent()) {
-                    Pillar pillar = pillarOpt.get();
+            threshold = thresholdOpt.get();
+        } else {
+            // Smart agricultural default thresholds if not yet explicitly configured per device
+            threshold = new SensorThreshold();
+            threshold.setDeviceId(deviceId);
+            threshold.setSensorType(sensorType.name());
+            switch (sensorType) {
+                case SOIL_MOISTURE -> {
+                    threshold.setMinValue(35.0); // Ngưỡng tối thiểu độ ẩm đất: 35%
+                    threshold.setMaxValue(80.0); // Ngưỡng tối đa độ ẩm đất: 80%
+                }
+                case PH -> {
+                    threshold.setMinValue(5.5);  // Ngưỡng tối thiểu pH: 5.5
+                    threshold.setMaxValue(7.5);  // Ngưỡng tối đa pH: 7.5
+                }
+                case LIGHT_INTENSITY -> {
+                    threshold.setMinValue(500.0);   // Ngưỡng tối thiểu ánh sáng: 500 Lux
+                    threshold.setMaxValue(50000.0); // Ngưỡng tối đa ánh sáng: 50,000 Lux
+                }
+                default -> {
+                    threshold.setMinValue(0.0);
+                    threshold.setMaxValue(100.0);
+                }
+            }
+        }
+
+        if (value < threshold.getMinValue() || value > threshold.getMaxValue()) {
+            // Threshold violation detected!
+            Optional<Pillar> pillarOpt = pillarRepository.findByPillarCode(deviceId);
+            if (pillarOpt.isPresent()) {
+                Pillar pillar = pillarOpt.get();
                     
                     // Create Alert record for managers
                     swp490.greeenslot.entity.Alert alert = new swp490.greeenslot.entity.Alert();
@@ -300,7 +326,6 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                 }
             }
         }
-    }
 
     @Override
     @Transactional(readOnly = true)
