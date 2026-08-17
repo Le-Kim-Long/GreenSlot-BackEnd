@@ -2,6 +2,7 @@ package swp490.greeenslot.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -11,6 +12,7 @@ import java.time.LocalDateTime;
 
 @Getter
 @Setter
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class NotificationResponseDTO {
@@ -19,21 +21,26 @@ public class NotificationResponseDTO {
     private String title;
     private String message;
     private String type;
-    // Lombok sinh getter isRead() cho field boolean này -> Jackson mặc định cắt tiền tố "is"
-    // và serialize thành "read" thay vì "isRead". Ép rõ tên field JSON để khớp với frontend.
+    private Long referenceId;
+    private String actionUrl;
     @JsonProperty("isRead")
     private boolean isRead;
     private LocalDateTime createdAt;
 
     public static NotificationResponseDTO fromEntity(Notification notification) {
-        return new NotificationResponseDTO(
-                notification.getId(),
-                notification.getUserId(),
-                notification.getTitle(),
-                notification.getMessage(),
-                notification.getType(),
-                notification.isRead(),
-                notification.getCreatedAt()
-        );
+        if (notification == null) {
+            return null;
+        }
+        return NotificationResponseDTO.builder()
+                .id(notification.getId())
+                .userId(notification.getUserId())
+                .title(notification.getTitle())
+                .message(notification.getMessage())
+                .type(notification.getType())
+                .referenceId(notification.getReferenceId())
+                .actionUrl(notification.getActionUrl())
+                .isRead(notification.isRead())
+                .createdAt(notification.getCreatedAt())
+                .build();
     }
 }

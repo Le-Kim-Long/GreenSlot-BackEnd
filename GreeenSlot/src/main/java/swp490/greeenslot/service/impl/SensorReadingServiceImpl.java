@@ -11,24 +11,12 @@ import swp490.greeenslot.dto.DeviceTelemetryRequestDTO;
 import swp490.greeenslot.dto.SensorReadingItemDTO;
 import swp490.greeenslot.dto.SensorReadingResponseDTO;
 import swp490.greeenslot.dto.SensorAggregateDTO;
-import swp490.greeenslot.entity.ESensorType;
-import swp490.greeenslot.entity.SensorReading;
-import swp490.greeenslot.entity.SensorThreshold;
-import swp490.greeenslot.entity.Pillar;
-import swp490.greeenslot.entity.GardenSlot;
-import swp490.greeenslot.entity.SlotRental;
-import swp490.greeenslot.entity.User;
-import swp490.greeenslot.repository.SensorReadingRepository;
-import swp490.greeenslot.repository.SensorThresholdRepository;
-import swp490.greeenslot.repository.PillarRepository;
-import swp490.greeenslot.repository.GardenSlotRepository;
-import swp490.greeenslot.repository.SlotRentalRepository;
-import swp490.greeenslot.repository.GardeningTaskRepository;
+import swp490.greeenslot.entity.*;
+import swp490.greeenslot.repository.*;
 import swp490.greeenslot.service.SensorReadingService;
 import swp490.greeenslot.service.NotificationService;
 
 import java.time.LocalDateTime;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,6 +43,9 @@ public class SensorReadingServiceImpl implements SensorReadingService {
 
     @Autowired
     private GardeningTaskRepository gardeningTaskRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Autowired
     private NotificationService notificationService;
@@ -163,7 +154,7 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                     // Create Alert record for managers
                     swp490.greeenslot.entity.Alert alert = new swp490.greeenslot.entity.Alert();
                     alert.setAlertType(sensorType.name());
-                    alert.setDescription(String.format("Sensor %s on pillar %s reported value %f %s, outside threshold %f - %f", 
+                    alert.setDescription(String.format("Cảm biến %s trên trụ %s ghi nhận giá trị %.2f %s, nằm ngoài ngưỡng (%.2f - %.2f)", 
                             sensorType.getDescription(), pillar.getPillarCode(), value, unit, threshold.getMinValue(), threshold.getMaxValue()));
                     alert.setStatus(swp490.greeenslot.entity.EAlertStatus.PENDING);
                     alert.setThresholdValue((threshold.getMaxValue() - threshold.getMinValue()) / 2 + threshold.getMinValue());
@@ -171,12 +162,12 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                     alert.setSensorType(sensorType.name());
                     alert.setPillar(pillar);
                     alert.setCreatedAt(LocalDateTime.now());
-                    alertService.createAlert(alert);
+                    Alert savedAlert = alertService.createAlert(alert);
                     
                     // Alert location managers
                     if (pillar.getLocation() != null) {
-                        String managerTitle = "IoT Sensor Threshold Alert";
-                        String managerBody = String.format("Pillar %s: Sensor %s exceeded threshold. Value: %f %s (Range: %f - %f)",
+                        String managerTitle = "Cảnh báo chỉ số cảm biến IoT";
+                        String managerBody = String.format("Trụ %s: Cảm biến %s vượt ngưỡng. Giá trị: %.2f %s (Ngưỡng: %.2f - %.2f)",
                                 pillar.getPillarCode(), sensorType.getDescription(), value, unit, threshold.getMinValue(), threshold.getMaxValue());
                         
                         firebaseMessagingService.sendPushNotificationToLocation(
@@ -186,13 +177,29 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                                 "ROLE_LOCATION_MANAGER"
                         );
                         
-                        // Also notify general managers
                         firebaseMessagingService.sendPushNotificationToLocation(
                                 pillar.getLocation().getId(), 
                                 managerTitle, 
                                 managerBody, 
                                 "ROLE_MANAGER"
                         );
+
+                        if (notificationService != null) {
+                            List<User> managers = userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, pillar.getLocation().getId());
+                            if (managers.isEmpty()) {
+                                managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
+                            }
+                            for (User manager : managers) {
+                                notificationService.createNotification(
+                                        manager.getId(),
+                                        managerTitle,
+                                        managerBody,
+                                        "IOT_ALERT",
+                                        savedAlert != null ? savedAlert.getId() : null,
+                                        "/dashboard/manager/alerts"
+                                );
+                            }
+                        }
                     }
                     
                     List<GardenSlot> slots = gardenSlotRepository.findByPillarId(pillar.getId());
@@ -201,51 +208,59 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                         for (SlotRental rental : activeRentals) {
                             User customer = rental.getUser();
                             // Save notification for customer
-                            notificationService.createNotification(
-                                    customer.getId(),
-                                    "IoT Sensor Warning Alert",
-                                    String.format("Alert: Sensor %s on slot %s is reporting %f %s, which is outside the set threshold boundaries of %f to %f.",
-                                            sensorType.getDescription(), slot.getSlotNumber(), value, unit, threshold.getMinValue(), threshold.getMaxValue()),
-                                    "IOT_ALERT"
-                            );
+                            if (notificationService != null) {
+                                notificationService.createNotification(
+                                        customer.getId(),
+                                        "Cảnh báo chỉ số cảm biến",
+                                        String.format("Cảnh báo: Cảm biến %s tại ô đất %s ghi nhận %.2f %s, nằm ngoài ngưỡng cho phép (%.2f - %.2f).",
+                                                sensorType.getDescription(), slot.getSlotNumber(), value, unit, threshold.getMinValue(), threshold.getMaxValue()),
+                                        "IOT_ALERT",
+                                        slot.getId(),
+                                        "/dashboard/customer/iot"
+                                );
+                            }
                             
                             // Send push notification to customer
                             firebaseMessagingService.sendPushNotification(
                                     customer.getId(),
-                                    "IoT Sensor Warning",
-                                    String.format("Slot %s: Sensor %s reading %f %s is outside normal range", 
+                                    "Cảnh báo cảm biến IoT",
+                                    String.format("Ô %s: Cảm biến %s đạt %.2f %s, nằm ngoài khoảng bình thường", 
                                             slot.getSlotNumber(), sensorType.getDescription(), value, unit)
                             );
 
                             // Save notification for assigned staff member(s)
                             List<User> staffList = gardeningTaskRepository.findAssignedStaffBySlotId(slot.getId());
                             for (User staff : staffList) {
-                                notificationService.createNotification(
-                                        staff.getId(),
-                                        "IoT Sensor Warning Alert (Staff Action Required)",
-                                        String.format("Alert: Sensor %s on slot %s is reporting %f %s, which is outside the set threshold boundaries of %f to %f. Assigned Staff Action Required.",
-                                                sensorType.getDescription(), slot.getSlotNumber(), value, unit, threshold.getMinValue(), threshold.getMaxValue()),
-                                        "IOT_ALERT"
-                                );
+                                if (notificationService != null) {
+                                    notificationService.createNotification(
+                                            staff.getId(),
+                                            "Cảnh báo chỉ số cảm biến (Cần xử lý)",
+                                            String.format("Cảnh báo: Cảm biến %s tại ô %s ghi nhận %.2f %s, nằm ngoài ngưỡng (%.2f - %.2f). Yêu cầu nhân viên kiểm tra.",
+                                                    sensorType.getDescription(), slot.getSlotNumber(), value, unit, threshold.getMinValue(), threshold.getMaxValue()),
+                                            "IOT_ALERT",
+                                            slot.getId(),
+                                            "/dashboard/staff/tasks"
+                                    );
+                                }
                                 
                                 // Send push notification to staff
                                 firebaseMessagingService.sendPushNotification(
                                         staff.getId(),
-                                        "Action Required: IoT Sensor Alert",
-                                        String.format("Slot %s: Sensor %s requires attention. Value: %f %s", 
+                                        "Cần kiểm tra: Cảnh báo cảm biến",
+                                        String.format("Ô %s: Cảm biến %s bất thường (%.2f %s)", 
                                                 slot.getSlotNumber(), sensorType.getDescription(), value, unit)
                                 );
                             }
 
                             // Automatically spawn emergency MAINTENANCE GardeningTask if not already present
-                            String emergencyTaskName = "Emergency: IoT Sensor Warning - " + sensorType.getDescription();
+                            String emergencyTaskName = "Khẩn cấp: Cảnh báo cảm biến - " + sensorType.getDescription();
                             boolean taskExists = gardeningTaskRepository.existsByTargetSlotIdAndTaskNameAndStatus(
                                     slot.getId(), emergencyTaskName, swp490.greeenslot.entity.ETaskStatus.PENDING);
                             
                             if (!taskExists) {
                                 swp490.greeenslot.entity.GardeningTask emergencyTask = new swp490.greeenslot.entity.GardeningTask();
                                 emergencyTask.setTaskName(emergencyTaskName);
-                                emergencyTask.setDescription(String.format("Emergency check requested for Slot %s. Sensor %s reported value %f %s (Threshold: %f - %f).", 
+                                emergencyTask.setDescription(String.format("Kiểm tra khẩn cấp ô %s. Cảm biến %s ghi nhận %.2f %s (Ngưỡng: %.2f - %.2f).", 
                                         slot.getSlotNumber(), sensorType.getDescription(), value, unit, threshold.getMinValue(), threshold.getMaxValue()));
                                 emergencyTask.setStatus(swp490.greeenslot.entity.ETaskStatus.PENDING);
                                 emergencyTask.setTaskType(swp490.greeenslot.entity.ETaskType.MAINTENANCE);
