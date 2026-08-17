@@ -93,8 +93,8 @@ public class BookingServiceImpl implements BookingService {
         if (months <= 0) {
             throw new IllegalArgumentException("Duration must be a positive integer greater than 0");
         }
-        if (months > 60) {
-            throw new IllegalArgumentException("Duration cannot exceed 60 months");
+        if (months > 120) {
+            throw new IllegalArgumentException("Duration cannot exceed 120 months");
         }
         BigDecimal amount = slot.getPrice().multiply(new BigDecimal(months));
 
@@ -160,8 +160,8 @@ public class BookingServiceImpl implements BookingService {
         if (months <= 0) {
             throw new IllegalArgumentException("Extension duration must be a positive integer greater than 0");
         }
-        if (months > 60) {
-            throw new IllegalArgumentException("Extension duration cannot exceed 60 months");
+        if (months > 120) {
+            throw new IllegalArgumentException("Extension duration cannot exceed 120 months");
         }
 
         GardenSlot slot = rental.getGardenSlot();

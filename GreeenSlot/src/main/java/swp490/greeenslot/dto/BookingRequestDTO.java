@@ -13,7 +13,7 @@ public class BookingRequestDTO {
     private Long slotId;
 
     @Min(value = 1, message = "Duration must be at least 1 month")
-    @Max(value = 60, message = "Duration cannot exceed 60 months")
+    @Max(value = 120, message = "Duration cannot exceed 120 months")
     private int durationInMonths;
 
     @FutureOrPresent(message = "Start time must be in the present or future")

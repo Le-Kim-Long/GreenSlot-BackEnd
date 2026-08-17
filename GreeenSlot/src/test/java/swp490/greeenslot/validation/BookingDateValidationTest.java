@@ -38,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -175,7 +176,7 @@ class BookingDateValidationTest {
         SlotRental savedRental = new SlotRental();
         savedRental.setId(100L);
         when(slotRentalRepository.save(any(SlotRental.class))).thenReturn(savedRental);
-        when(vnPayUtils.buildPaymentUrl(anyString(), any(BigDecimal.class), anyString(), anyString()))
+        when(vnPayUtils.buildPaymentUrl(anyString(), any(BigDecimal.class), anyString(), anyString(), anyBoolean()))
                 .thenReturn("http://vnpay.mock/url");
 
         BookingResponseDTO response = bookingService.createBooking(request, "testuser", "127.0.0.1");
@@ -205,7 +206,7 @@ class BookingDateValidationTest {
         SlotRental savedRental = new SlotRental();
         savedRental.setId(101L);
         when(slotRentalRepository.save(any(SlotRental.class))).thenReturn(savedRental);
-        when(vnPayUtils.buildPaymentUrl(anyString(), any(BigDecimal.class), anyString(), anyString()))
+        when(vnPayUtils.buildPaymentUrl(anyString(), any(BigDecimal.class), anyString(), anyString(), anyBoolean()))
                 .thenReturn("http://vnpay.mock/url");
 
         BookingResponseDTO response = bookingService.createBooking(request, "testuser", "127.0.0.1");
