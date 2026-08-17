@@ -108,7 +108,13 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         if (rental.getEndTime() == null || rental.getEndTime().isBefore(now)) {
             throw new IllegalArgumentException("Cannot request planting: Slot rental has already expired.");
         }
-        
+
+        // 3b. Chỉ cho trồng khi ô đất đang trống — không cho gửi yêu cầu thay thế cây đang trồng
+        if (rental.getTree() != null) {
+            throw new IllegalArgumentException("Cannot request planting: This slot already has a tree planted. " +
+                    "You cannot replace it with another tree until the current one is harvested.");
+        }
+
         // 4. Check tree exists and is active
         Tree newTree = treeRepository.findById(dto.getNewTreeId())
                 .orElseThrow(() -> new IllegalArgumentException("Tree not found with id: " + dto.getNewTreeId()));
