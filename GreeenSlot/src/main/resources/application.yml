@@ -3,27 +3,19 @@ server:
 
 spring:
   profiles:
+    # Defaults to 'sqlserver' for local development
     active: ${SPRING_PROFILES_ACTIVE:sqlserver}
   servlet:
     multipart:
       max-file-size: 50MB
       max-request-size: 50MB
-  datasource:
-    # --- CẤU HÌNH DATABASE (POSTGRESQL DEFAULT) ---
-    # SECURITY: All credentials MUST be provided via environment variables in production.
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/GreenSlotDB}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:12345}
-    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
   jpa:
     hibernate:
-      # ddl-auto: create for fresh DB; update for existing. On Render first deployment, use 'create'; local dev uses 'update'
       ddl-auto: ${SPRING_JPA_DDL_AUTO:update}
     show-sql: ${SHOW_SQL:false}
     properties:
       hibernate:
         format_sql: true
-        dialect: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
 
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
@@ -42,7 +34,6 @@ spring:
     camera:
       # IP mặc định là của mạch ESP32-CAM. Người khác kéo code về có thể tự đổi IP bằng biến môi trường IOT_CAMERA_URL
       url: ${IOT_CAMERA_URL:http://10.10.10.242/capture}
-
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -69,6 +60,7 @@ greeenslot:
     ipnUrl: ${VNP_IPN_URL:}
 
 ---
+# --- POSTGRESQL PROFILE (Render Production) ---
 spring:
   config:
     activate:
@@ -84,6 +76,7 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
 ---
+# --- MYSQL PROFILE ---
 spring:
   config:
     activate:
@@ -99,6 +92,7 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
 
 ---
+# --- SQL SERVER PROFILE (Local Development Default) ---
 spring:
   config:
     activate:
@@ -112,4 +106,3 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.SQLServerDialect
-
