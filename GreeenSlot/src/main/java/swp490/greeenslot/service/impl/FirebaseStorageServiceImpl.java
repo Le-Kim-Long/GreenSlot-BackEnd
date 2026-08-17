@@ -141,6 +141,10 @@ public class FirebaseStorageServiceImpl implements FirebaseStorageService {
                         .bucket()
                         .create(relativePath, file.getBytes(), file.getContentType());
 
+                try {
+                    blob.createAcl(com.google.cloud.storage.Acl.of(com.google.cloud.storage.Acl.User.ofAllUsers(), com.google.cloud.storage.Acl.Role.READER));
+                } catch (Exception ignored) {}
+
                 return String.format(
                         "https://storage.googleapis.com/%s/%s",
                         blob.getBucket(),
