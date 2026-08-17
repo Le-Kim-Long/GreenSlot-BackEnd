@@ -1,5 +1,6 @@
 package swp490.greeenslot.dto;
 
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -10,6 +11,7 @@ public class ExtensionRequestDTO {
     private Long rentalId;
 
     @Min(value = 1, message = "Duration must be at least 1 month")
+    @Max(value = 60, message = "Duration cannot exceed 60 months")
     private int durationInMonths;
 
     private Boolean isMobile;
