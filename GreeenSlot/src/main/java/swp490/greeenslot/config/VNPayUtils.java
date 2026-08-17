@@ -33,10 +33,17 @@ public class VNPayUtils {
     @Value("${greeenslot.vnpay.returnUrl:http://localhost:8080/api/payments/vnpay-return}")
     private String returnUrl;
 
+    @Value("${greeenslot.vnpay.mobileReturnUrl:greenslot://payment-result}")
+    private String mobileReturnUrl;
+
     @Value("${greeenslot.vnpay.ipnUrl:}")
     private String ipnUrl;
 
     public String buildPaymentUrl(String txnRef, BigDecimal amount, String ipAddress, String orderInfo) {
+        return buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, false);
+    }
+
+    public String buildPaymentUrl(String txnRef, BigDecimal amount, String ipAddress, String orderInfo, boolean isMobile) {
         String vnp_Version = "2.1.0";
         String vnp_Command = "pay";
         String vnp_TxnRef = txnRef;
@@ -51,6 +58,11 @@ public class VNPayUtils {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
         String vnp_CreateDate = now.format(formatter);
 
+        String effectiveReturnUrl = returnUrl;
+        if (isMobile) {
+            effectiveReturnUrl += (effectiveReturnUrl.contains("?") ? "&" : "?") + "client=mobile";
+        }
+
         Map<String, String> vnp_Params = new HashMap<>();
         vnp_Params.put("vnp_Version", vnp_Version);
         vnp_Params.put("vnp_Command", vnp_Command);
@@ -61,7 +73,7 @@ public class VNPayUtils {
         vnp_Params.put("vnp_OrderInfo", vnp_OrderInfo);
         vnp_Params.put("vnp_OrderType", vnp_OrderType);
         vnp_Params.put("vnp_Locale", vnp_Locale);
-        vnp_Params.put("vnp_ReturnUrl", returnUrl);
+        vnp_Params.put("vnp_ReturnUrl", effectiveReturnUrl);
         if (ipnUrl != null && !ipnUrl.isEmpty()) {
             vnp_Params.put("vnp_IpnUrl", ipnUrl);
         }

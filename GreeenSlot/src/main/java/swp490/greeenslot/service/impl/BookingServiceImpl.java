@@ -130,7 +130,8 @@ public class BookingServiceImpl implements BookingService {
         paymentTransactionRepository.save(txn);
 
         String orderInfo = "GreenSlot Booking: Slot " + slot.getSlotNumber() + " for " + months + " months";
-        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo);
+        boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
+        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile);
 
         return new BookingResponseDTO(rental.getId(), paymentUrl, txnRef);
     }
@@ -174,7 +175,8 @@ public class BookingServiceImpl implements BookingService {
         paymentTransactionRepository.save(txn);
 
         String orderInfo = "GreenSlot Extension: Rental " + rental.getId() + " for " + months + " months";
-        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo);
+        boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
+        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile);
 
         return new BookingResponseDTO(rental.getId(), paymentUrl, txnRef);
     }
@@ -445,6 +447,12 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress) {
+        return getOrRegeneratePaymentUrl(rentalId, username, ipAddress, false);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress, boolean isMobile) {
         SlotRental rental = slotRentalRepository.findByIdWithPessimisticLock(rentalId)
                 .orElseThrow(() -> new IllegalArgumentException("Slot rental not found with ID: " + rentalId));
 
@@ -478,7 +486,7 @@ public class BookingServiceImpl implements BookingService {
         paymentTransactionRepository.save(pendingTxn);
 
         String orderInfo = "Thanh toan don thue vuon GreenSlot ID: " + rentalId;
-        String paymentUrl = vnPayUtils.buildPaymentUrl(newTxnRef, pendingTxn.getAmount(), ipAddress, orderInfo);
+        String paymentUrl = vnPayUtils.buildPaymentUrl(newTxnRef, pendingTxn.getAmount(), ipAddress, orderInfo, isMobile);
 
         return new BookingResponseDTO(rentalId, paymentUrl, newTxnRef);
     }

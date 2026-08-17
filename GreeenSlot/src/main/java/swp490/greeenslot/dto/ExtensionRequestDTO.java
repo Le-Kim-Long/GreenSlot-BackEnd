@@ -12,6 +12,8 @@ public class ExtensionRequestDTO {
     @Min(value = 1, message = "Duration must be at least 1 month")
     private int durationInMonths;
 
+    private Boolean isMobile;
+
     public Long getRentalId() {
         return rentalId;
     }
@@ -26,5 +28,13 @@ public class ExtensionRequestDTO {
 
     public void setDurationInMonths(int durationInMonths) {
         this.durationInMonths = durationInMonths;
+    }
+
+    public Boolean getIsMobile() {
+        return isMobile;
+    }
+
+    public void setIsMobile(Boolean isMobile) {
+        this.isMobile = isMobile;
     }
 }

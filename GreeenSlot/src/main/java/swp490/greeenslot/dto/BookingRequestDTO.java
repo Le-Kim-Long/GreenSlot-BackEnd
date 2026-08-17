@@ -17,6 +17,8 @@ public class BookingRequestDTO {
     @FutureOrPresent(message = "Start time must be in the present or future")
     private LocalDateTime startTime;
 
+    private Boolean isMobile;
+
     public Long getSlotId() {
         return slotId;
     }
@@ -39,5 +41,13 @@ public class BookingRequestDTO {
 
     public void setStartTime(LocalDateTime startTime) {
         this.startTime = startTime;
+    }
+
+    public Boolean getIsMobile() {
+        return isMobile;
+    }
+
+    public void setIsMobile(Boolean isMobile) {
+        this.isMobile = isMobile;
     }
 }
