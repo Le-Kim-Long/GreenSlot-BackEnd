@@ -104,7 +104,7 @@ spring:
     activate:
       on-profile: sqlserver
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=GreenSlotDB;encrypt=true;trustServerCertificate=true;}
+    url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=GreenSlotDB;encrypt=true;trustServerCertificate=true;sendStringParametersAsUnicode=true;}
     username: ${DB_USERNAME:sa}
     password: ${DB_PASSWORD:12345}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver

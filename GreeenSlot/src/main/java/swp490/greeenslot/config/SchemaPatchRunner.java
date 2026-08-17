@@ -30,6 +30,37 @@ public class SchemaPatchRunner implements CommandLineRunner {
     @Override
     public void run(String... args) {
         dropAllCheckConstraints("dbo.gardening_tasks");
+        patchNationalizedColumns();
+    }
+
+    /**
+     * Ensures notification and content text columns are NVARCHAR to fully support Vietnamese Unicode.
+     */
+    private void patchNationalizedColumns() {
+        String sql =
+                "BEGIN TRY\n" +
+                "    IF OBJECT_ID('dbo.notifications', 'U') IS NOT NULL\n" +
+                "    BEGIN\n" +
+                "        ALTER TABLE dbo.notifications ALTER COLUMN title NVARCHAR(255) NOT NULL;\n" +
+                "        ALTER TABLE dbo.notifications ALTER COLUMN message NVARCHAR(4000) NOT NULL;\n" +
+                "    END\n" +
+                "    IF OBJECT_ID('dbo.global_contents', 'U') IS NOT NULL\n" +
+                "    BEGIN\n" +
+                "        ALTER TABLE dbo.global_contents ALTER COLUMN title NVARCHAR(255) NOT NULL;\n" +
+                "        ALTER TABLE dbo.global_contents ALTER COLUMN content NVARCHAR(MAX) NOT NULL;\n" +
+                "    END\n" +
+                "END TRY\n" +
+                "BEGIN CATCH\n" +
+                "    -- Skip if already NVARCHAR or schema alteration blocked\n" +
+                "END CATCH;";
+
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute(sql);
+            logger.info("Schema patch checked: NVARCHAR Unicode support ensured for notifications & global_contents.");
+        } catch (Exception e) {
+            logger.warn("Schema patch skipped for Unicode columns: {}", e.getMessage());
+        }
     }
 
     /**

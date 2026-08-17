@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import org.hibernate.annotations.Nationalized;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -26,9 +28,11 @@ public class Notification {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @Nationalized
     @Column(nullable = false, length = 255)
     private String title;
 
+    @Nationalized
     @Column(nullable = false, length = 4000)
     private String message;
 
