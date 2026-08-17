@@ -63,4 +63,23 @@ public class HarvestTestController {
         harvestReminderService.checkAndNotifyHarvestReady();
         return ResponseEntity.ok("Harvest reminder job executed.");
     }
+
+    @PostMapping("/clear/{rentalId}")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Wipe all harvest-related state on a rental (tree, plantedAt, notified, decision) back to empty, as if just harvested. Useful to un-stick test data left over from before the auto-reset-after-harvest fix existed.")
+    public ResponseEntity<Map<String, Object>> clear(@PathVariable Long rentalId) {
+        SlotRental rental = slotRentalRepository.findById(rentalId)
+                .orElseThrow(() -> new RuntimeException("Rental not found with id: " + rentalId));
+
+        rental.setTree(null);
+        rental.setTreeStatus(null);
+        rental.setTreeNotes(null);
+        rental.setPlantedAt(null);
+        rental.setHarvestReminderSent(false);
+        rental.setHarvestNotifiedAt(null);
+        rental.setHarvestDecision(null);
+        slotRentalRepository.save(rental);
+
+        return ResponseEntity.ok(Map.of("rentalId", rentalId, "message", "Harvest state cleared."));
+    }
 }
