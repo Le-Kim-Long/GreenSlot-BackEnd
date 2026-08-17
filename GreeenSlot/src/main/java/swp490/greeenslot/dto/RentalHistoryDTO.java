@@ -18,6 +18,8 @@ public class RentalHistoryDTO {
     private String treeName;
     private LocalDateTime harvestNotifiedAt;
     private String harvestDecision;
+    private LocalDateTime plantedAt;
+    private LocalDateTime expectedHarvestAt;
 
     public static class PaymentTransactionInfo {
         private Long id;
@@ -83,7 +85,8 @@ public class RentalHistoryDTO {
 
     public RentalHistoryDTO(Long rentalId, Long slotId, String slotNumber, String pillarCode, String locationName, String locationAddress,
                             LocalDateTime startTime, LocalDateTime endTime, String rentalStatus, List<PaymentTransactionInfo> transactions,
-                            String treeName, LocalDateTime harvestNotifiedAt, String harvestDecision) {
+                            String treeName, LocalDateTime harvestNotifiedAt, String harvestDecision,
+                            LocalDateTime plantedAt, LocalDateTime expectedHarvestAt) {
         this.rentalId = rentalId;
         this.slotId = slotId;
         this.slotNumber = slotNumber;
@@ -97,6 +100,8 @@ public class RentalHistoryDTO {
         this.treeName = treeName;
         this.harvestNotifiedAt = harvestNotifiedAt;
         this.harvestDecision = harvestDecision;
+        this.plantedAt = plantedAt;
+        this.expectedHarvestAt = expectedHarvestAt;
     }
 
     public Long getRentalId() {
@@ -201,5 +206,21 @@ public class RentalHistoryDTO {
 
     public void setHarvestDecision(String harvestDecision) {
         this.harvestDecision = harvestDecision;
+    }
+
+    public LocalDateTime getPlantedAt() {
+        return plantedAt;
+    }
+
+    public void setPlantedAt(LocalDateTime plantedAt) {
+        this.plantedAt = plantedAt;
+    }
+
+    public LocalDateTime getExpectedHarvestAt() {
+        return expectedHarvestAt;
+    }
+
+    public void setExpectedHarvestAt(LocalDateTime expectedHarvestAt) {
+        this.expectedHarvestAt = expectedHarvestAt;
     }
 }

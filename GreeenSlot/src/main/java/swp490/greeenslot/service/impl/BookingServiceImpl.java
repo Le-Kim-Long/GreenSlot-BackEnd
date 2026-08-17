@@ -392,6 +392,11 @@ public class BookingServiceImpl implements BookingService {
                 ));
             }
 
+            Integer harvestDays = rental.getTree() != null ? rental.getTree().getHarvestDays() : null;
+            LocalDateTime expectedHarvestAt = (rental.getPlantedAt() != null && harvestDays != null && harvestDays > 0)
+                    ? rental.getPlantedAt().plusDays(harvestDays)
+                    : null;
+
             history.add(new RentalHistoryDTO(
                     rental.getId(),
                     slot.getId(),
@@ -405,7 +410,9 @@ public class BookingServiceImpl implements BookingService {
                     txnInfos,
                     rental.getTree() != null ? rental.getTree().getTreeName() : null,
                     rental.getHarvestNotifiedAt(),
-                    rental.getHarvestDecision()
+                    rental.getHarvestDecision(),
+                    rental.getPlantedAt(),
+                    expectedHarvestAt
             ));
         }
 

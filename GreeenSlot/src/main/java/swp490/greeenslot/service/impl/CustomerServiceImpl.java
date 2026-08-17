@@ -215,6 +215,11 @@ public class CustomerServiceImpl implements CustomerService {
         Pillar pillar = slot != null ? slot.getPillar() : null;
         Location location = pillar != null ? pillar.getLocation() : null;
 
+        Integer harvestDays = rental.getTree() != null ? rental.getTree().getHarvestDays() : null;
+        java.time.LocalDateTime expectedHarvestAt = (rental.getPlantedAt() != null && harvestDays != null && harvestDays > 0)
+                ? rental.getPlantedAt().plusDays(harvestDays)
+                : null;
+
         return new RentalHistoryDTO(
                 rental.getId(),
                 slot != null ? slot.getId() : null,
@@ -228,7 +233,9 @@ public class CustomerServiceImpl implements CustomerService {
                 null, // transactions can be added later if needed
                 rental.getTree() != null ? rental.getTree().getTreeName() : null,
                 rental.getHarvestNotifiedAt(),
-                rental.getHarvestDecision()
+                rental.getHarvestDecision(),
+                rental.getPlantedAt(),
+                expectedHarvestAt
         );
     }
 
