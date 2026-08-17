@@ -109,6 +109,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         task.setTaskType(type);
         task.setTargetSlot(slot);
         task.setAssignedStaff(null); // Unassigned initially
+        if (request.getEvidenceImageUrl() != null && !request.getEvidenceImageUrl().trim().isEmpty()) {
+            task.setEvidenceImageUrl(request.getEvidenceImageUrl().trim());
+        }
         task.setCreatedAt(LocalDateTime.now());
 
         return gardeningTaskRepository.save(task);
@@ -434,5 +437,14 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         rental.setHarvestNotifiedAt(null);
         rental.setHarvestDecision(null);
         slotRentalRepository.save(rental);
+    }
+
+    @Override
+    @Transactional
+    public GardeningTask updateEvidenceImage(Long taskId, String evidenceImageUrl) {
+        GardeningTask task = gardeningTaskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
+        task.setEvidenceImageUrl(evidenceImageUrl);
+        return gardeningTaskRepository.save(task);
     }
 }
