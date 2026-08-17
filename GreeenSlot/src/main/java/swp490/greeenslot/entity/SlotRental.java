@@ -50,4 +50,18 @@ public class SlotRental {
     @Nationalized
     @Column(name = "tree_notes", length = 4000)
     private String treeNotes;
+
+    @Column(name = "planted_at")
+    private LocalDateTime plantedAt;
+
+    @Column(name = "harvest_reminder_sent")
+    private Boolean harvestReminderSent = false;
+
+    @Column(name = "harvest_notified_at")
+    private LocalDateTime harvestNotifiedAt;
+
+    // Plain string ("SELF" | "STAFF"), not a Java enum on purpose — avoids the
+    // legacy stale-CHECK-constraint issue hit earlier with task_type/status.
+    @Column(name = "harvest_decision", length = 20)
+    private String harvestDecision;
 }

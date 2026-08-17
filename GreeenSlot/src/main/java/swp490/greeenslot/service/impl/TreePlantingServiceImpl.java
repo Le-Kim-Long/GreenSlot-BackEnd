@@ -164,11 +164,20 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
-        
+
+        LocalDateTime now = LocalDateTime.now();
         request.setStatus(EPlantingRequestStatus.APPROVED);
         request.setProcessedBy(user);
-        request.setProcessedAt(LocalDateTime.now());
-        
+        request.setProcessedAt(now);
+
+        // Duyệt xong thì cây yêu cầu mới thực sự được trồng vào ô đất của rental này
+        SlotRental rental = request.getRental();
+        rental.setTree(request.getNewTree());
+        rental.setTreeStatus(swp490.greeenslot.entity.ETreeStatus.HEALTHY);
+        rental.setPlantedAt(now);
+        rental.setHarvestReminderSent(false);
+        slotRentalRepository.save(rental);
+
         TreePlantingRequest updatedRequest = treePlantingRequestRepository.save(request);
         return mapToDTO(updatedRequest);
     }

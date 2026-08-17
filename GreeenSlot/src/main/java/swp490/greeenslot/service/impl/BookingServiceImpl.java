@@ -402,7 +402,10 @@ public class BookingServiceImpl implements BookingService {
                     rental.getStartTime(),
                     rental.getEndTime(),
                     rental.getStatus().name(),
-                    txnInfos
+                    txnInfos,
+                    rental.getTree() != null ? rental.getTree().getTreeName() : null,
+                    rental.getHarvestNotifiedAt(),
+                    rental.getHarvestDecision()
             ));
         }
 
@@ -498,5 +501,80 @@ public class BookingServiceImpl implements BookingService {
         String paymentUrl = vnPayUtils.buildPaymentUrl(newTxnRef, pendingTxn.getAmount(), ipAddress, orderInfo, isMobile);
 
         return new BookingResponseDTO(rentalId, paymentUrl, newTxnRef);
+    }
+
+    @Override
+    @Transactional
+    public void recordHarvestDecision(Long rentalId, String decision, String username) {
+        if (!"SELF".equals(decision) && !"STAFF".equals(decision)) {
+            throw new IllegalArgumentException("Decision must be either SELF or STAFF");
+        }
+
+        SlotRental rental = slotRentalRepository.findById(rentalId)
+                .orElseThrow(() -> new IllegalArgumentException("Rental not found with id: " + rentalId));
+
+        if (rental.getUser() == null || !rental.getUser().getUsername().equals(username)) {
+            throw new IllegalArgumentException("Unauthorized: You do not own this rental contract.");
+        }
+        if (rental.getHarvestNotifiedAt() == null) {
+            throw new IllegalArgumentException("No pending harvest notification for this rental.");
+        }
+
+        rental.setHarvestDecision(decision);
+
+        if ("SELF".equals(decision)) {
+            // Khách tự nhận đã thu hoạch xong -> ô đất coi như trống ngay, sẵn sàng cho yêu cầu trồng cây mới
+            resetHarvestedTree(rental);
+        }
+        slotRentalRepository.save(rental);
+
+        if (rental.getGardenSlot() == null) {
+            return;
+        }
+
+        List<GardeningTask> harvestTasks = gardeningTaskRepository
+                .findByTargetSlotIdAndTaskTypeOrderByCreatedAtDesc(rental.getGardenSlot().getId(), ETaskType.HARVEST);
+        GardeningTask task = harvestTasks.stream()
+                .filter(t -> t.getStatus() != ETaskStatus.COMPLETED && t.getStatus() != ETaskStatus.CANCELLED)
+                .findFirst()
+                .orElse(null);
+
+        if (task == null || task.getAssignedStaff() == null) {
+            return;
+        }
+
+        String slotNumber = rental.getGardenSlot().getSlotNumber();
+        if ("SELF".equals(decision)) {
+            task.setStatus(ETaskStatus.CANCELLED);
+            gardeningTaskRepository.save(task);
+
+            notificationService.createNotification(
+                    task.getAssignedStaff().getId(),
+                    "Khach da tu thu hoach",
+                    "Khach hang o " + slotNumber + " da chon tu thu hoach, ban khong can xu ly cong viec nay nua.",
+                    "HARVEST_SELF"
+            );
+        } else {
+            notificationService.createNotification(
+                    task.getAssignedStaff().getId(),
+                    "Khach nho ho tro thu hoach",
+                    "Khach hang o " + slotNumber + " nho ban thu hoach giup. Tien hanh xu ly cong viec nhe.",
+                    "HARVEST_STAFF_CONFIRMED"
+            );
+        }
+    }
+
+    /**
+     * Sau khi thu hoạch xong (dù khách tự làm hay staff làm), dọn sạch thông tin cây cũ
+     * trên rental để ô đất trở lại trạng thái "chưa trồng", sẵn sàng cho yêu cầu trồng cây mới.
+     */
+    private void resetHarvestedTree(SlotRental rental) {
+        rental.setTree(null);
+        rental.setTreeStatus(null);
+        rental.setTreeNotes(null);
+        rental.setPlantedAt(null);
+        rental.setHarvestReminderSent(false);
+        rental.setHarvestNotifiedAt(null);
+        rental.setHarvestDecision(null);
     }
 }

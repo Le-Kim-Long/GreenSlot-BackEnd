@@ -97,6 +97,19 @@ public class BookingController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/{rentalId}/harvest-decision")
+    @PreAuthorize("hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Record the customer's harvest decision", description = "After staff notifies that the crop is ready, the customer picks SELF (they'll harvest it themselves) or STAFF (staff harvests for them).")
+    public ResponseEntity<java.util.Map<String, String>> recordHarvestDecision(
+            @PathVariable Long rentalId,
+            @RequestBody java.util.Map<String, String> body,
+            Principal principal) {
+        bookingService.recordHarvestDecision(rentalId, body.get("decision"), principal.getName());
+        java.util.Map<String, String> response = new java.util.HashMap<>();
+        response.put("message", "Harvest decision recorded");
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/{rentalId}/pay")
     @PostMapping("/{rentalId}/pay")
     @PreAuthorize("isAuthenticated()")

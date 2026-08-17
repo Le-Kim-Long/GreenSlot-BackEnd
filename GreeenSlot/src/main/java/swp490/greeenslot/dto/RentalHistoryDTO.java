@@ -15,6 +15,9 @@ public class RentalHistoryDTO {
     private LocalDateTime endTime;
     private String rentalStatus;
     private List<PaymentTransactionInfo> transactions;
+    private String treeName;
+    private LocalDateTime harvestNotifiedAt;
+    private String harvestDecision;
 
     public static class PaymentTransactionInfo {
         private Long id;
@@ -79,7 +82,8 @@ public class RentalHistoryDTO {
     }
 
     public RentalHistoryDTO(Long rentalId, Long slotId, String slotNumber, String pillarCode, String locationName, String locationAddress,
-                            LocalDateTime startTime, LocalDateTime endTime, String rentalStatus, List<PaymentTransactionInfo> transactions) {
+                            LocalDateTime startTime, LocalDateTime endTime, String rentalStatus, List<PaymentTransactionInfo> transactions,
+                            String treeName, LocalDateTime harvestNotifiedAt, String harvestDecision) {
         this.rentalId = rentalId;
         this.slotId = slotId;
         this.slotNumber = slotNumber;
@@ -90,6 +94,9 @@ public class RentalHistoryDTO {
         this.endTime = endTime;
         this.rentalStatus = rentalStatus;
         this.transactions = transactions;
+        this.treeName = treeName;
+        this.harvestNotifiedAt = harvestNotifiedAt;
+        this.harvestDecision = harvestDecision;
     }
 
     public Long getRentalId() {
@@ -170,5 +177,29 @@ public class RentalHistoryDTO {
 
     public void setTransactions(List<PaymentTransactionInfo> transactions) {
         this.transactions = transactions;
+    }
+
+    public String getTreeName() {
+        return treeName;
+    }
+
+    public void setTreeName(String treeName) {
+        this.treeName = treeName;
+    }
+
+    public LocalDateTime getHarvestNotifiedAt() {
+        return harvestNotifiedAt;
+    }
+
+    public void setHarvestNotifiedAt(LocalDateTime harvestNotifiedAt) {
+        this.harvestNotifiedAt = harvestNotifiedAt;
+    }
+
+    public String getHarvestDecision() {
+        return harvestDecision;
+    }
+
+    public void setHarvestDecision(String harvestDecision) {
+        this.harvestDecision = harvestDecision;
     }
 }

@@ -225,7 +225,10 @@ public class CustomerServiceImpl implements CustomerService {
                 rental.getStartTime(),
                 rental.getEndTime(),
                 rental.getStatus() != null ? rental.getStatus().name() : null,
-                null // transactions can be added later if needed
+                null, // transactions can be added later if needed
+                rental.getTree() != null ? rental.getTree().getTreeName() : null,
+                rental.getHarvestNotifiedAt(),
+                rental.getHarvestDecision()
         );
     }
 

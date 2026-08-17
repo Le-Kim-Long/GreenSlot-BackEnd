@@ -21,4 +21,10 @@ public interface GardeningTaskService {
     GardeningTask reportIssue(Long taskId, IssueReportRequestDTO request, String username);
 
     GardeningTask reviewTaskEvidence(Long taskId, TaskReviewRequestDTO request);
+
+    List<GardeningTask> getAvailableTasks(String username);
+
+    GardeningTask claimTask(Long taskId, String username);
+
+    GardeningTask notifyHarvestChoice(Long taskId, String username);
 }

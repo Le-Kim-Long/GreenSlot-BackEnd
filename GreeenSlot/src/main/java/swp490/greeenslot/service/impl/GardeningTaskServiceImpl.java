@@ -165,6 +165,86 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
     }
 
     @Override
+    public List<GardeningTask> getAvailableTasks(String username) {
+        User staff = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
+        if (staff.getLocation() == null) {
+            return List.of();
+        }
+        return gardeningTaskRepository.findUnassignedByLocationId(staff.getLocation().getId());
+    }
+
+    @Override
+    @Transactional
+    public GardeningTask claimTask(Long taskId, String username) {
+        GardeningTask task = gardeningTaskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
+
+        if (task.getAssignedStaff() != null) {
+            throw new IllegalArgumentException("Task has already been claimed by another staff member");
+        }
+
+        User staff = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
+
+        task.setAssignedStaff(staff);
+        return gardeningTaskRepository.save(task);
+    }
+
+    @Override
+    @Transactional
+    public GardeningTask notifyHarvestChoice(Long taskId, String username) {
+        GardeningTask task = gardeningTaskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
+
+        if (task.getTaskType() != ETaskType.HARVEST) {
+            throw new IllegalArgumentException("Only HARVEST tasks support the harvest-choice notification");
+        }
+        if (task.getAssignedStaff() == null || !task.getAssignedStaff().getUsername().equals(username)) {
+            throw new IllegalArgumentException("Task is not assigned to the authenticated staff member " + username);
+        }
+        if (task.getTargetSlot() == null) {
+            throw new IllegalArgumentException("Task has no target slot");
+        }
+
+        List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(task.getTargetSlot().getId(), LocalDateTime.now());
+        if (activeRentals.isEmpty()) {
+            throw new IllegalArgumentException("No active rental found for this slot");
+        }
+        SlotRental rental = activeRentals.get(0);
+        if (rental.getUser() == null) {
+            throw new IllegalArgumentException("Rental has no associated customer");
+        }
+
+        rental.setHarvestNotifiedAt(LocalDateTime.now());
+        rental.setHarvestDecision(null);
+        slotRentalRepository.save(rental);
+
+        String staffName = task.getAssignedStaff().getFullName();
+        String slotNumber = task.getTargetSlot().getSlotNumber();
+        String treeName = rental.getTree() != null ? rental.getTree().getTreeName() : "cay trong";
+
+        String message = String.format(
+                "Nhan vien %s bao: cay %s tai o dat %s da san sang thu hoach. Ban muon tu thu hoach hay nho nhan vien thu hoach giup?",
+                staffName, treeName, slotNumber);
+
+        notificationService.createNotification(
+                rental.getUser().getId(),
+                "San sang thu hoach",
+                message,
+                "HARVEST_CHOICE"
+        );
+
+        firebaseMessagingService.sendPushNotification(
+                rental.getUser().getId(),
+                "San sang thu hoach",
+                String.format("%s bao cay %s tai o %s da san sang thu hoach", staffName, treeName, slotNumber)
+        );
+
+        return task;
+    }
+
+    @Override
     public List<GardeningTask> getAllTasks() {
         Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         List<GardeningTask> all = gardeningTaskRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
@@ -278,7 +358,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         if ("APPROVE".equalsIgnoreCase(request.getAction())) {
             task.setStatus(ETaskStatus.COMPLETED);
             task.setRejectionReason(null);
-            
+
             // Notify staff
             if (task.getAssignedStaff() != null) {
                 notificationService.createNotification(
@@ -287,6 +367,11 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                         "Your work on task " + task.getTaskName() + " has been approved.",
                         "TASK_APPROVED"
                 );
+            }
+
+            // Công việc thu hoạch hoàn tất -> báo cho khách hàng, ghi rõ nhân viên đã xử lý
+            if (task.getTaskType() == ETaskType.HARVEST && task.getTargetSlot() != null) {
+                notifyCustomerHarvestDone(task);
             }
         } else if ("REJECT".equalsIgnoreCase(request.getAction())) {
             if (request.getRejectionReason() == null || request.getRejectionReason().trim().isEmpty()) {
@@ -309,5 +394,45 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         }
 
         return gardeningTaskRepository.save(task);
+    }
+
+    private void notifyCustomerHarvestDone(GardeningTask task) {
+        List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(task.getTargetSlot().getId(), LocalDateTime.now());
+        if (activeRentals.isEmpty()) {
+            return;
+        }
+        SlotRental rental = activeRentals.get(0);
+        if (rental.getUser() == null) {
+            return;
+        }
+
+        String staffName = task.getAssignedStaff() != null ? task.getAssignedStaff().getFullName() : "Nhan vien lam vuon";
+        String slotNumber = task.getTargetSlot().getSlotNumber();
+        String treeName = rental.getTree() != null ? rental.getTree().getTreeName() : "cay trong";
+
+        String message = String.format("Nhan vien %s da thu hoach xong cay %s tai o dat %s.", staffName, treeName, slotNumber);
+
+        notificationService.createNotification(
+                rental.getUser().getId(),
+                "Da thu hoach xong",
+                message,
+                "HARVEST_DONE"
+        );
+
+        firebaseMessagingService.sendPushNotification(
+                rental.getUser().getId(),
+                "Da thu hoach xong",
+                String.format("%s da thu hoach cay %s tai o %s", staffName, treeName, slotNumber)
+        );
+
+        // Thu hoạch xong -> ô đất trở lại trạng thái "chưa trồng", sẵn sàng cho yêu cầu trồng cây mới
+        rental.setTree(null);
+        rental.setTreeStatus(null);
+        rental.setTreeNotes(null);
+        rental.setPlantedAt(null);
+        rental.setHarvestReminderSent(false);
+        rental.setHarvestNotifiedAt(null);
+        rental.setHarvestDecision(null);
+        slotRentalRepository.save(rental);
     }
 }

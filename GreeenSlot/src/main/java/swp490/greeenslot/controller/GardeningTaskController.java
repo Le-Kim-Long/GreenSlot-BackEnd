@@ -66,6 +66,33 @@ public class GardeningTaskController {
         return ResponseEntity.ok(dtoList);
     }
 
+    @GetMapping("/tasks/available")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF')")
+    @Operation(summary = "Get unclaimed tasks at the staff's own location", description = "Tasks not yet assigned to anyone (e.g. auto-created HARVEST tasks) that any staff at the same location can self-claim.")
+    public ResponseEntity<List<GardeningTaskResponseDTO>> getAvailableTasks(Principal principal) {
+        List<GardeningTask> tasks = gardeningTaskService.getAvailableTasks(principal.getName());
+        List<GardeningTaskResponseDTO> dtoList = tasks.stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(dtoList);
+    }
+
+    @PostMapping("/tasks/{id}/claim")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF')")
+    @Operation(summary = "Self-claim an unassigned task", description = "Allows a garden staff member to assign an unclaimed task to themselves, without needing a manager to assign it.")
+    public ResponseEntity<GardeningTaskResponseDTO> claimTask(@PathVariable Long id, Principal principal) {
+        GardeningTask task = gardeningTaskService.claimTask(id, principal.getName());
+        return ResponseEntity.ok(mapToDTO(task));
+    }
+
+    @PostMapping("/tasks/{id}/notify-harvest")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF')")
+    @Operation(summary = "Notify the customer that their crop is ready to harvest", description = "Sent by the staff member who claimed the HARVEST task; lets the customer choose to self-harvest or have staff do it.")
+    public ResponseEntity<GardeningTaskResponseDTO> notifyHarvestChoice(@PathVariable Long id, Principal principal) {
+        GardeningTask task = gardeningTaskService.notifyHarvestChoice(id, principal.getName());
+        return ResponseEntity.ok(mapToDTO(task));
+    }
+
     @GetMapping("/tasks")
     @PreAuthorize("hasAnyRole('ROLE_LOCATION_MANAGER', 'ROLE_MANAGER', 'ROLE_ADMIN')")
     @Operation(summary = "Get all gardening tasks", description = "Retrieves all gardening tasks in the system, sorted by creation time descending.")

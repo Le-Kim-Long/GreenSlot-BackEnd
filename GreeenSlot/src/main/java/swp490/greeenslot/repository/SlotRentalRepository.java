@@ -53,4 +53,7 @@ public interface SlotRentalRepository extends JpaRepository<SlotRental, Long> {
 
     @Query("SELECT r FROM SlotRental r WHERE r.status = 'ACTIVE' AND r.endTime < :now")
     List<SlotRental> findExpiredRentals(@Param("now") LocalDateTime now);
+
+    @Query("SELECT r FROM SlotRental r WHERE r.status = 'ACTIVE' AND r.tree IS NOT NULL AND r.plantedAt IS NOT NULL")
+    List<SlotRental> findHarvestReminderCandidates();
 }
