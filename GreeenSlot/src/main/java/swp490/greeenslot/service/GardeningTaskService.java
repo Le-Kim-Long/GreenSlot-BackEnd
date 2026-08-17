@@ -29,4 +29,8 @@ public interface GardeningTaskService {
     GardeningTask notifyHarvestChoice(Long taskId, String username);
 
     GardeningTask updateEvidenceImage(Long taskId, String evidenceImageUrl);
+
+    List<EligibleHarvestRentalDTO> getEligibleEarlyHarvestRentals(String username);
+
+    GardeningTask notifyEarlyHarvest(Long rentalId, String username);
 }

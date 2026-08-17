@@ -93,6 +93,27 @@ public class GardeningTaskController {
         return ResponseEntity.ok(mapToDTO(task));
     }
 
+    @GetMapping("/tasks/harvest/eligible-rentals")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF')")
+    @Operation(summary = "Get rentals at the staff's location that currently have a tree planted", description = "Used to let staff pick a rental to notify harvest-ready early, before the tree's growth days are actually up.")
+    public ResponseEntity<List<EligibleHarvestRentalDTO>> getEligibleEarlyHarvestRentals(Principal principal) {
+        return ResponseEntity.ok(gardeningTaskService.getEligibleEarlyHarvestRentals(principal.getName()));
+    }
+
+    @PostMapping("/tasks/harvest/early")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF')")
+    @Operation(summary = "Notify a customer their crop is ready to harvest early", description = "Creates a self-assigned HARVEST task for the given rental and immediately sends the harvest-choice notification, bypassing the growth-day wait.")
+    public ResponseEntity<GardeningTaskResponseDTO> notifyEarlyHarvest(
+            @RequestBody java.util.Map<String, Long> body,
+            Principal principal) {
+        Long rentalId = body.get("rentalId");
+        if (rentalId == null) {
+            throw new IllegalArgumentException("rentalId is required");
+        }
+        GardeningTask task = gardeningTaskService.notifyEarlyHarvest(rentalId, principal.getName());
+        return ResponseEntity.ok(mapToDTO(task));
+    }
+
     @GetMapping("/tasks")
     @PreAuthorize("hasAnyRole('ROLE_LOCATION_MANAGER', 'ROLE_MANAGER', 'ROLE_ADMIN')")
     @Operation(summary = "Get all gardening tasks", description = "Retrieves all gardening tasks in the system, sorted by creation time descending.")
