@@ -56,6 +56,9 @@ public class SensorReadingServiceImpl implements SensorReadingService {
     @Autowired
     private swp490.greeenslot.service.AlertService alertService;
 
+    @Autowired
+    private swp490.greeenslot.service.PumpService pumpService;
+
     @Value("${greeenslot.iot.api-key:GreenSlot-IoT-Dev-Key}")
     private String iotApiKey;
 
@@ -267,6 +270,30 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                                 emergencyTask.setTargetSlot(slot);
                                 emergencyTask.setCreatedAt(LocalDateTime.now());
                                 gardeningTaskRepository.save(emergencyTask);
+                            }
+                        }
+                    }
+
+                    // TỰ ĐỘNG BẬT MÁY BƠM/XỊT NƯỚC: Nếu độ ẩm đất thấp hơn ngưỡng tối thiểu
+                    if (sensorType == ESensorType.SOIL_MOISTURE && value < threshold.getMinValue()) {
+                        String autoReason = String.format("Tự động tưới: Độ ẩm đất %.2f%% thấp hơn ngưỡng min %.2f%% tại trụ %s", 
+                                value, threshold.getMinValue(), pillar.getPillarCode());
+                        boolean autoSprayed = pumpService.triggerAutoSpray(autoReason);
+                        if (autoSprayed && notificationService != null) {
+                            for (GardenSlot slot : slots) {
+                                List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(slot.getId(), LocalDateTime.now());
+                                for (SlotRental rental : activeRentals) {
+                                    User customer = rental.getUser();
+                                    notificationService.createNotification(
+                                            customer.getId(),
+                                            "Hệ thống tự động tưới cây (Smart Irrigation)",
+                                            String.format("Hệ thống IoT vừa tự động kích hoạt máy bơm xịt nước cho ô %s do độ ẩm đất giảm thấp (%.2f%% < %.2f%%).",
+                                                    slot.getSlotNumber(), value, threshold.getMinValue()),
+                                            "IOT_AUTO_WATERING",
+                                            slot.getId(),
+                                            "/dashboard/customer/monitoring"
+                                    );
+                                }
                             }
                         }
                     }

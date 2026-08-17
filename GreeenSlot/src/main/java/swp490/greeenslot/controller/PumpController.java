@@ -25,19 +25,27 @@ public class PumpController {
     @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Lấy trạng thái máy bơm", description = "API này được Python Bridge và Frontend gọi để đồng bộ với mạch Arduino.")
     public ResponseEntity<PumpStatusDTO> getPumpStatus() {
-        String currentStatus = pumpService.getPumpStatus();
-        return ResponseEntity.ok(new PumpStatusDTO(currentStatus));
+        return ResponseEntity.ok(pumpService.getFullStatus());
     }
 
     @PostMapping("/status")
     @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
-    @Operation(summary = "Bật/Tắt máy bơm thủ công", description = "Truyền vào ON hoặc OFF để điều khiển máy bơm.")
+    @Operation(summary = "Bật/Tắt máy bơm hoặc cập nhật chế độ tự động", description = "Truyền vào ON hoặc OFF và cờ autoMode để điều khiển máy bơm.")
     public ResponseEntity<PumpStatusDTO> updatePumpStatus(@RequestBody PumpStatusDTO requestDto) {
-        // Cập nhật trạng thái vào Service
-        pumpService.setPumpStatus(requestDto.getStatus());
+        if (requestDto.getAutoMode() != null) {
+            pumpService.setAutoMode(requestDto.getAutoMode());
+        }
+        if (requestDto.getStatus() != null && !requestDto.getStatus().isBlank()) {
+            pumpService.setPumpStatus(requestDto.getStatus());
+        }
+        return ResponseEntity.ok(pumpService.getFullStatus());
+    }
 
-        // Trả về trạng thái mới nhất để Client xác nhận
-        String updatedStatus = pumpService.getPumpStatus();
-        return ResponseEntity.ok(new PumpStatusDTO(updatedStatus));
+    @PutMapping("/auto-mode")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
+    @Operation(summary = "Bật/Tắt chế độ tự động tưới nước khi độ ẩm thấp")
+    public ResponseEntity<PumpStatusDTO> setAutoMode(@RequestParam boolean enabled) {
+        pumpService.setAutoMode(enabled);
+        return ResponseEntity.ok(pumpService.getFullStatus());
     }
 }
