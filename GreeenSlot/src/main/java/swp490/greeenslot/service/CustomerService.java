@@ -1,10 +1,6 @@
 package swp490.greeenslot.service;
 
-import swp490.greeenslot.dto.AvailableSlotDTO;
-import swp490.greeenslot.dto.GardeningTaskResponseDTO;
-import swp490.greeenslot.dto.RentalHistoryDTO;
-import swp490.greeenslot.dto.SensorReadingResponseDTO;
-import swp490.greeenslot.dto.ServiceCategoryDTO;
+import swp490.greeenslot.dto.*;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -32,4 +28,6 @@ public interface CustomerService {
     RentalHistoryDTO getActiveRental(String username);
 
     void deactivateAccount(String username);
+
+    void recordHarvestDecision(Long rentalId, HarvestDecisionRequestDTO request, String username);
 }

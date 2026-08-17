@@ -11,7 +11,9 @@ import swp490.greeenslot.entity.Notification;
 import swp490.greeenslot.service.NotificationService;
 
 import java.security.Principal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
 @RestController
@@ -34,12 +36,35 @@ public class NotificationController {
         return ResponseEntity.ok(dtoList);
     }
 
-    @PutMapping("/{id}/read")
+    @GetMapping("/unread-count")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get unread notification count for authenticated user",
+            description = "Returns the total number of unread notifications for the logged in user.")
+    public ResponseEntity<Map<String, Object>> getUnreadCount(Principal principal) {
+        long count = notificationService.getUnreadCount(principal.getName());
+        Map<String, Object> response = new HashMap<>();
+        response.put("unreadCount", count);
+        return ResponseEntity.ok(response);
+    }
+
+    @RequestMapping(value = "/{id}/read", method = {RequestMethod.PUT, RequestMethod.PATCH})
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Mark a notification as read",
             description = "Updates the isRead status of the specified notification to true.")
     public ResponseEntity<NotificationResponseDTO> markAsRead(@PathVariable Long id, Principal principal) {
         Notification notification = notificationService.markAsRead(id, principal.getName());
         return ResponseEntity.ok(NotificationResponseDTO.fromEntity(notification));
+    }
+
+    @RequestMapping(value = "/read-all", method = {RequestMethod.PUT, RequestMethod.PATCH})
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Mark all notifications as read",
+            description = "Updates the isRead status of all notifications for the authenticated user to true.")
+    public ResponseEntity<Map<String, Object>> markAllAsRead(Principal principal) {
+        int updatedCount = notificationService.markAllAsRead(principal.getName());
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "All notifications marked as read");
+        response.put("updatedCount", updatedCount);
+        return ResponseEntity.ok(response);
     }
 }
