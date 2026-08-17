@@ -91,15 +91,21 @@ public class BookingServiceImpl implements BookingService {
 
         int months = request.getDurationInMonths();
         if (months <= 0) {
-            throw new RuntimeException("Duration must be greater than 0");
+            throw new IllegalArgumentException("Duration must be a positive integer greater than 0");
+        }
+        if (months > 120) {
+            throw new IllegalArgumentException("Duration cannot exceed 120 months");
         }
         BigDecimal amount = slot.getPrice().multiply(new BigDecimal(months));
 
         LocalDateTime start = request.getStartTime();
+        LocalDateTime now = LocalDateTime.now();
         if (start == null) {
-            start = LocalDateTime.now();
-        } else if (start.isBefore(LocalDateTime.now().minusMinutes(5))) {
+            start = now;
+        } else if (start.toLocalDate().isBefore(now.toLocalDate())) {
             throw new IllegalArgumentException("Start time cannot be in the past");
+        } else if (start.toLocalDate().isEqual(now.toLocalDate()) && start.isBefore(now)) {
+            start = now;
         }
         LocalDateTime end = start.plusMonths(months);
 
@@ -130,7 +136,8 @@ public class BookingServiceImpl implements BookingService {
         paymentTransactionRepository.save(txn);
 
         String orderInfo = "GreenSlot Booking: Slot " + slot.getSlotNumber() + " for " + months + " months";
-        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo);
+        boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
+        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile);
 
         return new BookingResponseDTO(rental.getId(), paymentUrl, txnRef);
     }
@@ -154,7 +161,10 @@ public class BookingServiceImpl implements BookingService {
 
         int months = request.getDurationInMonths();
         if (months <= 0) {
-            throw new RuntimeException("Extension duration must be greater than 0");
+            throw new IllegalArgumentException("Extension duration must be a positive integer greater than 0");
+        }
+        if (months > 120) {
+            throw new IllegalArgumentException("Extension duration cannot exceed 120 months");
         }
 
         GardenSlot slot = rental.getGardenSlot();
@@ -174,7 +184,8 @@ public class BookingServiceImpl implements BookingService {
         paymentTransactionRepository.save(txn);
 
         String orderInfo = "GreenSlot Extension: Rental " + rental.getId() + " for " + months + " months";
-        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo);
+        boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
+        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile);
 
         return new BookingResponseDTO(rental.getId(), paymentUrl, txnRef);
     }
@@ -445,6 +456,12 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress) {
+        return getOrRegeneratePaymentUrl(rentalId, username, ipAddress, false);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress, boolean isMobile) {
         SlotRental rental = slotRentalRepository.findByIdWithPessimisticLock(rentalId)
                 .orElseThrow(() -> new IllegalArgumentException("Slot rental not found with ID: " + rentalId));
 
@@ -478,7 +495,7 @@ public class BookingServiceImpl implements BookingService {
         paymentTransactionRepository.save(pendingTxn);
 
         String orderInfo = "Thanh toan don thue vuon GreenSlot ID: " + rentalId;
-        String paymentUrl = vnPayUtils.buildPaymentUrl(newTxnRef, pendingTxn.getAmount(), ipAddress, orderInfo);
+        String paymentUrl = vnPayUtils.buildPaymentUrl(newTxnRef, pendingTxn.getAmount(), ipAddress, orderInfo, isMobile);
 
         return new BookingResponseDTO(rentalId, paymentUrl, newTxnRef);
     }

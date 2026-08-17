@@ -30,6 +30,9 @@ public class PaymentController {
     @Value("${greeenslot.vnpay.frontendReturnUrl:${FRONTEND_RETURN_URL:http://localhost:5173/payment-result}}")
     private String defaultReturnUrl;
 
+    @Value("${greeenslot.vnpay.mobileReturnUrl:${MOBILE_RETURN_URL:greenslot://payment-result}}")
+    private String mobileReturnUrl;
+
     @GetMapping("/vnpay-ipn")
     @Operation(summary = "VNPay IPN callback listener", description = "Performs secure checksum validation, amount checking, and state updates, returning JSON response to VNPay.")
     public ResponseEntity<Map<String, String>> vnpayIpn(HttpServletRequest request) {
@@ -47,7 +50,7 @@ public class PaymentController {
     }
 
     @GetMapping("/vnpay-return")
-    @Operation(summary = "VNPay Return callback redirector", description = "Processes VNPay return parameters and redirects browser securely to Frontend SPA.")
+    @Operation(summary = "VNPay Return callback redirector", description = "Processes VNPay return parameters and redirects browser securely to Frontend SPA or Mobile App.")
     public void vnpayReturn(HttpServletRequest request, HttpServletResponse response) throws IOException {
         Map<String, String> fields = new HashMap<>();
         for (Map.Entry<String, String[]> entry : request.getParameterMap().entrySet()) {
@@ -65,7 +68,23 @@ public class PaymentController {
         String txnRef = fields.getOrDefault("vnp_TxnRef", "");
         String status = "00".equals(responseCode) ? "success" : "failed";
 
-        String redirectUrl = defaultReturnUrl + "?status=" + status + "&vnp_ResponseCode=" + responseCode + "&vnp_TxnRef=" + txnRef;
+        // Determine whether target is Mobile App or Web Frontend
+        String targetUrl = defaultReturnUrl;
+        String clientParam = fields.getOrDefault("client", fields.getOrDefault("source", ""));
+        String isMobileParam = fields.get("isMobile");
+        String customRedirectUrl = fields.get("redirectUrl");
+        String userAgent = request.getHeader("User-Agent");
+
+        if (customRedirectUrl != null && !customRedirectUrl.isEmpty()) {
+            targetUrl = customRedirectUrl;
+        } else if ("mobile".equalsIgnoreCase(clientParam)
+                || "true".equalsIgnoreCase(isMobileParam)
+                || (userAgent != null && (userAgent.contains("GreenSlotMobile") || userAgent.contains("Expo") || userAgent.contains("okhttp")))) {
+            targetUrl = mobileReturnUrl;
+        }
+
+        String delimiter = targetUrl.contains("?") ? "&" : "?";
+        String redirectUrl = targetUrl + delimiter + "status=" + status + "&vnp_ResponseCode=" + responseCode + "&vnp_TxnRef=" + txnRef;
         response.sendRedirect(redirectUrl);
     }
 }

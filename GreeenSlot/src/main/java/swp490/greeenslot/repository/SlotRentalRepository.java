@@ -7,12 +7,15 @@ import org.springframework.stereotype.Repository;
 import org.springframework.data.jpa.repository.Lock;
 import jakarta.persistence.LockModeType;
 import swp490.greeenslot.entity.SlotRental;
+import swp490.greeenslot.entity.Tree;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
 public interface SlotRentalRepository extends JpaRepository<SlotRental, Long> {
+
+    List<SlotRental> findByTree(Tree tree);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM SlotRental r WHERE r.id = :id")
     java.util.Optional<SlotRental> findByIdWithPessimisticLock(@Param("id") Long id);

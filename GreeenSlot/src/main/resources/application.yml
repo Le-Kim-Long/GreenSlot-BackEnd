@@ -65,6 +65,7 @@ greeenslot:
     url: ${VNP_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
     returnUrl: ${VNP_RETURN_URL:http://localhost:8080/api/payments/vnpay-return}
     frontendReturnUrl: ${FRONTEND_RETURN_URL:http://localhost:5173/payment-result}
+    mobileReturnUrl: ${MOBILE_RETURN_URL:greenslot://payment-result}
     ipnUrl: ${VNP_IPN_URL:}
 
 ---

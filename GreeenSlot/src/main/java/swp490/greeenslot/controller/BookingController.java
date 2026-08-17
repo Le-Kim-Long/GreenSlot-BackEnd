@@ -102,12 +102,16 @@ public class BookingController {
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Get or regenerate payment URL for pending booking",
                description = "Allows contract owner to retrieve or regenerate the VNPay payment URL for an existing pending slot rental.")
-    public ResponseEntity<BookingResponseDTO> repayBooking(@PathVariable Long rentalId, Principal principal, HttpServletRequest httpServletRequest) {
+    public ResponseEntity<BookingResponseDTO> repayBooking(
+            @PathVariable Long rentalId,
+            @RequestParam(required = false, defaultValue = "false") boolean isMobile,
+            Principal principal,
+            HttpServletRequest httpServletRequest) {
         String ipAddress = httpServletRequest.getHeader("X-FORWARDED-FOR");
         if (ipAddress == null || ipAddress.isEmpty()) {
             ipAddress = httpServletRequest.getRemoteAddr();
         }
-        BookingResponseDTO response = bookingService.getOrRegeneratePaymentUrl(rentalId, principal.getName(), ipAddress);
+        BookingResponseDTO response = bookingService.getOrRegeneratePaymentUrl(rentalId, principal.getName(), ipAddress, isMobile);
         return ResponseEntity.ok(response);
     }
 }

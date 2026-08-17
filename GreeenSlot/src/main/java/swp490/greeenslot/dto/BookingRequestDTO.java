@@ -1,6 +1,7 @@
 package swp490.greeenslot.dto;
 
 import jakarta.validation.constraints.FutureOrPresent;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -12,10 +13,12 @@ public class BookingRequestDTO {
     private Long slotId;
 
     @Min(value = 1, message = "Duration must be at least 1 month")
+    @Max(value = 120, message = "Duration cannot exceed 120 months")
     private int durationInMonths;
 
-    @FutureOrPresent(message = "Start time must be in the present or future")
     private LocalDateTime startTime;
+
+    private Boolean isMobile;
 
     public Long getSlotId() {
         return slotId;
@@ -39,5 +42,13 @@ public class BookingRequestDTO {
 
     public void setStartTime(LocalDateTime startTime) {
         this.startTime = startTime;
+    }
+
+    public Boolean getIsMobile() {
+        return isMobile;
+    }
+
+    public void setIsMobile(Boolean isMobile) {
+        this.isMobile = isMobile;
     }
 }
