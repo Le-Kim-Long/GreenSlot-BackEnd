@@ -27,8 +27,6 @@ import java.nio.charset.StandardCharsets;
 @RestController
 @RequestMapping("/api/payments")
 @Tag(name = "Payments", description = "Endpoints for handling online payment callbacks")
-public class PaymentController {
-
     private static final Logger logger = LoggerFactory.getLogger(PaymentController.class);
 
     @Autowired
@@ -53,6 +51,7 @@ public class PaymentController {
         }
 
         Map<String, String> result = bookingService.processIpn(fields);
+        logger.info("vnpayIpn processed result: {}", result);
         return ResponseEntity.ok(result);
     }
 
@@ -67,10 +66,12 @@ public class PaymentController {
                 fields.put(name, values[0]);
             }
         }
+        logger.info("vnpayReturn called with fields: {}", fields);
         String txnRef = fields.getOrDefault("vnp_TxnRef", "");
         Map<String, String> ipnResult;
         try {
             ipnResult = bookingService.processIpn(fields);
+            logger.info("vnpayReturn processed IPN result for txnRef={}: {}", txnRef, ipnResult);
         } catch (Exception e) {
             logger.error("Error processing VNPay return callback for txnRef={}", txnRef, e);
             ipnResult = new HashMap<>();

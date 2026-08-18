@@ -157,9 +157,9 @@ public class VNPayUtils {
             return "";
         }
         try {
-            return URLEncoder.encode(value, StandardCharsets.US_ASCII.toString());
+            return URLEncoder.encode(value, StandardCharsets.UTF_8.toString());
         } catch (Exception e) {
-            return URLEncoder.encode(value, StandardCharsets.UTF_8);
+            return "";
         }
     }
 
