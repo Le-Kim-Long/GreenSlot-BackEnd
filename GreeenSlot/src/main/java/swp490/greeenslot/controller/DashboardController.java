@@ -16,7 +16,7 @@ import swp490.greeenslot.service.BusinessManagementService;
 import java.time.LocalDateTime;
 import java.util.List;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/dashboard")
 @Tag(name = "Dashboard", description = "APIs for dashboard metrics and analytics by location")

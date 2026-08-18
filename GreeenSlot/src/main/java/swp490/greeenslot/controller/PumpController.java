@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import swp490.greeenslot.dto.PumpStatusDTO;
 import swp490.greeenslot.service.PumpService;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/iot/pump")
 @Tag(name = "Pump Control API", description = "API điều khiển máy bơm tự động và thủ công")

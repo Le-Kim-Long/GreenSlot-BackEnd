@@ -12,7 +12,7 @@ import swp490.greeenslot.service.HarvestHistoryService;
 import java.security.Principal;
 import java.util.List;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/harvest-history")
 @Tag(name = "Harvest History", description = "Read-only history of completed harvests")

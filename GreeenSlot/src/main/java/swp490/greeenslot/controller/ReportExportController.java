@@ -13,7 +13,7 @@ import swp490.greeenslot.service.ReportExportService;
 
 import java.time.Instant;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/reports")
 @Tag(name = "Report Export", description = "APIs for exporting reports in CSV and Excel formats")

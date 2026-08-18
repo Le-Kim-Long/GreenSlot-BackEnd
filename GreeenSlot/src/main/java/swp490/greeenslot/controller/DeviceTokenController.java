@@ -13,7 +13,7 @@ import swp490.greeenslot.repository.UserRepository;
 
 import java.security.Principal;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/device-token")
 @Tag(name = "Device Token Management", description = "APIs for managing FCM device tokens for push notifications")
