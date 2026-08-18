@@ -12,7 +12,7 @@ import swp490.greeenslot.service.NotificationPreferenceService;
 
 import java.security.Principal;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/notification-preferences")
 @Tag(name = "Notification Preferences", description = "APIs for managing user notification preferences")

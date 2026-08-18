@@ -11,7 +11,7 @@ import swp490.greeenslot.service.AlertAnalyticsService;
 
 import java.time.Instant;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/analytics/alerts")
 @Tag(name = "Alert Analytics", description = "APIs for alert analytics and dashboard metrics")

@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import swp490.greeenslot.dto.SystemHealthDTO;
 import swp490.greeenslot.service.SystemHealthService;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/system")
 @Tag(name = "System Health", description = "APIs for monitoring system health and performance")

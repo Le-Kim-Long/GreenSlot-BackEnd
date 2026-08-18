@@ -12,7 +12,7 @@ import swp490.greeenslot.service.TreeService;
 
 import java.util.List;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/trees")
 @Tag(name = "Tree Management", description = "APIs for managing tree types, configurations, and thresholds")

@@ -15,7 +15,7 @@ import swp490.greeenslot.service.AlertService;
 import java.security.Principal;
 import java.util.List;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/alerts")
 @Tag(name = "Alert Management", description = "APIs for managing sensor alerts and processing logs")

@@ -14,7 +14,7 @@ import swp490.greeenslot.service.TreePlantingService;
 import java.security.Principal;
 import java.util.List;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/tree-planting")
 @Tag(name = "Tree Planting Requests", description = "APIs for managing customer tree planting requests")
