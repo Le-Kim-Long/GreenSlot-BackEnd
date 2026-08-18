@@ -26,7 +26,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/payments")
 @Tag(name = "Payments", description = "Endpoints for handling online payment callbacks")
-public class PaymentController { // <-- Added class declaration back
+public class PaymentController {
 
     private static final Logger logger = LoggerFactory.getLogger(PaymentController.class);
 
@@ -84,9 +84,11 @@ public class PaymentController { // <-- Added class declaration back
         String amount = fields.getOrDefault("vnp_Amount", "");
         String orderInfo = fields.getOrDefault("vnp_OrderInfo", "");
         String payDate = fields.getOrDefault("vnp_PayDate", "");
-        String status = "SUCCESS".equals(txnStatus) ? "success" : "failed";
 
-        // Determine whether target is Mobile App or Web Frontend
+        // Old logic fallback: Check if DB returned SUCCESS OR if VNPay response code is "00"
+        String status = ("SUCCESS".equals(txnStatus) || "00".equals(responseCode)) ? "success" : "failed";
+
+        // Determine target URL (Frontend SPA or Mobile App)
         String targetUrl = defaultReturnUrl;
         String clientParam = fields.getOrDefault("client", fields.getOrDefault("source", ""));
         String isMobileParam = fields.get("isMobile");
@@ -110,6 +112,7 @@ public class PaymentController { // <-- Added class declaration back
                 + "&vnp_Amount=" + urlEncode(amount)
                 + "&vnp_OrderInfo=" + urlEncode(orderInfo)
                 + "&vnp_PayDate=" + urlEncode(payDate);
+
         response.sendRedirect(redirectUrl);
     }
 
