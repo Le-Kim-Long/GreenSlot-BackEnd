@@ -23,7 +23,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
-@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://green-slot-front-end.vercel.app", "https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/payments")
 @Tag(name = "Payments", description = "Endpoints for handling online payment callbacks")
@@ -34,7 +34,7 @@ public class PaymentController {
     @Autowired
     private BookingService bookingService;
 
-    @Value("${greeenslot.vnpay.frontendReturnUrl:${FRONTEND_RETURN_URL:http://localhost:5173/payment-result}}")
+    @Value("${greeenslot.vnpay.frontendReturnUrl:${FRONTEND_RETURN_URL:https://green-slot-front-end.vercel.app/payment-result}}")
     private String defaultReturnUrl;
 
     @Value("${greeenslot.vnpay.mobileReturnUrl:${MOBILE_RETURN_URL:greenslot://payment-result}}")

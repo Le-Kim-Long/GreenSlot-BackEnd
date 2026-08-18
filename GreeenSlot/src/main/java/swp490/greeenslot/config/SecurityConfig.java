@@ -57,7 +57,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("https://greenslot-taupe.vercel.app", "https://greenslot-frontend4.vercel.app", "http://localhost:5173", "http://localhost:3000", "*"));
+        configuration.setAllowedOrigins(Arrays.asList("https://green-slot-front-end.vercel.app", "https://greenslot-taupe.vercel.app", "https://greenslot-frontend4.vercel.app", "http://localhost:5173", "http://localhost:3000", "*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Collections.singletonList("*"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
