@@ -10,4 +10,5 @@ FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 COPY --from=build /app/target/GreeenSlot-0.0.1-SNAPSHOT.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Xms200m", "-Xmx350m", "-XX:+UseSerialGC", "-XX:MaxRAMPercentage=70.0", "-jar", "app.jar"]
+
