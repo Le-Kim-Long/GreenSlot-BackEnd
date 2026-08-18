@@ -60,7 +60,7 @@ public class AlertServiceImpl implements AlertService {
     private boolean isAlertAccessible(Alert alert, Long locationId) {
         if (locationId == null) return true;
         Long alertLocId = getAlertLocationId(alert);
-        return alertLocId != null && alertLocId.equals(locationId);
+        return alertLocId == null || alertLocId.equals(locationId);
     }
 
     @Override

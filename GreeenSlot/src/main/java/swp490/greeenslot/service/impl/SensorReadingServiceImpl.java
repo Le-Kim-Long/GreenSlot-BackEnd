@@ -142,9 +142,14 @@ public class SensorReadingServiceImpl implements SensorReadingService {
     private void evaluateThresholds(String deviceId, ESensorType sensorType, Double value, String unit) {
         Optional<Pillar> pillarOpt = pillarRepository.findByPillarCode(deviceId);
         if (pillarOpt.isEmpty()) {
-            return;
+            // Fallback: nếu deviceId chưa trùng khớp chính xác mã trụ (vd: arduino-greenhouse-01),
+            // tìm trụ P-Q1-01 hoặc trụ đầu tiên trong hệ thống
+            pillarOpt = pillarRepository.findByPillarCode("P-Q1-01");
+            if (pillarOpt.isEmpty()) {
+                pillarOpt = pillarRepository.findAll().stream().findFirst();
+            }
         }
-        Pillar pillar = pillarOpt.get();
+        Pillar pillar = pillarOpt.orElse(null);
 
         // Lấy ngưỡng mặc định của thiết bị / trụ
         Optional<SensorThreshold> thresholdOpt = sensorThresholdRepository.findByDeviceIdAndSensorType(deviceId, sensorType.name());
@@ -166,7 +171,7 @@ public class SensorReadingServiceImpl implements SensorReadingService {
             }
         }
 
-        List<GardenSlot> slots = gardenSlotRepository.findByPillarId(pillar.getId());
+        List<GardenSlot> slots = pillar != null ? gardenSlotRepository.findByPillarId(pillar.getId()) : List.of();
         boolean hasActiveRentals = false;
         boolean autoSprayTriggered = false;
 
@@ -324,19 +329,42 @@ public class SensorReadingServiceImpl implements SensorReadingService {
             }
         }
 
-        // Trường hợp không có hợp đồng thuê nào đang hoạt động nhưng số đo vượt ngưỡng của trụ
+        // Trường hợp không có hợp đồng thuê nào đang hoạt động nhưng số đo vượt ngưỡng của trụ/thiết bị
         if (!hasActiveRentals && (value < defaultMin || value > defaultMax)) {
             swp490.greeenslot.entity.Alert alert = new swp490.greeenslot.entity.Alert();
             alert.setAlertType(sensorType.name());
-            alert.setDescription(String.format("Cảm biến %s trên trụ %s ghi nhận giá trị %.2f %s, nằm ngoài ngưỡng (%.2f - %.2f)",
-                    sensorType.getDescription(), pillar.getPillarCode(), value, unit, defaultMin, defaultMax));
+            String pillarCode = pillar != null ? pillar.getPillarCode() : deviceId;
+            alert.setDescription(String.format("Cảm biến %s trên thiết bị/trụ %s ghi nhận giá trị %.2f %s, nằm ngoài ngưỡng cho phép (%.2f - %.2f)",
+                    sensorType.getDescription(), pillarCode, value, unit, defaultMin, defaultMax));
             alert.setStatus(swp490.greeenslot.entity.EAlertStatus.PENDING);
             alert.setThresholdValue((defaultMin + defaultMax) / 2.0);
             alert.setActualValue(value);
             alert.setSensorType(sensorType.name());
             alert.setPillar(pillar);
             alert.setCreatedAt(LocalDateTime.now());
-            alertService.createAlert(alert);
+            Alert savedAlert = alertService.createAlert(alert);
+
+            // Gửi thông báo cho Quản lý
+            if (notificationService != null) {
+                Long locId = (pillar != null && pillar.getLocation() != null) ? pillar.getLocation().getId() : null;
+                List<User> managers = locId != null
+                        ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId)
+                        : userRepository.findByRoleName(ERole.ROLE_MANAGER);
+                if (managers.isEmpty()) {
+                    managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
+                }
+                for (User manager : managers) {
+                    notificationService.createNotification(
+                            manager.getId(),
+                            "Cảnh báo chỉ số cảm biến (" + sensorType.getDescription() + ")",
+                            String.format("Thiết bị/Trụ %s: Cảm biến %s ghi nhận %.2f %s, ngoài ngưỡng (%.2f - %.2f).",
+                                    pillarCode, sensorType.getDescription(), value, unit, defaultMin, defaultMax),
+                            "IOT_ALERT",
+                            savedAlert != null ? savedAlert.getId() : null,
+                            "/dashboard/manager/alerts"
+                    );
+                }
+            }
         }
     }
 
