@@ -365,6 +365,13 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                     );
                 }
             }
+
+            // Tự động kích hoạt bơm xịt nước nếu độ ẩm đất < ngưỡng tối thiểu
+            if (sensorType == ESensorType.SOIL_MOISTURE && value < defaultMin) {
+                String autoReason = String.format("Tự động tưới: Độ ẩm đất %.2f%% < ngưỡng tối thiểu %.2f%% tại thiết bị/trụ %s",
+                        value, defaultMin, pillarCode);
+                pumpService.triggerAutoSpray(autoReason);
+            }
         }
     }
 

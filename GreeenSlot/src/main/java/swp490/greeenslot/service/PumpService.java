@@ -21,10 +21,10 @@ public class PumpService {
 
     // Lưu thông tin lần kích hoạt gần nhất
     private volatile String lastTriggerReason = "Hệ thống sẵn sàng";
-    private volatile LocalDateTime lastTriggerTime = LocalDateTime.now();
+    private volatile LocalDateTime lastTriggerTime = null;
 
-    // Thời gian tối thiểu giữa 2 lần tự động kích hoạt bơm (cooldown 60s để tránh bơm liên tục)
-    private static final long AUTO_TRIGGER_COOLDOWN_SECONDS = 60;
+    // Thời gian tối thiểu giữa 2 lần tự động kích hoạt bơm (cooldown 10s để hệ thống phản hồi nhanh khi test)
+    private static final long AUTO_TRIGGER_COOLDOWN_SECONDS = 10;
 
     public String getPumpStatus() {
         return currentStatus;
