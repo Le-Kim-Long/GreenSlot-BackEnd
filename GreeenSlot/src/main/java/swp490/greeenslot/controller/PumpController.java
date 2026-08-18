@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import swp490.greeenslot.dto.PumpStatusDTO;
 import swp490.greeenslot.service.PumpService;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/iot/pump")
 @Tag(name = "Pump Control API", description = "API điều khiển máy bơm tự động và thủ công")
@@ -22,14 +22,12 @@ public class PumpController {
     }
 
     @GetMapping("/status")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
-    @Operation(summary = "Lấy trạng thái máy bơm", description = "API này được Python Bridge và Frontend gọi để đồng bộ với mạch Arduino.")
+    @Operation(summary = "Lấy trạng thái máy bơm", description = "API này được ESP32 / Arduino / Python Bridge và Frontend gọi để đồng bộ với mạch.")
     public ResponseEntity<PumpStatusDTO> getPumpStatus() {
         return ResponseEntity.ok(pumpService.getFullStatus());
     }
 
     @PostMapping("/status")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
     @Operation(summary = "Bật/Tắt máy bơm hoặc cập nhật chế độ tự động", description = "Truyền vào ON hoặc OFF và cờ autoMode để điều khiển máy bơm.")
     public ResponseEntity<PumpStatusDTO> updatePumpStatus(@RequestBody PumpStatusDTO requestDto) {
         if (requestDto.getAutoMode() != null) {

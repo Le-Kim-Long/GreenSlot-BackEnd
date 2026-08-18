@@ -25,7 +25,7 @@ import java.util.Optional;
 /**
  * Controller handling IoT operations, telemetry, thresholds, and camera livestreams.
  */
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/iot")
 @Tag(name = "IoT Sensors & Devices", description = "Endpoints for receiving sensor telemetry, threshold boundaries, and camera streams")
@@ -96,6 +96,59 @@ public class IoTSensorController {
             @RequestParam(required = false) ESensorType sensorType,
             @RequestParam(defaultValue = "50") int limit) {
         return ResponseEntity.ok(sensorReadingService.getHistory(deviceId, sensorType, limit));
+    }
+
+    @GetMapping("/device/slot/{slotId}")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Lay thong tin thiet bi IoT theo slot")
+    public ResponseEntity<Map<String, Object>> getDeviceBySlot(@PathVariable Long slotId) {
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+        Pillar pillar = slot.getPillar();
+        if (pillar == null) {
+            throw new IllegalArgumentException("This garden slot is not currently associated with a Pillar.");
+        }
+        Map<String, Object> result = new java.util.HashMap<>();
+        result.put("slotId", slot.getId());
+        result.put("slotNumber", slot.getSlotNumber());
+        result.put("deviceId", pillar.getPillarCode());
+        result.put("pillarId", pillar.getId());
+        result.put("pillarCode", pillar.getPillarCode());
+        result.put("deviceStatus", pillar.getDeviceStatus() != null ? pillar.getDeviceStatus() : "UNKNOWN");
+        result.put("cameraStatus", pillar.getCameraStatus() != null ? pillar.getCameraStatus() : "UNKNOWN");
+        result.put("cameraStreamUrl", pillar.getCameraStreamUrl() != null ? pillar.getCameraStreamUrl() : "");
+        result.put("locationId", pillar.getLocation() != null ? pillar.getLocation().getId() : null);
+        result.put("locationName", pillar.getLocation() != null ? pillar.getLocation().getName() : "");
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/sensors/slot/{slotId}/latest")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Gia tri moi nhat tung loai cam bien theo slot")
+    public ResponseEntity<List<SensorReadingResponseDTO>> getLatestBySlot(@PathVariable Long slotId) {
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+        Pillar pillar = slot.getPillar();
+        if (pillar == null) {
+            throw new IllegalArgumentException("This garden slot is not currently associated with a Pillar.");
+        }
+        return ResponseEntity.ok(sensorReadingService.getLatestReadings(pillar.getPillarCode()));
+    }
+
+    @GetMapping("/sensors/slot/{slotId}/history")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Lich su doc cam bien theo slot")
+    public ResponseEntity<List<SensorReadingResponseDTO>> getHistoryBySlot(
+            @PathVariable Long slotId,
+            @RequestParam(required = false) ESensorType sensorType,
+            @RequestParam(defaultValue = "50") int limit) {
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+        Pillar pillar = slot.getPillar();
+        if (pillar == null) {
+            throw new IllegalArgumentException("This garden slot is not currently associated with a Pillar.");
+        }
+        return ResponseEntity.ok(sensorReadingService.getHistory(pillar.getPillarCode(), sensorType, limit));
     }
 
     @GetMapping("/sensors/aggregated")

@@ -25,5 +25,11 @@ public interface AlertService {
     
     Alert createAlert(Alert alert);
 
+    Alert createAlertForTreeAndSlot(Alert alert, Long slotId, Long treeId);
+
+    List<AlertDTO> getAlertsByTree(Long treeId);
+
+    List<AlertDTO> getAlertsBySlot(Long slotId);
+
     AlertDTO escalateAlert(Long alertId, Long escalateToUserId, String reason);
 }

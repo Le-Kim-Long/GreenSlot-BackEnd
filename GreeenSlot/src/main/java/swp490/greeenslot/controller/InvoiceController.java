@@ -12,7 +12,7 @@ import swp490.greeenslot.service.InvoiceService;
 
 import java.io.ByteArrayOutputStream;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/invoices")
 @Tag(name = "Invoice Management", description = "APIs for generating PDF invoices")

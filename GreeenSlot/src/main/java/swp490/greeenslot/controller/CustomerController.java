@@ -19,7 +19,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/customer")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @Tag(name = "Customer APIs", description = "APIs for customers to browse and rent garden slots")
 public class CustomerController {
 

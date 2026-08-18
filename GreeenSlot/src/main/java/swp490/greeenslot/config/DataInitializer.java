@@ -206,6 +206,18 @@ public class DataInitializer {
                         userRepository.save(u);
                     });
                 }
+
+                // Ensure Pillar arduino-greenhouse-01 is created and mapped for IoT Hardware testing
+                if (pillarRepository.findByPillarCode("arduino-greenhouse-01").isEmpty()) {
+                    Location loc1 = locationRepository.findByName("Cơ sở Quận 1").orElse(null);
+                    if (loc1 != null) {
+                        Pillar iotPillar = new Pillar();
+                        iotPillar.setPillarCode("arduino-greenhouse-01");
+                        iotPillar.setStatus(EPillarStatus.ACTIVE);
+                        iotPillar.setLocation(loc1);
+                        pillarRepository.save(iotPillar);
+                    }
+                }
             }
 
             // 4. Khởi tạo dữ liệu mẫu cho Tree

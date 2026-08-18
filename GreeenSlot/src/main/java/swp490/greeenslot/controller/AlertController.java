@@ -15,7 +15,7 @@ import swp490.greeenslot.service.AlertService;
 import java.security.Principal;
 import java.util.List;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/alerts")
 @Tag(name = "Alert Management", description = "APIs for managing sensor alerts and processing logs")
@@ -50,6 +50,20 @@ public class AlertController {
     @Operation(summary = "Get alerts by pillar")
     public ResponseEntity<List<AlertDTO>> getAlertsByPillar(@PathVariable Long pillarId) {
         return ResponseEntity.ok(alertService.getAlertsByPillar(pillarId));
+    }
+
+    @GetMapping("/tree/{treeId}")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Get alerts by tree")
+    public ResponseEntity<List<AlertDTO>> getAlertsByTree(@PathVariable Long treeId) {
+        return ResponseEntity.ok(alertService.getAlertsByTree(treeId));
+    }
+
+    @GetMapping("/slot/{slotId}")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Get alerts by slot")
+    public ResponseEntity<List<AlertDTO>> getAlertsBySlot(@PathVariable Long slotId) {
+        return ResponseEntity.ok(alertService.getAlertsBySlot(slotId));
     }
 
     @GetMapping("/pending")
