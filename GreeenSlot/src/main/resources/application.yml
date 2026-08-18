@@ -59,7 +59,6 @@ greeenslot:
     mobileReturnUrl: ${MOBILE_RETURN_URL:greenslot://payment-result}
     ipnUrl: ${VNP_IPN_URL:}
 
----
 # --- POSTGRESQL PROFILE (Render Production) ---
 spring:
   config:
@@ -70,10 +69,13 @@ spring:
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:12345}
     driver-class-name: org.postgresql.Driver
-  jpa:
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      idle-timeout: 30000
+      max-lifetime: 600000
+      connection-timeout: 20000
+
 
 ---
 # --- MYSQL PROFILE ---
