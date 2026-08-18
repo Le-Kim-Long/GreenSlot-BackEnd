@@ -30,7 +30,7 @@ public class VNPayUtils {
     @Value("${greeenslot.vnpay.url:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}")
     private String url;
 
-    @Value("${greeenslot.vnpay.returnUrl:https://green-slot-front-end.vercel.app/api/payments/vnpay-return}")
+    @Value("${greeenslot.vnpay.returnUrl:https://greenslot-backend-llqv.onrender.com/api/payments/vnpay-return}")
     private String returnUrl;
 
     @Value("${greeenslot.vnpay.mobileReturnUrl:greenslot://payment-result}")
