@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import swp490.greeenslot.dto.TreePlantingRequestCreateDTO;
 import swp490.greeenslot.dto.TreePlantingRequestDTO;
 import swp490.greeenslot.entity.*;
+import swp490.greeenslot.repository.GardeningTaskRepository;
 import swp490.greeenslot.repository.SensorThresholdRepository;
 import swp490.greeenslot.repository.SlotRentalRepository;
 import swp490.greeenslot.repository.TreePlantingRequestRepository;
@@ -37,6 +38,9 @@ public class TreePlantingServiceImpl implements TreePlantingService {
 
     @Autowired
     private SensorThresholdRepository sensorThresholdRepository;
+
+    @Autowired
+    private GardeningTaskRepository gardeningTaskRepository;
 
     @Autowired(required = false)
     private NotificationService notificationService;
@@ -244,6 +248,47 @@ public class TreePlantingServiceImpl implements TreePlantingService {
                     updatedRequest.getId(),
                     "/dashboard/customer/rentals"
             );
+        }
+
+        // Tự động tạo nhiệm vụ chăm sóc cây mới trồng để nhân viên nhận việc (chưa gán ai — hiện trong danh sách "công việc khả dụng")
+        GardenSlot targetSlot = rental.getGardenSlot();
+        if (targetSlot != null) {
+            String slotNumber = targetSlot.getSlotNumber();
+            String treeName = newTree != null ? newTree.getTreeName() : "cây trồng";
+
+            GardeningTask careTask = new GardeningTask();
+            careTask.setTaskName("Kiểm tra & chăm sóc cây mới trồng: " + treeName + " - Ô " + slotNumber);
+            careTask.setDescription(String.format(
+                    "Cây %s vừa được duyệt trồng tại ô %s. Vui lòng kiểm tra đất, cảm biến và chăm sóc ban đầu cho cây.",
+                    treeName, slotNumber));
+            careTask.setStatus(ETaskStatus.PENDING);
+            careTask.setTaskType(ETaskType.MAINTENANCE);
+            careTask.setTargetSlot(targetSlot);
+            careTask.setRequestedBy(request.getRequestedBy());
+            careTask.setAssignedStaff(null);
+            careTask.setCreatedAt(now);
+            GardeningTask savedCareTask = gardeningTaskRepository.save(careTask);
+
+            // Báo cho toàn bộ nhân viên tại location đó biết có việc mới cần nhận
+            if (notificationService != null) {
+                Long locId = getRequestLocationId(request);
+                List<User> staffList = locId != null
+                        ? userRepository.findByRoleNameAndLocation(ERole.ROLE_GARDEN_STAFF, locId)
+                        : List.of();
+                String staffTitle = "Có cây mới cần chăm sóc";
+                String staffMessage = String.format("Cây %s vừa được duyệt trồng tại ô %s. Vào mục nhiệm vụ để nhận việc chăm sóc.",
+                        treeName, slotNumber);
+                for (User staff : staffList) {
+                    notificationService.createNotification(
+                            staff.getId(),
+                            staffTitle,
+                            staffMessage,
+                            "NEW_CARE_TASK_AVAILABLE",
+                            savedCareTask.getId(),
+                            "/dashboard/staff/tasks"
+                    );
+                }
+            }
         }
 
         return mapToDTO(updatedRequest);
