@@ -3,9 +3,11 @@ package swp490.greeenslot.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,20 +15,19 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import swp490.greeenslot.service.BookingService;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Value;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 @CrossOrigin(origins = {"https://green-slot-front-end.vercel.app", "https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/payments")
 @Tag(name = "Payments", description = "Endpoints for handling online payment callbacks")
+public class PaymentController { // <-- Added class declaration back
+
     private static final Logger logger = LoggerFactory.getLogger(PaymentController.class);
 
     @Autowired
@@ -77,10 +78,6 @@ import java.nio.charset.StandardCharsets;
             ipnResult = new HashMap<>();
         }
 
-        // Trạng thái hiển thị cho người dùng phải dựa trên kết quả xử lý/lưu DB thực tế
-        // (TxnStatus), không được suy ra trực tiếp từ vnp_ResponseCode do client gửi lên —
-        // vì processIpn có thể thất bại (sai chữ ký, không tìm thấy giao dịch, sai số tiền...)
-        // trong khi vnp_ResponseCode vẫn báo "00".
         String txnStatus = ipnResult.getOrDefault("TxnStatus", "");
         String responseCode = fields.getOrDefault("vnp_ResponseCode", "");
         String transactionStatus = fields.getOrDefault("vnp_TransactionStatus", "");
