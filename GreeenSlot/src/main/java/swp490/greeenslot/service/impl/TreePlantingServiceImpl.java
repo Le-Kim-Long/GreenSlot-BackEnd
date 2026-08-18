@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import swp490.greeenslot.dto.TreePlantingRequestCreateDTO;
 import swp490.greeenslot.dto.TreePlantingRequestDTO;
 import swp490.greeenslot.entity.*;
+import swp490.greeenslot.repository.SensorThresholdRepository;
 import swp490.greeenslot.repository.SlotRentalRepository;
 import swp490.greeenslot.repository.TreePlantingRequestRepository;
 import swp490.greeenslot.repository.TreeRepository;
@@ -16,6 +17,7 @@ import swp490.greeenslot.service.TreePlantingService;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,6 +34,9 @@ public class TreePlantingServiceImpl implements TreePlantingService {
 
     @Autowired
     private TreeRepository treeRepository;
+
+    @Autowired
+    private SensorThresholdRepository sensorThresholdRepository;
 
     @Autowired(required = false)
     private NotificationService notificationService;
@@ -206,11 +211,21 @@ public class TreePlantingServiceImpl implements TreePlantingService {
 
         // Duyệt xong thì cây yêu cầu mới thực sự được trồng vào ô đất của rental này
         SlotRental rental = request.getRental();
-        rental.setTree(request.getNewTree());
+        Tree newTree = request.getNewTree();
+        rental.setTree(newTree);
         rental.setTreeStatus(swp490.greeenslot.entity.ETreeStatus.HEALTHY);
         rental.setPlantedAt(now);
         rental.setHarvestReminderSent(false);
         slotRentalRepository.save(rental);
+
+        // Đồng bộ ngưỡng của cây trồng sang cấu hình cảm biến IoT của Trụ (Pillar) thuộc ô đất này
+        if (newTree != null && rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null) {
+            Pillar pillar = rental.getGardenSlot().getPillar();
+            String deviceId = pillar.getPillarCode();
+            if (deviceId != null && !deviceId.isBlank()) {
+                syncTreeThresholdsToDevice(deviceId, newTree);
+            }
+        }
 
         TreePlantingRequest updatedRequest = treePlantingRequestRepository.save(request);
 
@@ -360,5 +375,34 @@ public class TreePlantingServiceImpl implements TreePlantingService {
                 request.getProcessedBy() != null ? request.getProcessedBy().getId() : null,
                 request.getProcessedBy() != null ? request.getProcessedBy().getFullName() : null
         );
+    }
+
+    private void syncTreeThresholdsToDevice(String deviceId, Tree tree) {
+        if (tree.getSoilMoistureMin() != null && tree.getSoilMoistureMax() != null) {
+            updateOrCreateThreshold(deviceId, "SOIL_MOISTURE", tree.getSoilMoistureMin(), tree.getSoilMoistureMax());
+        }
+        if (tree.getLightMin() != null && tree.getLightMax() != null) {
+            updateOrCreateThreshold(deviceId, "LIGHT_INTENSITY", tree.getLightMin(), tree.getLightMax());
+        }
+        if (tree.getPhMin() != null && tree.getPhMax() != null) {
+            updateOrCreateThreshold(deviceId, "PH", tree.getPhMin(), tree.getPhMax());
+        }
+    }
+
+    private void updateOrCreateThreshold(String deviceId, String sensorType, Double minVal, Double maxVal) {
+        Optional<SensorThreshold> existing = sensorThresholdRepository.findByDeviceIdAndSensorType(deviceId, sensorType);
+        SensorThreshold threshold;
+        if (existing.isPresent()) {
+            threshold = existing.get();
+            threshold.setMinValue(minVal);
+            threshold.setMaxValue(maxVal);
+        } else {
+            threshold = new SensorThreshold();
+            threshold.setDeviceId(deviceId);
+            threshold.setSensorType(sensorType);
+            threshold.setMinValue(minVal);
+            threshold.setMaxValue(maxVal);
+        }
+        sensorThresholdRepository.save(threshold);
     }
 }

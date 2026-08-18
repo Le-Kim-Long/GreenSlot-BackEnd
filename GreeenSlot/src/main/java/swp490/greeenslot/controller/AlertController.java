@@ -52,6 +52,20 @@ public class AlertController {
         return ResponseEntity.ok(alertService.getAlertsByPillar(pillarId));
     }
 
+    @GetMapping("/tree/{treeId}")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Get alerts by tree")
+    public ResponseEntity<List<AlertDTO>> getAlertsByTree(@PathVariable Long treeId) {
+        return ResponseEntity.ok(alertService.getAlertsByTree(treeId));
+    }
+
+    @GetMapping("/slot/{slotId}")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Get alerts by slot")
+    public ResponseEntity<List<AlertDTO>> getAlertsBySlot(@PathVariable Long slotId) {
+        return ResponseEntity.ok(alertService.getAlertsBySlot(slotId));
+    }
+
     @GetMapping("/pending")
     @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
     @Operation(summary = "Get pending alerts")
