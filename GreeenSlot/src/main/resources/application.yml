@@ -59,6 +59,7 @@ greeenslot:
     mobileReturnUrl: ${MOBILE_RETURN_URL:greenslot://payment-result}
     ipnUrl: ${VNP_IPN_URL:}
 
+---
 # --- POSTGRESQL PROFILE (Render Production) ---
 spring:
   config:
