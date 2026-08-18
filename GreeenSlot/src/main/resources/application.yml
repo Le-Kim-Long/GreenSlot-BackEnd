@@ -54,7 +54,7 @@ greeenslot:
     tmnCode: ${VNP_TMN_CODE:1COY3S4A}
     hashSecret: ${VNP_HASH_SECRET:FJTNAGQQ30CITUPLSH4BUTT9OL323SMQ}
     url: ${VNP_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
-    returnUrl: ${VNP_RETURN_URL:https://greenslot-backend.onrender.com//api/payments/vnpay-return}
+    returnUrl: ${VNP_RETURN_URL:https://greenslot-backend.onrender.com/api/payments/vnpay-return}
     frontendReturnUrl: ${FRONTEND_RETURN_URL:https://green-slot-front-end.vercel.app/payment-result}
     mobileReturnUrl: ${MOBILE_RETURN_URL:greenslot://payment-result}
     ipnUrl: ${VNP_IPN_URL:}
