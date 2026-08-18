@@ -239,6 +239,7 @@ public class BookingServiceImpl implements BookingService {
             logger.info("VNPay IPN order already confirmed for txnRef={}, current status: {}", txnRef, txn.getStatus());
             response.put("RspCode", "02");
             response.put("Message", "Order already confirmed");
+            response.put("TxnStatus", txn.getStatus().name());
             return response;
         }
 
@@ -362,6 +363,7 @@ public class BookingServiceImpl implements BookingService {
 
         response.put("RspCode", "00");
         response.put("Message", "Confirm Success");
+        response.put("TxnStatus", txn.getStatus().name());
         return response;
     }
 

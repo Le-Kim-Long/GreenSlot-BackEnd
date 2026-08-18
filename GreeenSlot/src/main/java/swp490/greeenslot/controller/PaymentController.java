@@ -3,6 +3,8 @@ package swp490.greeenslot.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -26,6 +28,8 @@ import java.nio.charset.StandardCharsets;
 @RequestMapping("/api/payments")
 @Tag(name = "Payments", description = "Endpoints for handling online payment callbacks")
 public class PaymentController {
+
+    private static final Logger logger = LoggerFactory.getLogger(PaymentController.class);
 
     @Autowired
     private BookingService bookingService;
@@ -63,17 +67,26 @@ public class PaymentController {
                 fields.put(name, values[0]);
             }
         }
-        try {
-            bookingService.processIpn(fields);
-        } catch (Exception ignored) {}
-
-        String responseCode = fields.getOrDefault("vnp_ResponseCode", "");
         String txnRef = fields.getOrDefault("vnp_TxnRef", "");
+        Map<String, String> ipnResult;
+        try {
+            ipnResult = bookingService.processIpn(fields);
+        } catch (Exception e) {
+            logger.error("Error processing VNPay return callback for txnRef={}", txnRef, e);
+            ipnResult = new HashMap<>();
+        }
+
+        // Trạng thái hiển thị cho người dùng phải dựa trên kết quả xử lý/lưu DB thực tế
+        // (TxnStatus), không được suy ra trực tiếp từ vnp_ResponseCode do client gửi lên —
+        // vì processIpn có thể thất bại (sai chữ ký, không tìm thấy giao dịch, sai số tiền...)
+        // trong khi vnp_ResponseCode vẫn báo "00".
+        String txnStatus = ipnResult.getOrDefault("TxnStatus", "");
+        String responseCode = fields.getOrDefault("vnp_ResponseCode", "");
         String transactionStatus = fields.getOrDefault("vnp_TransactionStatus", "");
         String amount = fields.getOrDefault("vnp_Amount", "");
         String orderInfo = fields.getOrDefault("vnp_OrderInfo", "");
         String payDate = fields.getOrDefault("vnp_PayDate", "");
-        String status = "00".equals(responseCode) ? "success" : "failed";
+        String status = "SUCCESS".equals(txnStatus) ? "success" : "failed";
 
         // Determine whether target is Mobile App or Web Frontend
         String targetUrl = defaultReturnUrl;
