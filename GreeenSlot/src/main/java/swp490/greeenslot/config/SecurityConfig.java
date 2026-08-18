@@ -76,6 +76,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/cameras/**").permitAll()
                     .requestMatchers("/api/iot/sensors/data").permitAll()
                     .requestMatchers("/api/iot/sensors/types").permitAll()
+                    .requestMatchers("/api/iot/pump/**").permitAll()
                     .requestMatchers("/api/payments/vnpay-ipn", "/api/payments/vnpay-return").permitAll()
                     .requestMatchers("/api/bookings/available").permitAll()
                     .requestMatchers("/api/images/view/**", "/uploads/**").permitAll()

@@ -82,12 +82,15 @@ public class CustomerServiceImpl implements CustomerService {
             throw new IllegalArgumentException("Slot is not associated with a pillar");
         }
 
-        List<Equipment> equipmentList = equipmentRepository.findByPillar(pillar);
-        if (equipmentList.isEmpty()) {
-            throw new IllegalArgumentException("No equipment found for this pillar");
+        String deviceId = pillar.getPillarCode();
+        if (deviceId == null || deviceId.isBlank()) {
+            List<Equipment> equipmentList = equipmentRepository.findByPillar(pillar);
+            if (!equipmentList.isEmpty()) {
+                deviceId = equipmentList.get(0).getSerialNumber();
+            } else {
+                throw new IllegalArgumentException("No device or equipment configured for this pillar");
+            }
         }
-
-        String deviceId = equipmentList.get(0).getSerialNumber();
         ESensorType sensorTypeEnum = sensorType != null ? ESensorType.fromCode(sensorType) : null;
 
         return sensorReadingRepository.findByDeviceIdAndSensorTypeOrderByRecordedAtDesc(deviceId, sensorTypeEnum,

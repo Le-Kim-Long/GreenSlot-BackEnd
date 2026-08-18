@@ -31,6 +31,12 @@ public class AlertServiceImpl implements AlertService {
     @Autowired
     private PillarRepository pillarRepository;
 
+    @Autowired
+    private GardenSlotRepository gardenSlotRepository;
+
+    @Autowired
+    private TreeRepository treeRepository;
+
     @Autowired(required = false)
     private NotificationService notificationService;
 
@@ -54,7 +60,7 @@ public class AlertServiceImpl implements AlertService {
     private boolean isAlertAccessible(Alert alert, Long locationId) {
         if (locationId == null) return true;
         Long alertLocId = getAlertLocationId(alert);
-        return alertLocId != null && alertLocId.equals(locationId);
+        return alertLocId == null || alertLocId.equals(locationId);
     }
 
     @Override
@@ -168,6 +174,41 @@ public class AlertServiceImpl implements AlertService {
     @Transactional
     public Alert createAlert(Alert alert) {
         return alertRepository.save(alert);
+    }
+
+    @Override
+    @Transactional
+    public Alert createAlertForTreeAndSlot(Alert alert, Long slotId, Long treeId) {
+        if (slotId != null) {
+            gardenSlotRepository.findById(slotId).ifPresent(slot -> {
+                alert.setGardenSlot(slot);
+                if (alert.getPillar() == null && slot.getPillar() != null) {
+                    alert.setPillar(slot.getPillar());
+                }
+            });
+        }
+        if (treeId != null) {
+            treeRepository.findById(treeId).ifPresent(alert::setTree);
+        }
+        return alertRepository.save(alert);
+    }
+
+    @Override
+    public List<AlertDTO> getAlertsByTree(Long treeId) {
+        Long targetLocationId = locationContextService != null ? locationContextService.resolveTargetLocationId(null) : null;
+        return alertRepository.findByTreeId(treeId).stream()
+                .filter(a -> isAlertAccessible(a, targetLocationId))
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<AlertDTO> getAlertsBySlot(Long slotId) {
+        Long targetLocationId = locationContextService != null ? locationContextService.resolveTargetLocationId(null) : null;
+        return alertRepository.findByGardenSlotId(slotId).stream()
+                .filter(a -> isAlertAccessible(a, targetLocationId))
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
     }
 
     @Override
