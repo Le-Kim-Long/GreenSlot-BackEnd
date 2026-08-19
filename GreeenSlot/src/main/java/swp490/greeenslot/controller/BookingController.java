@@ -14,6 +14,7 @@ import swp490.greeenslot.entity.Location;
 import swp490.greeenslot.entity.Pillar;
 import swp490.greeenslot.service.BookingService;
 
+import java.math.BigDecimal;
 import java.security.Principal;
 import java.util.Collections;
 import java.util.List;
@@ -34,11 +35,23 @@ public class BookingController {
         List<GardenSlot> slots = bookingService.getAvailableSlots(locationId);
         List<AvailableSlotResponseDTO> dtoList = slots.stream().map(s -> {
             Location loc = s.getLocation() != null ? s.getLocation() : (s.getPillar() != null ? s.getPillar().getLocation() : null);
-            List<String> codes = (s.getPillars() != null && !s.getPillars().isEmpty())
-                    ? s.getPillars().stream().map(Pillar::getPillarCode).collect(Collectors.toList())
-                    : (s.getPillar() != null ? List.of(s.getPillar().getPillarCode()) : Collections.emptyList());
+            List<Pillar> slotPillars = (s.getPillars() != null && !s.getPillars().isEmpty())
+                    ? s.getPillars()
+                    : (s.getPillar() != null ? List.of(s.getPillar()) : Collections.emptyList());
+            
+            List<String> codes = slotPillars.stream().map(Pillar::getPillarCode).collect(Collectors.toList());
             String primaryCode = !codes.isEmpty() ? String.join(", ", codes) : "N/A";
             
+            List<PillarDetailDTO> pillarDetails = slotPillars.stream()
+                    .map(PillarDetailDTO::fromEntity)
+                    .collect(Collectors.toList());
+
+            int totalHoles = slotPillars.stream().mapToInt(Pillar::getEffectiveHoles).sum();
+            BigDecimal calculatedPillarsPrice = slotPillars.stream().map(Pillar::getEffectivePrice).reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal calculatedTreesPrice = slotPillars.stream()
+                    .map(p -> (p.getDefaultTree() != null && p.getDefaultTree().getPrice() != null) ? p.getDefaultTree().getPrice() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
             AvailableSlotResponseDTO dto = new AvailableSlotResponseDTO(
                     s.getId(),
                     s.getSlotNumber(),
@@ -54,6 +67,10 @@ public class BookingController {
             dto.setPillarCount(codes.size());
             dto.setArea(s.getArea());
             dto.setMaxPillars(s.getMaxPillars() != null ? s.getMaxPillars() : s.calculateMaxPillars());
+            dto.setPillars(pillarDetails);
+            dto.setTotalHoles(totalHoles);
+            dto.setCalculatedPillarsPrice(calculatedPillarsPrice);
+            dto.setCalculatedTreesPrice(calculatedTreesPrice);
             return dto;
         }).collect(Collectors.toList());
         return ResponseEntity.ok(dtoList);

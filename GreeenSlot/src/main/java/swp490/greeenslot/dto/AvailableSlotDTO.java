@@ -34,4 +34,8 @@ public class AvailableSlotDTO {
     private Double currentPh;
     private Double currentLightIntensity;
     private String deviceStatus;
+    private java.util.List<PillarDetailDTO> pillars;
+    private Integer totalHoles;
+    private BigDecimal calculatedPillarsPrice;
+    private BigDecimal calculatedTreesPrice;
 }

@@ -16,6 +16,10 @@ public class AvailableSlotResponseDTO {
     private String locationAddress;
     private Double area;
     private Integer maxPillars;
+    private java.util.List<PillarDetailDTO> pillars = new java.util.ArrayList<>();
+    private Integer totalHoles;
+    private BigDecimal calculatedPillarsPrice;
+    private BigDecimal calculatedTreesPrice;
 
     public AvailableSlotResponseDTO() {
     }
@@ -153,5 +157,37 @@ public class AvailableSlotResponseDTO {
 
     public void setMaxPillars(Integer maxPillars) {
         this.maxPillars = maxPillars;
+    }
+
+    public java.util.List<PillarDetailDTO> getPillars() {
+        return pillars;
+    }
+
+    public void setPillars(java.util.List<PillarDetailDTO> pillars) {
+        this.pillars = pillars;
+    }
+
+    public Integer getTotalHoles() {
+        return totalHoles;
+    }
+
+    public void setTotalHoles(Integer totalHoles) {
+        this.totalHoles = totalHoles;
+    }
+
+    public BigDecimal getCalculatedPillarsPrice() {
+        return calculatedPillarsPrice;
+    }
+
+    public void setCalculatedPillarsPrice(BigDecimal calculatedPillarsPrice) {
+        this.calculatedPillarsPrice = calculatedPillarsPrice;
+    }
+
+    public BigDecimal getCalculatedTreesPrice() {
+        return calculatedTreesPrice;
+    }
+
+    public void setCalculatedTreesPrice(BigDecimal calculatedTreesPrice) {
+        this.calculatedTreesPrice = calculatedTreesPrice;
     }
 }

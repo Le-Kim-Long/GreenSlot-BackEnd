@@ -52,6 +52,9 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     private GardeningTaskRepository gardeningTaskRepository;
 
     @Autowired
+    private TreeRepository treeRepository;
+
+    @Autowired
     private swp490.greeenslot.service.LocationContextService locationContextService;
 
     // ==========================================
@@ -138,6 +141,26 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             throw new IllegalArgumentException("Invalid pillar status. Must be ACTIVE or MAINTENANCE");
         }
         pillar.setStatus(status);
+
+        EPillarType pillarType = EPillarType.MEDIUM;
+        if (dto.getPillarType() != null && !dto.getPillarType().trim().isEmpty()) {
+            try {
+                pillarType = EPillarType.valueOf(dto.getPillarType().trim().toUpperCase());
+            } catch (Exception e) {
+                pillarType = EPillarType.MEDIUM;
+            }
+        }
+        pillar.setPillarType(pillarType);
+        pillar.setCapacityHoles(dto.getCapacityHoles() != null && dto.getCapacityHoles() > 0 ? dto.getCapacityHoles() : pillarType.getDefaultHoles());
+        pillar.setPrice(dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) > 0 ? dto.getPrice() : pillarType.getDefaultPrice());
+
+        if (dto.getDefaultTreeId() != null && dto.getDefaultTreeId() > 0) {
+            Tree tree = treeRepository.findById(dto.getDefaultTreeId()).orElse(null);
+            pillar.setDefaultTree(tree);
+        } else {
+            pillar.setDefaultTree(null);
+        }
+
         pillar.setLocation(location);
         pillar.setImageUrl(dto.getImageUrl());
 
@@ -162,6 +185,28 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
                 throw new IllegalArgumentException("Invalid pillar status. Must be ACTIVE or MAINTENANCE");
             }
         }
+        if (dto.getPillarType() != null && !dto.getPillarType().trim().isEmpty()) {
+            try {
+                pillar.setPillarType(EPillarType.valueOf(dto.getPillarType().trim().toUpperCase()));
+            } catch (Exception e) {
+                // Keep current if invalid
+            }
+        }
+        if (dto.getCapacityHoles() != null && dto.getCapacityHoles() > 0) {
+            pillar.setCapacityHoles(dto.getCapacityHoles());
+        }
+        if (dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) > 0) {
+            pillar.setPrice(dto.getPrice());
+        }
+        if (dto.getDefaultTreeId() != null) {
+            if (dto.getDefaultTreeId() > 0) {
+                Tree tree = treeRepository.findById(dto.getDefaultTreeId()).orElse(null);
+                pillar.setDefaultTree(tree);
+            } else {
+                pillar.setDefaultTree(null);
+            }
+        }
+
         pillar.setLocation(location);
         pillar.setImageUrl(dto.getImageUrl());
 
@@ -188,7 +233,18 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     }
 
     private PillarDTO mapToPillarDTO(Pillar p) {
-        return new PillarDTO(p.getId(), p.getPillarCode(), p.getStatus().name(), p.getLocation().getId(), p.getImageUrl());
+        PillarDTO dto = new PillarDTO(p.getId(), p.getPillarCode(), p.getStatus().name(), p.getLocation() != null ? p.getLocation().getId() : null, p.getImageUrl());
+        dto.setPillarType(p.getEffectivePillarType().name());
+        dto.setPillarTypeName(p.getEffectivePillarType().getDisplayName());
+        dto.setCapacityHoles(p.getEffectiveHoles());
+        dto.setPrice(p.getEffectivePrice());
+        dto.setRequiredArea(p.getEffectiveArea());
+        if (p.getDefaultTree() != null) {
+            dto.setDefaultTreeId(p.getDefaultTree().getId());
+            dto.setDefaultTreeName(p.getDefaultTree().getTreeName());
+            dto.setDefaultTreePrice(p.getDefaultTree().getPrice());
+        }
+        return dto;
     }
 
     // ==========================================
@@ -220,8 +276,24 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             selectedPillarIds.add(dto.getPillarId());
         }
 
-        if (selectedPillarIds.size() > maxPillars) {
-            throw new IllegalArgumentException("Ô vườn diện tích " + area + " m² chỉ được gán tối đa " + maxPillars + " trụ (quy chuẩn 1.5 m²/trụ). Bạn đang chọn " + selectedPillarIds.size() + " trụ.");
+        List<Pillar> pillarsToAssign = new ArrayList<>();
+        double totalRequiredArea = 0.0;
+        BigDecimal calculatedPillarsPrice = BigDecimal.ZERO;
+        if (!selectedPillarIds.isEmpty()) {
+            pillarsToAssign = pillarRepository.findAllById(selectedPillarIds);
+            for (Pillar p : pillarsToAssign) {
+                if (location != null && p.getLocation() != null && !p.getLocation().getId().equals(location.getId())) {
+                    throw new IllegalArgumentException("Trụ " + p.getPillarCode() + " không thuộc cùng cơ sở với ô vườn.");
+                }
+                totalRequiredArea += p.getEffectiveArea();
+                calculatedPillarsPrice = calculatedPillarsPrice.add(p.getEffectivePrice());
+            }
+        }
+
+        if (totalRequiredArea > area) {
+            throw new IllegalArgumentException(String.format(
+                "Ô vườn diện tích %.1f m² không đủ chỗ cho các trụ đã chọn (cần tối thiểu %.1f m² theo quy chuẩn không gian từng loại trụ: Nhỏ 1.0 m², Vừa 1.5 m², Lớn 2.0 m²).",
+                area, totalRequiredArea));
         }
 
         GardenSlot slot = new GardenSlot();
@@ -234,7 +306,12 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             throw new IllegalArgumentException("Invalid slot status. Must be AVAILABLE, RENTED, or MAINTENANCE");
         }
         slot.setStatus(status);
-        slot.setPrice(dto.getPrice());
+        
+        // Auto-assign calculated price if price is not provided or zero
+        BigDecimal finalPrice = (dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) > 0)
+                ? dto.getPrice()
+                : (calculatedPillarsPrice.compareTo(BigDecimal.ZERO) > 0 ? calculatedPillarsPrice : BigDecimal.valueOf(500000));
+        slot.setPrice(finalPrice);
         slot.setArea(area);
         slot.setMaxPillars(maxPillars);
         slot.setImageUrl(dto.getImageUrl());
@@ -243,12 +320,8 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         GardenSlot saved = gardenSlotRepository.save(slot);
 
         // Assign selected pillars to this slot
-        if (!selectedPillarIds.isEmpty()) {
-            List<Pillar> pillarsToAssign = pillarRepository.findAllById(selectedPillarIds);
+        if (!pillarsToAssign.isEmpty()) {
             for (Pillar p : pillarsToAssign) {
-                if (location != null && p.getLocation() != null && !p.getLocation().getId().equals(location.getId())) {
-                    throw new IllegalArgumentException("Trụ " + p.getPillarCode() + " không thuộc cùng cơ sở với ô vườn.");
-                }
                 p.setGardenSlot(saved);
                 if (location != null && p.getLocation() == null) {
                     p.setLocation(location);
@@ -289,8 +362,21 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             selectedPillarIds.add(dto.getPillarId());
         }
 
-        if (selectedPillarIds.size() > maxPillars) {
-            throw new IllegalArgumentException("Ô vườn diện tích " + area + " m² chỉ được gán tối đa " + maxPillars + " trụ (quy chuẩn 1.5 m²/trụ). Bạn đang chọn " + selectedPillarIds.size() + " trụ.");
+        List<Pillar> newPillars = new ArrayList<>();
+        double totalRequiredArea = 0.0;
+        BigDecimal calculatedPillarsPrice = BigDecimal.ZERO;
+        if (!selectedPillarIds.isEmpty()) {
+            newPillars = pillarRepository.findAllById(selectedPillarIds);
+            for (Pillar p : newPillars) {
+                totalRequiredArea += p.getEffectiveArea();
+                calculatedPillarsPrice = calculatedPillarsPrice.add(p.getEffectivePrice());
+            }
+        }
+
+        if (totalRequiredArea > area) {
+            throw new IllegalArgumentException(String.format(
+                "Ô vườn diện tích %.1f m² không đủ chỗ cho các trụ đã chọn (cần tối thiểu %.1f m² theo quy chuẩn không gian từng loại trụ: Nhỏ 1.0 m², Vừa 1.5 m², Lớn 2.0 m²).",
+                area, totalRequiredArea));
         }
 
         slot.setSlotNumber(dto.getSlotNumber().trim());
@@ -301,7 +387,11 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
                 throw new IllegalArgumentException("Invalid slot status. Must be AVAILABLE, RENTED, or MAINTENANCE");
             }
         }
-        slot.setPrice(dto.getPrice());
+        
+        BigDecimal finalPrice = (dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) > 0)
+                ? dto.getPrice()
+                : (calculatedPillarsPrice.compareTo(BigDecimal.ZERO) > 0 ? calculatedPillarsPrice : slot.getPrice());
+        slot.setPrice(finalPrice);
         slot.setArea(area);
         slot.setMaxPillars(maxPillars);
         slot.setImageUrl(dto.getImageUrl());
@@ -319,8 +409,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         }
 
         // Assign newly selected pillars
-        if (!selectedPillarIds.isEmpty()) {
-            List<Pillar> newPillars = pillarRepository.findAllById(selectedPillarIds);
+        if (!newPillars.isEmpty()) {
             for (Pillar p : newPillars) {
                 p.setGardenSlot(slot);
                 if (slot.getLocation() != null) {
@@ -371,6 +460,10 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         Double area = s.getArea() != null ? s.getArea() : 3.0;
         Integer maxPillars = s.getMaxPillars() != null ? s.getMaxPillars() : Math.max(1, (int) Math.floor(area / 1.5));
 
+        int totalHoles = slotPillars.stream().mapToInt(Pillar::getEffectiveHoles).sum();
+        BigDecimal calculatedPillarsPrice = slotPillars.stream().map(Pillar::getEffectivePrice).reduce(BigDecimal.ZERO, BigDecimal::add);
+        double requiredArea = slotPillars.stream().mapToDouble(Pillar::getEffectiveArea).sum();
+
         GardenSlotDTO dto = new GardenSlotDTO();
         dto.setId(s.getId());
         dto.setSlotNumber(s.getSlotNumber());
@@ -383,6 +476,9 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         dto.setPillarId(singlePillarId);
         dto.setPillarIds(pIds);
         dto.setPillarCodes(pCodes);
+        dto.setTotalHoles(totalHoles);
+        dto.setCalculatedPillarsPrice(calculatedPillarsPrice);
+        dto.setRequiredArea(requiredArea);
         dto.setImageUrl(s.getImageUrl());
         return dto;
     }

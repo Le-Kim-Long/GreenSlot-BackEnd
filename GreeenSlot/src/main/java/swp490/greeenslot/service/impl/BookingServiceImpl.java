@@ -41,6 +41,9 @@ public class BookingServiceImpl implements BookingService {
     private UserRepository userRepository;
 
     @Autowired
+    private TreeRepository treeRepository;
+
+    @Autowired
     private VNPayUtils vnPayUtils;
 
     @Autowired
@@ -99,7 +102,36 @@ public class BookingServiceImpl implements BookingService {
         if (months > 120) {
             throw new IllegalArgumentException("Duration cannot exceed 120 months");
         }
-        BigDecimal amount = slot.getPrice().multiply(new BigDecimal(months));
+
+        // Resolve tree if selected or from slot pillars
+        Tree selectedTree = null;
+        if (request.getTreeId() != null && request.getTreeId() > 0) {
+            selectedTree = treeRepository.findById(request.getTreeId()).orElse(null);
+        }
+        if (selectedTree == null && slot.getPillars() != null && !slot.getPillars().isEmpty()) {
+            selectedTree = slot.getPillars().stream()
+                    .map(Pillar::getDefaultTree)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        // Calculate amount:
+        // Monthly slot price * months + (Tree seed/package price * pillar count)
+        BigDecimal monthlySlotPrice = (slot.getPrice() != null && slot.getPrice().compareTo(BigDecimal.ZERO) > 0)
+                ? slot.getPrice()
+                : slot.calculateTotalPillarsPrice();
+        if (monthlySlotPrice == null || monthlySlotPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            monthlySlotPrice = BigDecimal.valueOf(500000);
+        }
+
+        int pillarCount = (slot.getPillars() != null && !slot.getPillars().isEmpty()) ? slot.getPillars().size() : 1;
+        BigDecimal treeCost = BigDecimal.ZERO;
+        if (selectedTree != null && selectedTree.getPrice() != null && selectedTree.getPrice().compareTo(BigDecimal.ZERO) > 0) {
+            treeCost = selectedTree.getPrice().multiply(new BigDecimal(pillarCount));
+        }
+
+        BigDecimal amount = monthlySlotPrice.multiply(new BigDecimal(months)).add(treeCost);
 
         LocalDateTime start = request.getStartTime();
         LocalDateTime now = LocalDateTime.now();
@@ -119,6 +151,10 @@ public class BookingServiceImpl implements BookingService {
         rental.setStartTime(start);
         rental.setEndTime(end);
         rental.setStatus(ERentalStatus.PENDING);
+        if (selectedTree != null) {
+            rental.setTree(selectedTree);
+            rental.setTreeStatus(ETreeStatus.HEALTHY);
+        }
         rental = slotRentalRepository.save(rental);
 
         // Set slot status to PENDING_PAYMENT to reserve it temporarily
@@ -138,7 +174,7 @@ public class BookingServiceImpl implements BookingService {
         txn.setStatus(EPaymentStatus.PENDING);
         paymentTransactionRepository.save(txn);
 
-        String orderInfo = "GreenSlot - Thue vuon " + slot.getSlotNumber() + " trong " + months + " thang";
+        String orderInfo = "GreenSlot - Thue vuon " + slot.getSlotNumber() + " (" + pillarCount + " tru) trong " + months + " thang";
         boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
         String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile);
 

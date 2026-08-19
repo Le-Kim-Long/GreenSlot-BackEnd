@@ -20,6 +20,16 @@ public class BookingRequestDTO {
 
     private Boolean isMobile;
 
+    private Long treeId;
+
+    public Long getTreeId() {
+        return treeId;
+    }
+
+    public void setTreeId(Long treeId) {
+        this.treeId = treeId;
+    }
+
     public Long getSlotId() {
         return slotId;
     }

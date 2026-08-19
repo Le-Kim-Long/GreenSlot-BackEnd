@@ -42,6 +42,12 @@ public class GardenSlotDTO {
 
     private List<String> pillarCodes = new ArrayList<>();
 
+    private Integer totalHoles;
+
+    private BigDecimal calculatedPillarsPrice;
+
+    private Double requiredArea;
+
     private String imageUrl;
 
     public GardenSlotDTO(Long id, String slotNumber, String status, BigDecimal price, Long pillarId, String imageUrl) {

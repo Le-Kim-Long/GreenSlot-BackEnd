@@ -86,4 +86,31 @@ public class GardenSlot {
             }
         }
     }
+
+    public double calculateTotalRequiredArea() {
+        if (this.pillars == null || this.pillars.isEmpty()) {
+            return 0.0;
+        }
+        return this.pillars.stream()
+                .mapToDouble(Pillar::getEffectiveArea)
+                .sum();
+    }
+
+    public int calculateTotalHoles() {
+        if (this.pillars == null || this.pillars.isEmpty()) {
+            return 0;
+        }
+        return this.pillars.stream()
+                .mapToInt(Pillar::getEffectiveHoles)
+                .sum();
+    }
+
+    public BigDecimal calculateTotalPillarsPrice() {
+        if (this.pillars == null || this.pillars.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        return this.pillars.stream()
+                .map(Pillar::getEffectivePrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 }
