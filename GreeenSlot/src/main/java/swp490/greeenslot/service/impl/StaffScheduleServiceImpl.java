@@ -28,9 +28,14 @@ public class StaffScheduleServiceImpl implements StaffScheduleService {
     @Autowired
     private LocationRepository locationRepository;
 
+    @Autowired
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
     @Override
     public List<StaffScheduleDTO> getAllSchedules() {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         return staffScheduleRepository.findAll().stream()
+                .filter(s -> targetLocationId == null || (s.getLocation() != null && targetLocationId.equals(s.getLocation().getId())))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
@@ -103,7 +108,9 @@ public class StaffScheduleServiceImpl implements StaffScheduleService {
 
     @Override
     public List<StaffScheduleDTO> getSchedulesByDate(LocalDate date) {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         return staffScheduleRepository.findByScheduleDate(date).stream()
+                .filter(s -> targetLocationId == null || (s.getLocation() != null && targetLocationId.equals(s.getLocation().getId())))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }

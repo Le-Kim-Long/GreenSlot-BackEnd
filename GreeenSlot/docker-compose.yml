@@ -13,7 +13,7 @@ services:
     volumes:
       - mssql_data:/var/opt/mssql
     healthcheck:
-      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "GreenSlotPassword123!", "-Q", "SELECT 1"]
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "GreenSlotPassword123!", "-C", "-Q", "SELECT 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -24,7 +24,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    entrypoint: /bin/bash -c "/opt/mssql-tools/bin/sqlcmd -S db -U sa -P 'GreenSlotPassword123!' -Q \"IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'GreenSlotDB') CREATE DATABASE GreenSlotDB\""
+    entrypoint: /bin/bash -c "/opt/mssql-tools18/bin/sqlcmd -S db -U sa -P 'GreenSlotPassword123!' -C -Q \"IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'GreenSlotDB') CREATE DATABASE GreenSlotDB\""
 
   web:
     build: .

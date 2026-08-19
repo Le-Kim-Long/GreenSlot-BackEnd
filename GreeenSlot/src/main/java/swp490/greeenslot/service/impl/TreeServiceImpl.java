@@ -4,7 +4,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import swp490.greeenslot.dto.TreeDTO;
+import swp490.greeenslot.entity.Alert;
+import swp490.greeenslot.entity.Pillar;
+import swp490.greeenslot.entity.SlotRental;
 import swp490.greeenslot.entity.Tree;
+import swp490.greeenslot.entity.TreePlantingRequest;
+import swp490.greeenslot.repository.AlertProcessingLogRepository;
+import swp490.greeenslot.repository.AlertRepository;
+import swp490.greeenslot.repository.PaymentTransactionRepository;
+import swp490.greeenslot.repository.PillarRepository;
+import swp490.greeenslot.repository.SlotRentalRepository;
+import swp490.greeenslot.repository.TreePlantingRequestRepository;
 import swp490.greeenslot.repository.TreeRepository;
 import swp490.greeenslot.service.TreeService;
 
@@ -16,6 +26,24 @@ public class TreeServiceImpl implements TreeService {
 
     @Autowired
     private TreeRepository treeRepository;
+
+    @Autowired
+    private AlertRepository alertRepository;
+
+    @Autowired
+    private AlertProcessingLogRepository alertProcessingLogRepository;
+
+    @Autowired
+    private PillarRepository pillarRepository;
+
+    @Autowired
+    private SlotRentalRepository slotRentalRepository;
+
+    @Autowired
+    private PaymentTransactionRepository paymentTransactionRepository;
+
+    @Autowired
+    private TreePlantingRequestRepository treePlantingRequestRepository;
 
     @Override
     public List<TreeDTO> getAllTrees() {
@@ -65,6 +93,28 @@ public class TreeServiceImpl implements TreeService {
     public void forceDeleteTree(Long id) {
         Tree tree = treeRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Tree not found with id: " + id));
+
+        List<Alert> alerts = alertRepository.findByTree(tree);
+        for (Alert alert : alerts) {
+            alertProcessingLogRepository.deleteAll(alertProcessingLogRepository.findByAlert(alert));
+        }
+        alertRepository.deleteAll(alerts);
+
+        List<Pillar> pillarsWithDefault = pillarRepository.findByDefaultTree(tree);
+        pillarsWithDefault.forEach(p -> p.setDefaultTree(null));
+        pillarRepository.saveAll(pillarsWithDefault);
+
+        List<SlotRental> rentals = slotRentalRepository.findByTree(tree);
+        for (SlotRental rental : rentals) {
+            paymentTransactionRepository.deleteAll(
+                    paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(rental.getId()));
+            treePlantingRequestRepository.deleteAll(
+                    treePlantingRequestRepository.findByRental(rental));
+        }
+        slotRentalRepository.deleteAll(rentals);
+
+        treePlantingRequestRepository.deleteAll(treePlantingRequestRepository.findByNewTree(tree));
+
         treeRepository.delete(tree);
     }
 

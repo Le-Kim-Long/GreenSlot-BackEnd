@@ -13,6 +13,7 @@ import swp490.greeenslot.repository.UserRepository;
 import swp490.greeenslot.entity.Location;
 import swp490.greeenslot.entity.Pillar;
 import swp490.greeenslot.entity.EPillarStatus;
+import swp490.greeenslot.entity.EPillarType;
 import swp490.greeenslot.entity.GardenSlot;
 import swp490.greeenslot.entity.ESlotStatus;
 import swp490.greeenslot.entity.Tree;
@@ -94,10 +95,16 @@ public class DataInitializer {
                     "manager", "manager@greenslot.vn", defaultPassword, "Quản lý", "0900000002", ERole.ROLE_MANAGER);
 
             createDefaultUser(userRepository, roleRepository, passwordEncoder,
-                    "location_manager", "location@greenslot.vn", defaultPassword, "Quản lý Cơ sở", "0900000003", ERole.ROLE_LOCATION_MANAGER);
+                    "location_manager", "location@greenslot.vn", defaultPassword, "Quản lý Cơ sở Quận 1", "0900000003", ERole.ROLE_LOCATION_MANAGER);
 
             createDefaultUser(userRepository, roleRepository, passwordEncoder,
-                    "garden_staff", "staff@greenslot.vn", defaultPassword, "Nhân viên Vườn", "0900000004", ERole.ROLE_GARDEN_STAFF);
+                    "location_manager_q7", "location_q7@greenslot.vn", defaultPassword, "Quản lý Cơ sở Quận 7", "0900000007", ERole.ROLE_LOCATION_MANAGER);
+
+            createDefaultUser(userRepository, roleRepository, passwordEncoder,
+                    "garden_staff", "staff@greenslot.vn", defaultPassword, "Nhân viên Vườn Quận 1", "0900000004", ERole.ROLE_GARDEN_STAFF);
+
+            createDefaultUser(userRepository, roleRepository, passwordEncoder,
+                    "garden_staff_q7", "staff_q7@greenslot.vn", defaultPassword, "Nhân viên Vườn Quận 7", "0900000008", ERole.ROLE_GARDEN_STAFF);
 
             createDefaultUser(userRepository, roleRepository, passwordEncoder,
                     "customer", "customer@greenslot.vn", defaultPassword, "Khách hàng mẫu", "0900000005",
@@ -113,7 +120,15 @@ public class DataInitializer {
                 location1.setArea(1000.0);
                 locationRepository.save(location1);
 
-                // Assign default location to default staff users
+                Location location2 = new Location();
+                location2.setName("Cơ sở Quận 7");
+                location2.setAddress("456 Nguyễn Văn Linh, Quận 7, TP.HCM");
+                location2.setContactPhone("0907654321");
+                location2.setStatus("ACTIVE");
+                location2.setArea(1500.0);
+                locationRepository.save(location2);
+
+                // Assign location to staff users
                 userRepository.findByUsername("location_manager").ifPresent(u -> {
                     u.setLocation(location1);
                     userRepository.save(u);
@@ -122,31 +137,225 @@ public class DataInitializer {
                     u.setLocation(location1);
                     userRepository.save(u);
                 });
+                userRepository.findByUsername("location_manager_q7").ifPresent(u -> {
+                    u.setLocation(location2);
+                    userRepository.save(u);
+                });
+                userRepository.findByUsername("garden_staff_q7").ifPresent(u -> {
+                    u.setLocation(location2);
+                    userRepository.save(u);
+                });
 
-                Pillar pillar1 = new Pillar();
-                pillar1.setPillarCode("P-Q1-01");
-                pillar1.setStatus(EPillarStatus.ACTIVE);
-                pillar1.setLocation(location1);
-                pillarRepository.save(pillar1);
-
+                // 1. Tạo Ô vườn S-Q1-01 thuộc Cơ sở Q1, chứa 2 trụ (P-Q1-01A, P-Q1-01B)
                 GardenSlot slot1 = new GardenSlot();
-                slot1.setSlotNumber("S-Q1-01-A");
+                slot1.setSlotNumber("S-Q1-01");
                 slot1.setStatus(ESlotStatus.AVAILABLE);
                 slot1.setPrice(BigDecimal.valueOf(500000));
-                slot1.setPillar(pillar1);
+                slot1.setArea(5.0);
+                slot1.setMaxPillars(3);
+                slot1.setLocation(location1);
                 gardenSlotRepository.save(slot1);
 
+                Pillar pillar1A = new Pillar();
+                pillar1A.setPillarCode("P-Q1-01A");
+                pillar1A.setStatus(EPillarStatus.ACTIVE);
+                pillar1A.setPillarType(EPillarType.LARGE);
+                pillar1A.setCapacityHoles(48);
+                pillar1A.setPrice(BigDecimal.valueOf(300000));
+                pillar1A.setLocation(location1);
+                pillar1A.setGardenSlot(slot1);
+                pillar1A.setCameraStreamUrl("http://10.10.10.242/capture");
+                pillar1A.setCameraStatus("ONLINE");
+                pillarRepository.save(pillar1A);
+
+                Pillar pillar1B = new Pillar();
+                pillar1B.setPillarCode("P-Q1-01B");
+                pillar1B.setStatus(EPillarStatus.ACTIVE);
+                pillar1B.setPillarType(EPillarType.MEDIUM);
+                pillar1B.setCapacityHoles(36);
+                pillar1B.setPrice(BigDecimal.valueOf(200000));
+                pillar1B.setLocation(location1);
+                pillar1B.setGardenSlot(slot1);
+                pillarRepository.save(pillar1B);
+
+                // 2. Tạo Ô vườn S-Q1-02 thuộc Cơ sở Q1, chứa 2 trụ (P-Q1-02A, P-Q1-02B)
                 GardenSlot slot2 = new GardenSlot();
-                slot2.setSlotNumber("S-Q1-01-B");
+                slot2.setSlotNumber("S-Q1-02");
                 slot2.setStatus(ESlotStatus.AVAILABLE);
                 slot2.setPrice(BigDecimal.valueOf(500000));
-                slot2.setPillar(pillar1);
+                slot2.setArea(6.0);
+                slot2.setMaxPillars(4);
+                slot2.setLocation(location1);
                 gardenSlotRepository.save(slot2);
 
-                System.out.println("[DataInitializer] Created sample Location, Pillar, and GardenSlots.");
+                Pillar pillar2A = new Pillar();
+                pillar2A.setPillarCode("P-Q1-02A");
+                pillar2A.setStatus(EPillarStatus.ACTIVE);
+                pillar2A.setPillarType(EPillarType.MEDIUM);
+                pillar2A.setCapacityHoles(36);
+                pillar2A.setPrice(BigDecimal.valueOf(200000));
+                pillar2A.setLocation(location1);
+                pillar2A.setGardenSlot(slot2);
+                pillarRepository.save(pillar2A);
+
+                Pillar pillar2B = new Pillar();
+                pillar2B.setPillarCode("P-Q1-02B");
+                pillar2B.setStatus(EPillarStatus.ACTIVE);
+                pillar2B.setPillarType(EPillarType.LARGE);
+                pillar2B.setCapacityHoles(48);
+                pillar2B.setPrice(BigDecimal.valueOf(300000));
+                pillar2B.setLocation(location1);
+                pillar2B.setGardenSlot(slot2);
+                pillarRepository.save(pillar2B);
+
+                // 3. Tạo Ô vườn S-Q7-01 thuộc Cơ sở Q7, chứa 2 trụ (P-Q7-01A, P-Q7-01B)
+                GardenSlot slot3 = new GardenSlot();
+                slot3.setSlotNumber("S-Q7-01");
+                slot3.setStatus(ESlotStatus.AVAILABLE);
+                slot3.setPrice(BigDecimal.valueOf(600000));
+                slot3.setArea(8.0);
+                slot3.setMaxPillars(5);
+                slot3.setLocation(location2);
+                gardenSlotRepository.save(slot3);
+
+                Pillar pillar3A = new Pillar();
+                pillar3A.setPillarCode("P-Q7-01A");
+                pillar3A.setStatus(EPillarStatus.ACTIVE);
+                pillar3A.setPillarType(EPillarType.LARGE);
+                pillar3A.setCapacityHoles(48);
+                pillar3A.setPrice(BigDecimal.valueOf(300000));
+                pillar3A.setLocation(location2);
+                pillar3A.setGardenSlot(slot3);
+                pillarRepository.save(pillar3A);
+
+                Pillar pillar3B = new Pillar();
+                pillar3B.setPillarCode("P-Q7-01B");
+                pillar3B.setStatus(EPillarStatus.ACTIVE);
+                pillar3B.setPillarType(EPillarType.LARGE);
+                pillar3B.setCapacityHoles(48);
+                pillar3B.setPrice(BigDecimal.valueOf(300000));
+                pillar3B.setLocation(location2);
+                pillar3B.setGardenSlot(slot3);
+                pillarRepository.save(pillar3B);
+
+                System.out.println("[DataInitializer] Created sample Locations (Q1 & Q7), GardenSlots (1 Location -> N Slots), and Pillars (1 Slot -> N Pillars).");
+            } else {
+                // Ensure Q7 exists and location_manager_q7 is mapped if present
+                if (locationRepository.findByName("Cơ sở Quận 7").isEmpty()) {
+                    Location location2 = new Location();
+                    location2.setName("Cơ sở Quận 7");
+                    location2.setAddress("456 Nguyễn Văn Linh, Quận 7, TP.HCM");
+                    location2.setContactPhone("0907654321");
+                    location2.setStatus("ACTIVE");
+                    location2.setArea(1500.0);
+                    Location savedQ7 = locationRepository.save(location2);
+
+                    userRepository.findByUsername("location_manager_q7").ifPresent(u -> {
+                        u.setLocation(savedQ7);
+                        userRepository.save(u);
+                    });
+                    userRepository.findByUsername("garden_staff_q7").ifPresent(u -> {
+                        u.setLocation(savedQ7);
+                        userRepository.save(u);
+                    });
+                }
+
+                // Ensure Pillar arduino-greenhouse-01 is created and mapped for IoT Hardware testing
+                if (pillarRepository.findByPillarCode("arduino-greenhouse-01").isEmpty()) {
+                    Location loc1 = locationRepository.findByName("Cơ sở Quận 1").orElse(null);
+                    GardenSlot slot1Db = gardenSlotRepository.findBySlotNumber("S-Q1-01").orElse(null);
+                    if (loc1 != null) {
+                        Pillar iotPillar = new Pillar();
+                        iotPillar.setPillarCode("arduino-greenhouse-01");
+                        iotPillar.setStatus(EPillarStatus.ACTIVE);
+                        iotPillar.setPillarType(EPillarType.MEDIUM);
+                        iotPillar.setCapacityHoles(36);
+                        iotPillar.setPrice(BigDecimal.valueOf(200000));
+                        iotPillar.setLocation(loc1);
+                        iotPillar.setGardenSlot(slot1Db);
+                        pillarRepository.save(iotPillar);
+                    }
+                }
             }
 
-            // 4. Khởi tạo dữ liệu mẫu cho Tree
+            // 4. Khởi tạo dữ liệu mẫu cho Tree (Rau ăn lá & Cây ăn quả khí canh)
+            if (treeRepository.findByTreeName("Xà lách xoăn Lollo").isEmpty()) {
+                Tree veg1 = new Tree();
+                veg1.setTreeName("Xà lách xoăn Lollo");
+                veg1.setScientificName("Lactuca sativa var. crispa");
+                veg1.setDescription("Xà lách thủy canh tươi giòn, giàu vitamin, chu kỳ thu hoạch nhanh.");
+                veg1.setHarvestDays(35);
+                veg1.setMinRentalDays(30);
+                veg1.setPrice(BigDecimal.valueOf(20000));
+                veg1.setSoilMoistureMin(60.0);
+                veg1.setSoilMoistureMax(85.0);
+                veg1.setLightMin(6.0);
+                veg1.setLightMax(12.0);
+                veg1.setPhMin(5.8);
+                veg1.setPhMax(6.5);
+                veg1.setCompensationPercentage(50);
+                veg1.setCareInstructions("Kiểm tra dung dịch dinh dưỡng thủy canh ppm 800-1000");
+                veg1.setIsActive(true);
+                treeRepository.save(veg1);
+            }
+            if (treeRepository.findByTreeName("Cải Kale xoăn").isEmpty()) {
+                Tree veg2 = new Tree();
+                veg2.setTreeName("Cải Kale xoăn");
+                veg2.setScientificName("Brassica oleracea var. sabellica");
+                veg2.setDescription("Siêu thực phẩm giàu chất chống oxy hóa, phát triển cực tốt trên trụ khí canh.");
+                veg2.setHarvestDays(45);
+                veg2.setMinRentalDays(30);
+                veg2.setPrice(BigDecimal.valueOf(35000));
+                veg2.setSoilMoistureMin(60.0);
+                veg2.setSoilMoistureMax(80.0);
+                veg2.setLightMin(7.0);
+                veg2.setLightMax(14.0);
+                veg2.setPhMin(6.0);
+                veg2.setPhMax(7.0);
+                veg2.setCompensationPercentage(50);
+                veg2.setCareInstructions("Tưới định kỳ và bổ sung vi lượng sắt");
+                veg2.setIsActive(true);
+                treeRepository.save(veg2);
+            }
+            if (treeRepository.findByTreeName("Cà chua bi Cherry").isEmpty()) {
+                Tree veg3 = new Tree();
+                veg3.setTreeName("Cà chua bi Cherry");
+                veg3.setScientificName("Solanum lycopersicum var. cerasiforme");
+                veg3.setDescription("Cà chua bi ngọt thanh, năng suất chùm cao, phù hợp trụ khí canh lớn.");
+                veg3.setHarvestDays(75);
+                veg3.setMinRentalDays(60);
+                veg3.setPrice(BigDecimal.valueOf(50000));
+                veg3.setSoilMoistureMin(55.0);
+                veg3.setSoilMoistureMax(75.0);
+                veg3.setLightMin(8.0);
+                veg3.setLightMax(16.0);
+                veg3.setPhMin(6.0);
+                veg3.setPhMax(6.8);
+                veg3.setCompensationPercentage(60);
+                veg3.setCareInstructions("Tỉa nhánh phụ và cố định thân leo");
+                veg3.setIsActive(true);
+                treeRepository.save(veg3);
+            }
+            if (treeRepository.findByTreeName("Dâu tây chịu nhiệt").isEmpty()) {
+                Tree veg4 = new Tree();
+                veg4.setTreeName("Dâu tây chịu nhiệt");
+                veg4.setScientificName("Fragaria ananassa");
+                veg4.setDescription("Dâu tây giống Nhật Bản chịu nhiệt đô thị, quả mọng đỏ, thơm ngọt.");
+                veg4.setHarvestDays(90);
+                veg4.setMinRentalDays(90);
+                veg4.setPrice(BigDecimal.valueOf(80000));
+                veg4.setSoilMoistureMin(65.0);
+                veg4.setSoilMoistureMax(85.0);
+                veg4.setLightMin(6.0);
+                veg4.setLightMax(12.0);
+                veg4.setPhMin(5.5);
+                veg4.setPhMax(6.5);
+                veg4.setCompensationPercentage(70);
+                veg4.setCareInstructions("Tránh nắng gắt buổi trưa, thụ phấn bằng quạt gió");
+                veg4.setIsActive(true);
+                treeRepository.save(veg4);
+            }
+
             if (treeRepository.count() == 0) {
                 Tree tree1 = new Tree();
                 tree1.setTreeName("Cây Tràm");

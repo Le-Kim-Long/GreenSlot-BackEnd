@@ -20,4 +20,5 @@ public class TaskAssignmentDTO {
     private String description;
     private String taskType; // MAINTENANCE, CLEANING
     private Long targetSlotId;
+    private String evidenceImageUrl; // optional reference/instruction image
 }

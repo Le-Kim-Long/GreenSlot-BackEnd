@@ -9,12 +9,48 @@ public class RentalHistoryDTO {
     private Long slotId;
     private String slotNumber;
     private String pillarCode;
+    private List<String> pillarCodes = new java.util.ArrayList<>();
+    private List<PillarInfo> pillars = new java.util.ArrayList<>();
     private String locationName;
     private String locationAddress;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private String rentalStatus;
     private List<PaymentTransactionInfo> transactions;
+    private String treeName;
+    private LocalDateTime harvestNotifiedAt;
+    private String harvestDecision;
+    private LocalDateTime plantedAt;
+    private LocalDateTime expectedHarvestAt;
+
+    public static class PillarInfo {
+        private Long id;
+        private String pillarCode;
+        private String status;
+        private String cameraStreamUrl;
+        private String cameraStatus;
+
+        public PillarInfo() {}
+
+        public PillarInfo(Long id, String pillarCode, String status, String cameraStreamUrl, String cameraStatus) {
+            this.id = id;
+            this.pillarCode = pillarCode;
+            this.status = status;
+            this.cameraStreamUrl = cameraStreamUrl;
+            this.cameraStatus = cameraStatus;
+        }
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public String getPillarCode() { return pillarCode; }
+        public void setPillarCode(String pillarCode) { this.pillarCode = pillarCode; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getCameraStreamUrl() { return cameraStreamUrl; }
+        public void setCameraStreamUrl(String cameraStreamUrl) { this.cameraStreamUrl = cameraStreamUrl; }
+        public String getCameraStatus() { return cameraStatus; }
+        public void setCameraStatus(String cameraStatus) { this.cameraStatus = cameraStatus; }
+    }
 
     public static class PaymentTransactionInfo {
         private Long id;
@@ -79,7 +115,9 @@ public class RentalHistoryDTO {
     }
 
     public RentalHistoryDTO(Long rentalId, Long slotId, String slotNumber, String pillarCode, String locationName, String locationAddress,
-                            LocalDateTime startTime, LocalDateTime endTime, String rentalStatus, List<PaymentTransactionInfo> transactions) {
+                            LocalDateTime startTime, LocalDateTime endTime, String rentalStatus, List<PaymentTransactionInfo> transactions,
+                            String treeName, LocalDateTime harvestNotifiedAt, String harvestDecision,
+                            LocalDateTime plantedAt, LocalDateTime expectedHarvestAt) {
         this.rentalId = rentalId;
         this.slotId = slotId;
         this.slotNumber = slotNumber;
@@ -90,6 +128,11 @@ public class RentalHistoryDTO {
         this.endTime = endTime;
         this.rentalStatus = rentalStatus;
         this.transactions = transactions;
+        this.treeName = treeName;
+        this.harvestNotifiedAt = harvestNotifiedAt;
+        this.harvestDecision = harvestDecision;
+        this.plantedAt = plantedAt;
+        this.expectedHarvestAt = expectedHarvestAt;
     }
 
     public Long getRentalId() {
@@ -122,6 +165,22 @@ public class RentalHistoryDTO {
 
     public void setPillarCode(String pillarCode) {
         this.pillarCode = pillarCode;
+    }
+
+    public List<String> getPillarCodes() {
+        return pillarCodes;
+    }
+
+    public void setPillarCodes(List<String> pillarCodes) {
+        this.pillarCodes = pillarCodes;
+    }
+
+    public List<PillarInfo> getPillars() {
+        return pillars;
+    }
+
+    public void setPillars(List<PillarInfo> pillars) {
+        this.pillars = pillars;
     }
 
     public String getLocationName() {
@@ -170,5 +229,45 @@ public class RentalHistoryDTO {
 
     public void setTransactions(List<PaymentTransactionInfo> transactions) {
         this.transactions = transactions;
+    }
+
+    public String getTreeName() {
+        return treeName;
+    }
+
+    public void setTreeName(String treeName) {
+        this.treeName = treeName;
+    }
+
+    public LocalDateTime getHarvestNotifiedAt() {
+        return harvestNotifiedAt;
+    }
+
+    public void setHarvestNotifiedAt(LocalDateTime harvestNotifiedAt) {
+        this.harvestNotifiedAt = harvestNotifiedAt;
+    }
+
+    public String getHarvestDecision() {
+        return harvestDecision;
+    }
+
+    public void setHarvestDecision(String harvestDecision) {
+        this.harvestDecision = harvestDecision;
+    }
+
+    public LocalDateTime getPlantedAt() {
+        return plantedAt;
+    }
+
+    public void setPlantedAt(LocalDateTime plantedAt) {
+        this.plantedAt = plantedAt;
+    }
+
+    public LocalDateTime getExpectedHarvestAt() {
+        return expectedHarvestAt;
+    }
+
+    public void setExpectedHarvestAt(LocalDateTime expectedHarvestAt) {
+        this.expectedHarvestAt = expectedHarvestAt;
     }
 }

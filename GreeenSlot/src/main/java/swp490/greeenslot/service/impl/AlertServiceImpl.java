@@ -9,6 +9,8 @@ import swp490.greeenslot.dto.AlertProcessingRequestDTO;
 import swp490.greeenslot.entity.*;
 import swp490.greeenslot.repository.*;
 import swp490.greeenslot.service.AlertService;
+import swp490.greeenslot.service.FirebaseMessagingService;
+import swp490.greeenslot.service.NotificationService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,24 +31,64 @@ public class AlertServiceImpl implements AlertService {
     @Autowired
     private PillarRepository pillarRepository;
 
+    @Autowired
+    private GardenSlotRepository gardenSlotRepository;
+
+    @Autowired
+    private TreeRepository treeRepository;
+
+    @Autowired(required = false)
+    private NotificationService notificationService;
+
+    @Autowired(required = false)
+    private FirebaseMessagingService firebaseMessagingService;
+
+    @Autowired(required = false)
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
+    private Long getAlertLocationId(Alert alert) {
+        if (alert == null) return null;
+        if (alert.getPillar() != null && alert.getPillar().getLocation() != null) {
+            return alert.getPillar().getLocation().getId();
+        }
+        if (alert.getGardenSlot() != null && alert.getGardenSlot().getPillar() != null && alert.getGardenSlot().getPillar().getLocation() != null) {
+            return alert.getGardenSlot().getPillar().getLocation().getId();
+        }
+        return null;
+    }
+
+    private boolean isAlertAccessible(Alert alert, Long locationId) {
+        if (locationId == null) return true;
+        Long alertLocId = getAlertLocationId(alert);
+        return alertLocId == null || alertLocId.equals(locationId);
+    }
+
     @Override
     public List<AlertDTO> getAllAlerts() {
+        Long targetLocationId = locationContextService != null ? locationContextService.resolveTargetLocationId(null) : null;
         return alertRepository.findAll().stream()
+                .filter(a -> isAlertAccessible(a, targetLocationId))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     public AlertDTO getAlertById(Long id) {
-        return alertRepository.findById(id)
-                .map(this::mapToDTO)
+        Alert alert = alertRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Alert not found with id: " + id));
+        if (locationContextService != null) {
+            Long alertLocId = getAlertLocationId(alert);
+            locationContextService.validateLocationAccess(alertLocId);
+        }
+        return mapToDTO(alert);
     }
 
     @Override
     public List<AlertDTO> getAlertsByStatus(String status) {
+        Long targetLocationId = locationContextService != null ? locationContextService.resolveTargetLocationId(null) : null;
         EAlertStatus alertStatus = EAlertStatus.valueOf(status.toUpperCase());
         return alertRepository.findByStatus(alertStatus).stream()
+                .filter(a -> isAlertAccessible(a, targetLocationId))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
@@ -55,6 +97,9 @@ public class AlertServiceImpl implements AlertService {
     public List<AlertDTO> getAlertsByPillar(Long pillarId) {
         Pillar pillar = pillarRepository.findById(pillarId)
                 .orElseThrow(() -> new RuntimeException("Pillar not found with id: " + pillarId));
+        if (pillar.getLocation() != null && locationContextService != null) {
+            locationContextService.validateLocationAccess(pillar.getLocation().getId());
+        }
         return alertRepository.findByPillar(pillar).stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
@@ -62,7 +107,9 @@ public class AlertServiceImpl implements AlertService {
 
     @Override
     public List<AlertDTO> getPendingAlerts() {
+        Long targetLocationId = locationContextService != null ? locationContextService.resolveTargetLocationId(null) : null;
         return alertRepository.findByStatusOrderByCreatedAtDesc(EAlertStatus.PENDING).stream()
+                .filter(a -> isAlertAccessible(a, targetLocationId))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
@@ -72,6 +119,10 @@ public class AlertServiceImpl implements AlertService {
     public AlertProcessingLogDTO processAlert(AlertProcessingRequestDTO request, String username) {
         Alert alert = alertRepository.findById(request.getAlertId())
                 .orElseThrow(() -> new RuntimeException("Alert not found with id: " + request.getAlertId()));
+        if (locationContextService != null) {
+            Long alertLocId = getAlertLocationId(alert);
+            locationContextService.validateLocationAccess(alertLocId);
+        }
         
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
@@ -110,6 +161,10 @@ public class AlertServiceImpl implements AlertService {
     public List<AlertProcessingLogDTO> getAlertProcessingLogs(Long alertId) {
         Alert alert = alertRepository.findById(alertId)
                 .orElseThrow(() -> new RuntimeException("Alert not found with id: " + alertId));
+        if (locationContextService != null) {
+            Long alertLocId = getAlertLocationId(alert);
+            locationContextService.validateLocationAccess(alertLocId);
+        }
         return alertProcessingLogRepository.findByAlert(alert).stream()
                 .map(this::mapToLogDTO)
                 .collect(Collectors.toList());
@@ -123,9 +178,48 @@ public class AlertServiceImpl implements AlertService {
 
     @Override
     @Transactional
+    public Alert createAlertForTreeAndSlot(Alert alert, Long slotId, Long treeId) {
+        if (slotId != null) {
+            gardenSlotRepository.findById(slotId).ifPresent(slot -> {
+                alert.setGardenSlot(slot);
+                if (alert.getPillar() == null && slot.getPillar() != null) {
+                    alert.setPillar(slot.getPillar());
+                }
+            });
+        }
+        if (treeId != null) {
+            treeRepository.findById(treeId).ifPresent(alert::setTree);
+        }
+        return alertRepository.save(alert);
+    }
+
+    @Override
+    public List<AlertDTO> getAlertsByTree(Long treeId) {
+        Long targetLocationId = locationContextService != null ? locationContextService.resolveTargetLocationId(null) : null;
+        return alertRepository.findByTreeId(treeId).stream()
+                .filter(a -> isAlertAccessible(a, targetLocationId))
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<AlertDTO> getAlertsBySlot(Long slotId) {
+        Long targetLocationId = locationContextService != null ? locationContextService.resolveTargetLocationId(null) : null;
+        return alertRepository.findByGardenSlotId(slotId).stream()
+                .filter(a -> isAlertAccessible(a, targetLocationId))
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
     public AlertDTO escalateAlert(Long alertId, Long escalateToUserId, String reason) {
         Alert alert = alertRepository.findById(alertId)
                 .orElseThrow(() -> new RuntimeException("Alert not found with id: " + alertId));
+        if (locationContextService != null) {
+            Long alertLocId = getAlertLocationId(alert);
+            locationContextService.validateLocationAccess(alertLocId);
+        }
 
         User escalateToUser = userRepository.findById(escalateToUserId)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + escalateToUserId));
@@ -137,7 +231,30 @@ public class AlertServiceImpl implements AlertService {
 
         Alert savedAlert = alertRepository.save(alert);
 
-        // TODO: Send notification to escalated user via Firebase Messaging
+        String title = "Cảnh báo IoT được chuyển tiếp";
+        String message = String.format("Cảnh báo #%d (%s) đã được chuyển tiếp đến bạn. Lý do: %s",
+                savedAlert.getId(),
+                savedAlert.getAlertType() != null ? savedAlert.getAlertType() : "Sự cố cảm biến",
+                reason != null ? reason : "Cần xử lý khẩn cấp");
+
+        if (notificationService != null) {
+            notificationService.createNotification(
+                    escalateToUserId,
+                    title,
+                    message,
+                    "ALERT_ESCALATED",
+                    savedAlert.getId(),
+                    "/dashboard/manager/alerts"
+            );
+        }
+
+        if (firebaseMessagingService != null) {
+            firebaseMessagingService.sendPushNotification(
+                    escalateToUserId,
+                    title,
+                    message
+            );
+        }
 
         return mapToDTO(savedAlert);
     }

@@ -13,6 +13,8 @@ public class ProfileResponseDTO {
     private String phone;
     private String address;
     private String imageUrl;
+    private Long locationId;
+    private String locationName;
 
     public ProfileResponseDTO() {}
 
@@ -24,6 +26,10 @@ public class ProfileResponseDTO {
         this.phone = user.getPhone();
         this.address = user.getAddress();
         this.imageUrl = user.getImageUrl();
+        if (user.getLocation() != null) {
+            this.locationId = user.getLocation().getId();
+            this.locationName = user.getLocation().getName();
+        }
     }
 
     public Long getId() {
@@ -80,5 +86,21 @@ public class ProfileResponseDTO {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public Long getLocationId() {
+        return locationId;
+    }
+
+    public void setLocationId(Long locationId) {
+        this.locationId = locationId;
+    }
+
+    public String getLocationName() {
+        return locationName;
+    }
+
+    public void setLocationName(String locationName) {
+        this.locationName = locationName;
     }
 }

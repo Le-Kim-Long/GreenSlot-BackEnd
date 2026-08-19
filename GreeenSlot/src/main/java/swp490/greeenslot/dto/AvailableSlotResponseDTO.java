@@ -8,8 +8,18 @@ public class AvailableSlotResponseDTO {
     private BigDecimal price;
     private String status;
     private String pillarCode;
+    private java.util.List<String> pillarCodes = new java.util.ArrayList<>();
+    private Integer pillarCount;
     private String locationName;
     private String imageUrl;
+    private Long locationId;
+    private String locationAddress;
+    private Double area;
+    private Integer maxPillars;
+    private java.util.List<PillarDetailDTO> pillars = new java.util.ArrayList<>();
+    private Integer totalHoles;
+    private BigDecimal calculatedPillarsPrice;
+    private BigDecimal calculatedTreesPrice;
 
     public AvailableSlotResponseDTO() {
     }
@@ -31,6 +41,18 @@ public class AvailableSlotResponseDTO {
         this.pillarCode = pillarCode;
         this.locationName = locationName;
         this.imageUrl = imageUrl;
+    }
+
+    public AvailableSlotResponseDTO(Long id, String slotNumber, BigDecimal price, String status, String pillarCode, String locationName, String imageUrl, Long locationId, String locationAddress) {
+        this.id = id;
+        this.slotNumber = slotNumber;
+        this.price = price;
+        this.status = status;
+        this.pillarCode = pillarCode;
+        this.locationName = locationName;
+        this.imageUrl = imageUrl;
+        this.locationId = locationId;
+        this.locationAddress = locationAddress;
     }
 
     public Long getId() {
@@ -73,6 +95,22 @@ public class AvailableSlotResponseDTO {
         this.pillarCode = pillarCode;
     }
 
+    public java.util.List<String> getPillarCodes() {
+        return pillarCodes;
+    }
+
+    public void setPillarCodes(java.util.List<String> pillarCodes) {
+        this.pillarCodes = pillarCodes;
+    }
+
+    public Integer getPillarCount() {
+        return pillarCount;
+    }
+
+    public void setPillarCount(Integer pillarCount) {
+        this.pillarCount = pillarCount;
+    }
+
     public String getLocationName() {
         return locationName;
     }
@@ -87,5 +125,69 @@ public class AvailableSlotResponseDTO {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public Long getLocationId() {
+        return locationId;
+    }
+
+    public void setLocationId(Long locationId) {
+        this.locationId = locationId;
+    }
+
+    public String getLocationAddress() {
+        return locationAddress;
+    }
+
+    public void setLocationAddress(String locationAddress) {
+        this.locationAddress = locationAddress;
+    }
+
+    public Double getArea() {
+        return area;
+    }
+
+    public void setArea(Double area) {
+        this.area = area;
+    }
+
+    public Integer getMaxPillars() {
+        return maxPillars;
+    }
+
+    public void setMaxPillars(Integer maxPillars) {
+        this.maxPillars = maxPillars;
+    }
+
+    public java.util.List<PillarDetailDTO> getPillars() {
+        return pillars;
+    }
+
+    public void setPillars(java.util.List<PillarDetailDTO> pillars) {
+        this.pillars = pillars;
+    }
+
+    public Integer getTotalHoles() {
+        return totalHoles;
+    }
+
+    public void setTotalHoles(Integer totalHoles) {
+        this.totalHoles = totalHoles;
+    }
+
+    public BigDecimal getCalculatedPillarsPrice() {
+        return calculatedPillarsPrice;
+    }
+
+    public void setCalculatedPillarsPrice(BigDecimal calculatedPillarsPrice) {
+        this.calculatedPillarsPrice = calculatedPillarsPrice;
+    }
+
+    public BigDecimal getCalculatedTreesPrice() {
+        return calculatedTreesPrice;
+    }
+
+    public void setCalculatedTreesPrice(BigDecimal calculatedTreesPrice) {
+        this.calculatedTreesPrice = calculatedTreesPrice;
     }
 }

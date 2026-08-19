@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Nationalized;
 import java.time.LocalDateTime;
 
 @Entity
@@ -19,10 +20,12 @@ public class GlobalContent {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Nationalized
     @Column(nullable = false)
     private String title;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Nationalized
+    @Column(nullable = false, columnDefinition = "NVARCHAR(MAX)")
     private String content;
 
     @Enumerated(EnumType.STRING)

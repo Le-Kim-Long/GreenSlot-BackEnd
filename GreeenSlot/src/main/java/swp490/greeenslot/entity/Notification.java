@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import org.hibernate.annotations.Nationalized;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -26,14 +28,22 @@ public class Notification {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @Nationalized
     @Column(nullable = false, length = 255)
     private String title;
 
+    @Nationalized
     @Column(nullable = false, length = 4000)
     private String message;
 
     @Column(nullable = false, length = 50)
-    private String type; // SYSTEM, IOT_ALERT
+    private String type; // SYSTEM, IOT_ALERT, TASK_ASSIGNMENT, etc.
+
+    @Column(name = "reference_id")
+    private Long referenceId;
+
+    @Column(name = "action_url", length = 500)
+    private String actionUrl;
 
     @Column(name = "is_read", nullable = false)
     private boolean isRead = false;

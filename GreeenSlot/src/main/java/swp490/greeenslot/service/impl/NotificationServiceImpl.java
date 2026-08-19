@@ -49,6 +49,15 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional
     public Notification createNotification(Long userId, String title, String message, String type) {
+        return createNotification(userId, title, message, type, null, null);
+    }
+
+    @Override
+    @Transactional
+    public Notification createNotification(Long userId, String title, String message, String type, Long referenceId, String actionUrl) {
+        if (userId == null) {
+            throw new IllegalArgumentException("Cannot create notification: userId is required.");
+        }
         if (!userRepository.existsById(userId)) {
             throw new IllegalArgumentException("Cannot create notification: User does not exist with ID: " + userId);
         }
@@ -66,9 +75,45 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setTitle(title);
         notification.setMessage(message);
         notification.setType(type);
+        notification.setReferenceId(referenceId);
+        notification.setActionUrl(actionUrl);
         notification.setRead(false);
         notification.setCreatedAt(LocalDateTime.now());
 
         return notificationRepository.save(notification);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long getUnreadCount(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
+        return getUnreadCount(user.getId());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long getUnreadCount(Long userId) {
+        if (userId == null) {
+            return 0L;
+        }
+        return notificationRepository.countByUserIdAndIsReadFalse(userId);
+    }
+
+    @Override
+    @Transactional
+    public int markAllAsRead(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
+        return markAllAsRead(user.getId());
+    }
+
+    @Override
+    @Transactional
+    public int markAllAsRead(Long userId) {
+        if (userId == null) {
+            return 0;
+        }
+        return notificationRepository.markAllAsReadByUserId(userId);
     }
 }

@@ -15,7 +15,7 @@ import swp490.greeenslot.service.UserService;
 
 import java.security.Principal;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/users")
 @Tag(name = "User Profile", description = "APIs for user profile management")
@@ -23,6 +23,9 @@ public class UserController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private swp490.greeenslot.service.LocationContextService locationContextService;
 
     @GetMapping("/profile")
     @PreAuthorize("isAuthenticated()")
@@ -43,7 +46,8 @@ public class UserController {
     @PreAuthorize("hasAnyRole('ROLE_LOCATION_MANAGER', 'ROLE_MANAGER', 'ROLE_ADMIN')")
     @Operation(summary = "Get list of garden staffs", description = "Retrieves a list of garden staffs, optionally filtered by location.")
     public ResponseEntity<java.util.List<ProfileResponseDTO>> getStaffs(@RequestParam(required = false) Long locationId) {
-        return ResponseEntity.ok(userService.getStaffs(locationId));
+        Long targetLocationId = locationContextService.resolveTargetLocationId(locationId);
+        return ResponseEntity.ok(userService.getStaffs(targetLocationId));
     }
 
     @PatchMapping("/profile")

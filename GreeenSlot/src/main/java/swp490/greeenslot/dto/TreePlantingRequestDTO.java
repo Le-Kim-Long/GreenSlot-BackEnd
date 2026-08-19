@@ -15,6 +15,8 @@ public class TreePlantingRequestDTO {
     private Long id;
     private Long rentalId;
     private String slotNumber;
+    private Long locationId;
+    private String locationName;
     private Long newTreeId;
     private String newTreeName;
     private Long requestedById;
@@ -26,4 +28,6 @@ public class TreePlantingRequestDTO {
     private LocalDateTime processedAt;
     private Long processedById;
     private String processedByName;
+    private java.math.BigDecimal amount;
+    private String paymentUrl;
 }

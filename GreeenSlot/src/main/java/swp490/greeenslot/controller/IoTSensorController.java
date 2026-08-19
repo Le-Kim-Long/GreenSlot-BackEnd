@@ -25,7 +25,7 @@ import java.util.Optional;
 /**
  * Controller handling IoT operations, telemetry, thresholds, and camera livestreams.
  */
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/iot")
 @Tag(name = "IoT Sensors & Devices", description = "Endpoints for receiving sensor telemetry, threshold boundaries, and camera streams")
@@ -81,7 +81,7 @@ public class IoTSensorController {
     // --- EXISTING SENSOR READINGS READ APIS ---
 
     @GetMapping("/sensors/latest")
-    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Gia tri moi nhat tung loai cam bien theo device")
     public ResponseEntity<List<SensorReadingResponseDTO>> getLatest(
             @Parameter(example = "arduino-greenhouse-01") @RequestParam String deviceId) {
@@ -89,7 +89,7 @@ public class IoTSensorController {
     }
 
     @GetMapping("/sensors/history")
-    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Lich su doc cam bien")
     public ResponseEntity<List<SensorReadingResponseDTO>> getHistory(
             @RequestParam String deviceId,
@@ -98,8 +98,88 @@ public class IoTSensorController {
         return ResponseEntity.ok(sensorReadingService.getHistory(deviceId, sensorType, limit));
     }
 
+    @GetMapping("/slot/{slotId}/pillars")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get all pillars and cameras in a garden slot", description = "Returns all pillars situated within the given garden slot")
+    public ResponseEntity<List<Map<String, Object>>> getSlotPillars(@PathVariable Long slotId) {
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+        List<Pillar> pillars = slot.getPillars();
+        if (pillars == null || pillars.isEmpty()) {
+            if (slot.getPillar() != null) {
+                pillars = List.of(slot.getPillar());
+            } else {
+                pillars = java.util.Collections.emptyList();
+            }
+        }
+        List<Map<String, Object>> result = pillars.stream().map(p -> {
+            Map<String, Object> map = new java.util.HashMap<>();
+            map.put("pillarId", p.getId());
+            map.put("pillarCode", p.getPillarCode());
+            map.put("status", p.getStatus() != null ? p.getStatus().name() : "ACTIVE");
+            map.put("deviceStatus", p.getDeviceStatus() != null ? p.getDeviceStatus() : "UNKNOWN");
+            map.put("cameraStatus", p.getCameraStatus() != null ? p.getCameraStatus() : "UNKNOWN");
+            map.put("cameraStreamUrl", p.getCameraStreamUrl() != null ? p.getCameraStreamUrl() : "");
+            return map;
+        }).toList();
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/device/slot/{slotId}")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Lay thong tin thiet bi IoT theo slot")
+    public ResponseEntity<Map<String, Object>> getDeviceBySlot(@PathVariable Long slotId) {
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+        Pillar pillar = slot.getPillar();
+        if (pillar == null) {
+            throw new IllegalArgumentException("This garden slot is not currently associated with a Pillar.");
+        }
+        Map<String, Object> result = new java.util.HashMap<>();
+        result.put("slotId", slot.getId());
+        result.put("slotNumber", slot.getSlotNumber());
+        result.put("deviceId", pillar.getPillarCode());
+        result.put("pillarId", pillar.getId());
+        result.put("pillarCode", pillar.getPillarCode());
+        result.put("deviceStatus", pillar.getDeviceStatus() != null ? pillar.getDeviceStatus() : "UNKNOWN");
+        result.put("cameraStatus", pillar.getCameraStatus() != null ? pillar.getCameraStatus() : "UNKNOWN");
+        result.put("cameraStreamUrl", pillar.getCameraStreamUrl() != null ? pillar.getCameraStreamUrl() : "");
+        result.put("locationId", pillar.getLocation() != null ? pillar.getLocation().getId() : null);
+        result.put("locationName", pillar.getLocation() != null ? pillar.getLocation().getName() : "");
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/sensors/slot/{slotId}/latest")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Gia tri moi nhat tung loai cam bien theo slot")
+    public ResponseEntity<List<SensorReadingResponseDTO>> getLatestBySlot(@PathVariable Long slotId) {
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+        Pillar pillar = slot.getPillar();
+        if (pillar == null) {
+            throw new IllegalArgumentException("This garden slot is not currently associated with a Pillar.");
+        }
+        return ResponseEntity.ok(sensorReadingService.getLatestReadings(pillar.getPillarCode()));
+    }
+
+    @GetMapping("/sensors/slot/{slotId}/history")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Lich su doc cam bien theo slot")
+    public ResponseEntity<List<SensorReadingResponseDTO>> getHistoryBySlot(
+            @PathVariable Long slotId,
+            @RequestParam(required = false) ESensorType sensorType,
+            @RequestParam(defaultValue = "50") int limit) {
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+        Pillar pillar = slot.getPillar();
+        if (pillar == null) {
+            throw new IllegalArgumentException("This garden slot is not currently associated with a Pillar.");
+        }
+        return ResponseEntity.ok(sensorReadingService.getHistory(pillar.getPillarCode(), sensorType, limit));
+    }
+
     @GetMapping("/sensors/aggregated")
-    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Aggregated sensor data for charts",
             description = "Returns time-series aggregated data (daily or hourly) for chart visualization")
     public ResponseEntity<List<SensorAggregationDTO>> getAggregatedData(
@@ -389,29 +469,7 @@ public class IoTSensorController {
         ));
     }
 
-    @GetMapping("/pump/status")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
-    @Operation(summary = "Get pump status", description = "Get current status of the pump")
-    public ResponseEntity<Map<String, Object>> getPumpStatus() {
-        // Placeholder for IoT integration
-        return ResponseEntity.ok(Map.of(
-                "status", "OFF",
-                "lastUpdated", java.time.LocalDateTime.now()
-        ));
-    }
 
-    @PostMapping("/pump/status")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
-    @Operation(summary = "Control water pump", description = "Send ON/OFF commands to the water pump")
-    public ResponseEntity<Map<String, Object>> updatePumpStatus(
-            @RequestBody Map<String, Object> controlRequest) {
-        
-        // Placeholder for IoT integration
-        return ResponseEntity.ok(Map.of(
-                "message", "Pump status updated",
-                "status", controlRequest.get("status") != null ? controlRequest.get("status") : "OFF"
-        ));
-    }
 
     @PostMapping("/device/{slotId}/plant")
     @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")

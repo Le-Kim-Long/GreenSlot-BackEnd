@@ -12,7 +12,7 @@ import swp490.greeenslot.service.IssueTrendingService;
 import java.time.Instant;
 import java.util.List;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/analytics/trending")
 @Tag(name = "Issue Trending", description = "APIs for issue trending analysis")

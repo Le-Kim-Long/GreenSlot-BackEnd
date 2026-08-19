@@ -15,7 +15,7 @@ import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api")
 @Tag(name = "Gardening Task Workflow", description = "APIs for requesting services, assigning tasks, updating status, and reporting issues")
@@ -66,6 +66,54 @@ public class GardeningTaskController {
         return ResponseEntity.ok(dtoList);
     }
 
+    @GetMapping("/tasks/available")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF')")
+    @Operation(summary = "Get unclaimed tasks at the staff's own location", description = "Tasks not yet assigned to anyone (e.g. auto-created HARVEST tasks) that any staff at the same location can self-claim.")
+    public ResponseEntity<List<GardeningTaskResponseDTO>> getAvailableTasks(Principal principal) {
+        List<GardeningTask> tasks = gardeningTaskService.getAvailableTasks(principal.getName());
+        List<GardeningTaskResponseDTO> dtoList = tasks.stream()
+                .map(this::mapToDTO)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(dtoList);
+    }
+
+    @PostMapping("/tasks/{id}/claim")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF')")
+    @Operation(summary = "Self-claim an unassigned task", description = "Allows a garden staff member to assign an unclaimed task to themselves, without needing a manager to assign it.")
+    public ResponseEntity<GardeningTaskResponseDTO> claimTask(@PathVariable Long id, Principal principal) {
+        GardeningTask task = gardeningTaskService.claimTask(id, principal.getName());
+        return ResponseEntity.ok(mapToDTO(task));
+    }
+
+    @PostMapping("/tasks/{id}/notify-harvest")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF')")
+    @Operation(summary = "Notify the customer that their crop is ready to harvest", description = "Sent by the staff member who claimed the HARVEST task; lets the customer choose to self-harvest or have staff do it.")
+    public ResponseEntity<GardeningTaskResponseDTO> notifyHarvestChoice(@PathVariable Long id, Principal principal) {
+        GardeningTask task = gardeningTaskService.notifyHarvestChoice(id, principal.getName());
+        return ResponseEntity.ok(mapToDTO(task));
+    }
+
+    @GetMapping("/tasks/harvest/eligible-rentals")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF')")
+    @Operation(summary = "Get rentals at the staff's location that currently have a tree planted", description = "Used to let staff pick a rental to notify harvest-ready early, before the tree's growth days are actually up.")
+    public ResponseEntity<List<EligibleHarvestRentalDTO>> getEligibleEarlyHarvestRentals(Principal principal) {
+        return ResponseEntity.ok(gardeningTaskService.getEligibleEarlyHarvestRentals(principal.getName()));
+    }
+
+    @PostMapping("/tasks/harvest/early")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF')")
+    @Operation(summary = "Notify a customer their crop is ready to harvest early", description = "Creates a self-assigned HARVEST task for the given rental and immediately sends the harvest-choice notification, bypassing the growth-day wait.")
+    public ResponseEntity<GardeningTaskResponseDTO> notifyEarlyHarvest(
+            @RequestBody java.util.Map<String, Long> body,
+            Principal principal) {
+        Long rentalId = body.get("rentalId");
+        if (rentalId == null) {
+            throw new IllegalArgumentException("rentalId is required");
+        }
+        GardeningTask task = gardeningTaskService.notifyEarlyHarvest(rentalId, principal.getName());
+        return ResponseEntity.ok(mapToDTO(task));
+    }
+
     @GetMapping("/tasks")
     @PreAuthorize("hasAnyRole('ROLE_LOCATION_MANAGER', 'ROLE_MANAGER', 'ROLE_ADMIN')")
     @Operation(summary = "Get all gardening tasks", description = "Retrieves all gardening tasks in the system, sorted by creation time descending.")
@@ -109,6 +157,17 @@ public class GardeningTaskController {
             @Valid @RequestBody TaskReviewRequestDTO request) {
         
         GardeningTask task = gardeningTaskService.reviewTaskEvidence(id, request);
+        return ResponseEntity.ok(mapToDTO(task));
+    }
+
+    @PatchMapping("/tasks/{id}/evidence")
+    @PreAuthorize("hasAnyRole('ROLE_GARDEN_STAFF', 'ROLE_LOCATION_MANAGER', 'ROLE_MANAGER')")
+    @Operation(summary = "Update task evidence image", description = "Update or re-upload evidence image for a task")
+    public ResponseEntity<GardeningTaskResponseDTO> updateTaskEvidence(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, String> body) {
+        String evidenceImageUrl = body.get("evidenceImageUrl");
+        GardeningTask task = gardeningTaskService.updateEvidenceImage(id, evidenceImageUrl);
         return ResponseEntity.ok(mapToDTO(task));
     }
 

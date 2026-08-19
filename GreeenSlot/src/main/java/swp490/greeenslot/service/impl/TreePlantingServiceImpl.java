@@ -5,21 +5,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import swp490.greeenslot.dto.TreePlantingRequestCreateDTO;
 import swp490.greeenslot.dto.TreePlantingRequestDTO;
-import swp490.greeenslot.entity.EPlantingRequestStatus;
-import swp490.greeenslot.entity.ERentalStatus;
-import swp490.greeenslot.entity.SlotRental;
-import swp490.greeenslot.entity.Tree;
-import swp490.greeenslot.entity.TreePlantingRequest;
-import swp490.greeenslot.entity.User;
+import swp490.greeenslot.entity.*;
+import swp490.greeenslot.repository.GardeningTaskRepository;
+import swp490.greeenslot.repository.PaymentTransactionRepository;
+import swp490.greeenslot.repository.SensorThresholdRepository;
 import swp490.greeenslot.repository.SlotRentalRepository;
 import swp490.greeenslot.repository.TreePlantingRequestRepository;
 import swp490.greeenslot.repository.TreeRepository;
 import swp490.greeenslot.repository.UserRepository;
+import swp490.greeenslot.service.NotificationService;
 import swp490.greeenslot.service.TreePlantingService;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,18 +37,74 @@ public class TreePlantingServiceImpl implements TreePlantingService {
     @Autowired
     private TreeRepository treeRepository;
 
+    @Autowired
+    private SensorThresholdRepository sensorThresholdRepository;
+
+    @Autowired
+    private GardeningTaskRepository gardeningTaskRepository;
+
+    @Autowired
+    private PaymentTransactionRepository paymentTransactionRepository;
+
+    @Autowired(required = false)
+    private swp490.greeenslot.config.VNPayUtils vnPayUtils;
+
+    @Autowired(required = false)
+    private NotificationService notificationService;
+
+    @Autowired(required = false)
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
+    private Long getRequestLocationId(TreePlantingRequest request) {
+        if (request != null && request.getRental() != null && request.getRental().getGardenSlot() != null) {
+            GardenSlot slot = request.getRental().getGardenSlot();
+            if (slot.getLocation() != null) {
+                return slot.getLocation().getId();
+            }
+            if (slot.getPillar() != null && slot.getPillar().getLocation() != null) {
+                return slot.getPillar().getLocation().getId();
+            }
+        }
+        return null;
+    }
+
+    private String getRequestLocationName(TreePlantingRequest request) {
+        if (request != null && request.getRental() != null && request.getRental().getGardenSlot() != null) {
+            GardenSlot slot = request.getRental().getGardenSlot();
+            if (slot.getLocation() != null) {
+                return slot.getLocation().getName();
+            }
+            if (slot.getPillar() != null && slot.getPillar().getLocation() != null) {
+                return slot.getPillar().getLocation().getName();
+            }
+        }
+        return null;
+    }
+
+    private boolean isRequestAccessible(TreePlantingRequest request, Long locationId) {
+        if (locationId == null) return true;
+        Long reqLocId = getRequestLocationId(request);
+        return reqLocId != null && reqLocId.equals(locationId);
+    }
+
     @Override
     public List<TreePlantingRequestDTO> getAllRequests() {
+        Long targetLocationId = locationContextService != null ? locationContextService.resolveTargetLocationId(null) : null;
         return treePlantingRequestRepository.findAll().stream()
+                .filter(r -> isRequestAccessible(r, targetLocationId))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     public TreePlantingRequestDTO getRequestById(Long id) {
-        return treePlantingRequestRepository.findById(id)
-                .map(this::mapToDTO)
+        TreePlantingRequest request = treePlantingRequestRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Tree planting request not found with id: " + id));
+        if (locationContextService != null && locationContextService.isLocationManager()) {
+            Long locId = getRequestLocationId(request);
+            locationContextService.validateLocationAccess(locId);
+        }
+        return mapToDTO(request);
     }
 
     @Override
@@ -75,7 +131,13 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         if (rental.getEndTime() == null || rental.getEndTime().isBefore(now)) {
             throw new IllegalArgumentException("Cannot request planting: Slot rental has already expired.");
         }
-        
+
+        // 3b. Chỉ cho trồng khi ô đất đang trống — không cho gửi yêu cầu thay thế cây đang trồng
+        if (rental.getTree() != null) {
+            throw new IllegalArgumentException("Cannot request planting: This slot already has a tree planted. " +
+                    "You cannot replace it with another tree until the current one is harvested.");
+        }
+
         // 4. Check tree exists and is active
         Tree newTree = treeRepository.findById(dto.getNewTreeId())
                 .orElseThrow(() -> new IllegalArgumentException("Tree not found with id: " + dto.getNewTreeId()));
@@ -107,6 +169,30 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             ));
         }
         
+        List<Pillar> rentedPillars = rental.getRentedPillars();
+        if (rentedPillars == null || rentedPillars.isEmpty()) {
+            if (rental.getGardenSlot() != null && rental.getGardenSlot().getPillars() != null) {
+                rentedPillars = rental.getGardenSlot().getPillars();
+            } else if (rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null) {
+                rentedPillars = List.of(rental.getGardenSlot().getPillar());
+            } else {
+                rentedPillars = java.util.Collections.emptyList();
+            }
+        }
+
+        java.math.BigDecimal totalTreeCost = java.math.BigDecimal.ZERO;
+        if (newTree.getPrice() != null && newTree.getPrice().compareTo(java.math.BigDecimal.ZERO) > 0) {
+            if (!rentedPillars.isEmpty()) {
+                for (Pillar p : rentedPillars) {
+                    double scale = (double) p.getEffectiveHoles() / 24.0;
+                    java.math.BigDecimal scaledPrice = newTree.getPrice().multiply(java.math.BigDecimal.valueOf(scale));
+                    totalTreeCost = totalTreeCost.add(scaledPrice);
+                }
+            } else {
+                totalTreeCost = newTree.getPrice();
+            }
+        }
+
         TreePlantingRequest request = new TreePlantingRequest();
         request.setRental(rental);
         request.setNewTree(newTree);
@@ -114,8 +200,56 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         request.setStatus(EPlantingRequestStatus.PENDING);
         request.setReason(dto.getReason());
         request.setNotes(dto.getNotes());
+        request.setAmount(totalTreeCost);
         
         TreePlantingRequest savedRequest = treePlantingRequestRepository.save(request);
+
+        if (vnPayUtils != null && totalTreeCost.compareTo(java.math.BigDecimal.ZERO) > 0) {
+            String uuid = java.util.UUID.randomUUID().toString().substring(0, 8);
+            String txnRef = "PLANT_" + savedRequest.getId() + "_" + uuid;
+            PaymentTransaction txn = new PaymentTransaction();
+            txn.setRental(rental);
+            txn.setAmount(totalTreeCost);
+            txn.setVnpTxnRef(txnRef);
+            txn.setPaymentDate(LocalDateTime.now());
+            txn.setStatus(EPaymentStatus.PENDING);
+            paymentTransactionRepository.save(txn);
+
+            String orderInfo = "GreenSlot - Mua giong cay " + newTree.getTreeName() + " (" + rentedPillars.size() + " tru)";
+            boolean isMobile = Boolean.TRUE.equals(dto.getIsMobile());
+            String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, totalTreeCost, "127.0.0.1", orderInfo, isMobile);
+            savedRequest.setPaymentUrl(paymentUrl);
+            savedRequest = treePlantingRequestRepository.save(savedRequest);
+        }
+
+        // Notify location managers about planting request
+        if (notificationService != null) {
+            String slotNumber = rental.getGardenSlot() != null ? rental.getGardenSlot().getSlotNumber() : "N/A";
+            Long locId = getRequestLocationId(savedRequest);
+            List<User> managers = locId != null
+                    ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId)
+                    : List.of();
+            if (managers.isEmpty()) {
+                managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
+            }
+            String title = "Yêu cầu trồng cây mới";
+            String message = String.format("Khách hàng %s yêu cầu trồng cây %s tại ô đất %s.",
+                    user.getFullName() != null ? user.getFullName() : username,
+                    newTree.getTreeName(),
+                    slotNumber);
+
+            for (User manager : managers) {
+                notificationService.createNotification(
+                        manager.getId(),
+                        title,
+                        message,
+                        "PLANTING_REQUEST_CREATED",
+                        savedRequest.getId(),
+                        "/dashboard/manager/tree-requests"
+                );
+            }
+        }
+
         return mapToDTO(savedRequest);
     }
 
@@ -124,15 +258,97 @@ public class TreePlantingServiceImpl implements TreePlantingService {
     public TreePlantingRequestDTO approveRequest(Long id, String username) {
         TreePlantingRequest request = treePlantingRequestRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Tree planting request not found with id: " + id));
+        if (locationContextService != null && locationContextService.isLocationManager()) {
+            Long locId = getRequestLocationId(request);
+            locationContextService.validateLocationAccess(locId);
+        }
         
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
-        
+
+        LocalDateTime now = LocalDateTime.now();
         request.setStatus(EPlantingRequestStatus.APPROVED);
         request.setProcessedBy(user);
-        request.setProcessedAt(LocalDateTime.now());
-        
+        request.setProcessedAt(now);
+
+        // Duyệt xong thì cây yêu cầu mới thực sự được trồng vào ô đất của rental này
+        SlotRental rental = request.getRental();
+        Tree newTree = request.getNewTree();
+        rental.setTree(newTree);
+        rental.setTreeStatus(swp490.greeenslot.entity.ETreeStatus.HEALTHY);
+        rental.setPlantedAt(now);
+        rental.setHarvestReminderSent(false);
+        slotRentalRepository.save(rental);
+
+        // Đồng bộ ngưỡng của cây trồng sang cấu hình cảm biến IoT của Trụ (Pillar) thuộc ô đất này
+        if (newTree != null && rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null) {
+            Pillar pillar = rental.getGardenSlot().getPillar();
+            String deviceId = pillar.getPillarCode();
+            if (deviceId != null && !deviceId.isBlank()) {
+                syncTreeThresholdsToDevice(deviceId, newTree);
+            }
+        }
+
         TreePlantingRequest updatedRequest = treePlantingRequestRepository.save(request);
+
+        // Notify customer about approved planting request
+        if (notificationService != null && updatedRequest.getRequestedBy() != null) {
+            String slotNumber = (rental.getGardenSlot() != null) ? rental.getGardenSlot().getSlotNumber() : "N/A";
+            String treeName = updatedRequest.getNewTree() != null ? updatedRequest.getNewTree().getTreeName() : "cây trồng";
+            String title = "Yêu cầu trồng cây đã được duyệt";
+            String message = String.format("Yêu cầu trồng cây %s tại ô đất %s của bạn đã được duyệt.", treeName, slotNumber);
+
+            notificationService.createNotification(
+                    updatedRequest.getRequestedBy().getId(),
+                    title,
+                    message,
+                    "PLANTING_REQUEST_APPROVED",
+                    updatedRequest.getId(),
+                    "/dashboard/customer/rentals"
+            );
+        }
+
+        // Tự động tạo nhiệm vụ chăm sóc cây mới trồng để nhân viên nhận việc (chưa gán ai — hiện trong danh sách "công việc khả dụng")
+        GardenSlot targetSlot = rental.getGardenSlot();
+        if (targetSlot != null) {
+            String slotNumber = targetSlot.getSlotNumber();
+            String treeName = newTree != null ? newTree.getTreeName() : "cây trồng";
+
+            GardeningTask careTask = new GardeningTask();
+            careTask.setTaskName("Kiểm tra & chăm sóc cây mới trồng: " + treeName + " - Ô " + slotNumber);
+            careTask.setDescription(String.format(
+                    "Cây %s vừa được duyệt trồng tại ô %s. Vui lòng kiểm tra đất, cảm biến và chăm sóc ban đầu cho cây.",
+                    treeName, slotNumber));
+            careTask.setStatus(ETaskStatus.PENDING);
+            careTask.setTaskType(ETaskType.MAINTENANCE);
+            careTask.setTargetSlot(targetSlot);
+            careTask.setRequestedBy(request.getRequestedBy());
+            careTask.setAssignedStaff(null);
+            careTask.setCreatedAt(now);
+            GardeningTask savedCareTask = gardeningTaskRepository.save(careTask);
+
+            // Báo cho toàn bộ nhân viên tại location đó biết có việc mới cần nhận
+            if (notificationService != null) {
+                Long locId = getRequestLocationId(request);
+                List<User> staffList = locId != null
+                        ? userRepository.findByRoleNameAndLocation(ERole.ROLE_GARDEN_STAFF, locId)
+                        : List.of();
+                String staffTitle = "Có cây mới cần chăm sóc";
+                String staffMessage = String.format("Cây %s vừa được duyệt trồng tại ô %s. Vào mục nhiệm vụ để nhận việc chăm sóc.",
+                        treeName, slotNumber);
+                for (User staff : staffList) {
+                    notificationService.createNotification(
+                            staff.getId(),
+                            staffTitle,
+                            staffMessage,
+                            "NEW_CARE_TASK_AVAILABLE",
+                            savedCareTask.getId(),
+                            "/dashboard/staff/tasks"
+                    );
+                }
+            }
+        }
+
         return mapToDTO(updatedRequest);
     }
 
@@ -141,6 +357,10 @@ public class TreePlantingServiceImpl implements TreePlantingService {
     public TreePlantingRequestDTO rejectRequest(Long id, String reason, String username) {
         TreePlantingRequest request = treePlantingRequestRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Tree planting request not found with id: " + id));
+        if (locationContextService != null && locationContextService.isLocationManager()) {
+            Long locId = getRequestLocationId(request);
+            locationContextService.validateLocationAccess(locId);
+        }
         
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
@@ -153,6 +373,26 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         }
         
         TreePlantingRequest updatedRequest = treePlantingRequestRepository.save(request);
+
+        // Notify customer about rejected planting request
+        if (notificationService != null && updatedRequest.getRequestedBy() != null) {
+            String slotNumber = (updatedRequest.getRental() != null && updatedRequest.getRental().getGardenSlot() != null)
+                    ? updatedRequest.getRental().getGardenSlot().getSlotNumber() : "N/A";
+            String treeName = updatedRequest.getNewTree() != null ? updatedRequest.getNewTree().getTreeName() : "cây trồng";
+            String title = "Yêu cầu trồng cây bị từ chối";
+            String message = String.format("Yêu cầu trồng cây %s tại ô đất %s bị từ chối. Lý do: %s",
+                    treeName, slotNumber, reason != null ? reason : "Không có lý do cụ thể");
+
+            notificationService.createNotification(
+                    updatedRequest.getRequestedBy().getId(),
+                    title,
+                    message,
+                    "PLANTING_REQUEST_REJECTED",
+                    updatedRequest.getId(),
+                    "/dashboard/customer/rentals"
+            );
+        }
+
         return mapToDTO(updatedRequest);
     }
 
@@ -161,6 +401,10 @@ public class TreePlantingServiceImpl implements TreePlantingService {
     public TreePlantingRequestDTO completeRequest(Long id, String username) {
         TreePlantingRequest request = treePlantingRequestRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Tree planting request not found with id: " + id));
+        if (locationContextService != null && locationContextService.isLocationManager()) {
+            Long locId = getRequestLocationId(request);
+            locationContextService.validateLocationAccess(locId);
+        }
         
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
@@ -175,6 +419,24 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         slotRentalRepository.save(rental);
         
         TreePlantingRequest updatedRequest = treePlantingRequestRepository.save(request);
+
+        // Notify customer about completed planting request
+        if (notificationService != null && updatedRequest.getRequestedBy() != null) {
+            String slotNumber = (rental.getGardenSlot() != null) ? rental.getGardenSlot().getSlotNumber() : "N/A";
+            String treeName = updatedRequest.getNewTree() != null ? updatedRequest.getNewTree().getTreeName() : "cây trồng";
+            String title = "Đã hoàn thành trồng cây";
+            String message = String.format("Cây %s đã được trồng thành công vào ô đất %s.", treeName, slotNumber);
+
+            notificationService.createNotification(
+                    updatedRequest.getRequestedBy().getId(),
+                    title,
+                    message,
+                    "PLANTING_REQUEST_COMPLETED",
+                    updatedRequest.getId(),
+                    "/dashboard/customer/rentals"
+            );
+        }
+
         return mapToDTO(updatedRequest);
     }
 
@@ -189,7 +451,9 @@ public class TreePlantingServiceImpl implements TreePlantingService {
 
     @Override
     public List<TreePlantingRequestDTO> getPendingRequests() {
+        Long targetLocationId = locationContextService != null ? locationContextService.resolveTargetLocationId(null) : null;
         return treePlantingRequestRepository.findByStatus(EPlantingRequestStatus.PENDING).stream()
+                .filter(r -> isRequestAccessible(r, targetLocationId))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
@@ -198,8 +462,10 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         return new TreePlantingRequestDTO(
                 request.getId(),
                 request.getRental() != null ? request.getRental().getId() : null,
-                request.getRental() != null && request.getRental().getGardenSlot() != null ? 
+                request.getRental() != null && request.getRental().getGardenSlot() != null ?
                     request.getRental().getGardenSlot().getSlotNumber() : null,
+                getRequestLocationId(request),
+                getRequestLocationName(request),
                 request.getNewTree() != null ? request.getNewTree().getId() : null,
                 request.getNewTree() != null ? request.getNewTree().getTreeName() : null,
                 request.getRequestedBy() != null ? request.getRequestedBy().getId() : null,
@@ -210,7 +476,38 @@ public class TreePlantingServiceImpl implements TreePlantingService {
                 request.getRequestedAt(),
                 request.getProcessedAt(),
                 request.getProcessedBy() != null ? request.getProcessedBy().getId() : null,
-                request.getProcessedBy() != null ? request.getProcessedBy().getFullName() : null
+                request.getProcessedBy() != null ? request.getProcessedBy().getFullName() : null,
+                request.getAmount(),
+                request.getPaymentUrl()
         );
+    }
+
+    private void syncTreeThresholdsToDevice(String deviceId, Tree tree) {
+        if (tree.getSoilMoistureMin() != null && tree.getSoilMoistureMax() != null) {
+            updateOrCreateThreshold(deviceId, "SOIL_MOISTURE", tree.getSoilMoistureMin(), tree.getSoilMoistureMax());
+        }
+        if (tree.getLightMin() != null && tree.getLightMax() != null) {
+            updateOrCreateThreshold(deviceId, "LIGHT_INTENSITY", tree.getLightMin(), tree.getLightMax());
+        }
+        if (tree.getPhMin() != null && tree.getPhMax() != null) {
+            updateOrCreateThreshold(deviceId, "PH", tree.getPhMin(), tree.getPhMax());
+        }
+    }
+
+    private void updateOrCreateThreshold(String deviceId, String sensorType, Double minVal, Double maxVal) {
+        Optional<SensorThreshold> existing = sensorThresholdRepository.findByDeviceIdAndSensorType(deviceId, sensorType);
+        SensorThreshold threshold;
+        if (existing.isPresent()) {
+            threshold = existing.get();
+            threshold.setMinValue(minVal);
+            threshold.setMaxValue(maxVal);
+        } else {
+            threshold = new SensorThreshold();
+            threshold.setDeviceId(deviceId);
+            threshold.setSensorType(sensorType);
+            threshold.setMinValue(minVal);
+            threshold.setMaxValue(maxVal);
+        }
+        sensorThresholdRepository.save(threshold);
     }
 }

@@ -12,7 +12,7 @@ import swp490.greeenslot.service.EquipmentService;
 
 import java.util.List;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/equipment")
 @Tag(name = "Equipment Management", description = "APIs for managing equipment and tools")

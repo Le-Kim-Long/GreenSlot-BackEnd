@@ -2,25 +2,24 @@ package swp490.greeenslot.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-import swp490.greeenslot.dto.AvailableSlotDTO;
-import swp490.greeenslot.dto.GardeningTaskResponseDTO;
-import swp490.greeenslot.dto.RentalHistoryDTO;
-import swp490.greeenslot.dto.SensorReadingResponseDTO;
-import swp490.greeenslot.dto.ServiceCategoryDTO;
+import swp490.greeenslot.dto.*;
 import swp490.greeenslot.service.CustomerService;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/customer")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @Tag(name = "Customer APIs", description = "APIs for customers to browse and rent garden slots")
 public class CustomerController {
 
@@ -106,6 +105,19 @@ public class CustomerController {
             return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(activeRental);
+    }
+
+    @PostMapping("/rentals/{rentalId}/harvest-decision")
+    @PreAuthorize("hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Submit customer harvest decision (SELF or STAFF)")
+    public ResponseEntity<Map<String, String>> recordHarvestDecision(
+            @PathVariable Long rentalId,
+            @Valid @RequestBody HarvestDecisionRequestDTO request,
+            Authentication authentication) {
+        customerService.recordHarvestDecision(rentalId, request, authentication.getName());
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Harvest decision recorded successfully");
+        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/account/deactivate")

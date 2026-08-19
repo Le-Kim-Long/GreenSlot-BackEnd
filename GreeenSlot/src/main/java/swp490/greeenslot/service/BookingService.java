@@ -17,4 +17,6 @@ public interface BookingService {
     List<RentalHistoryDTO> getRentalHistory(String username);
     void cancelPendingBooking(Long rentalId, String username);
     BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress);
+    BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress, boolean isMobile);
+    void recordHarvestDecision(Long rentalId, String decision, String username);
 }

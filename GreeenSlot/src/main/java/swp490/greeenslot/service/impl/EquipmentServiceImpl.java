@@ -24,24 +24,51 @@ public class EquipmentServiceImpl implements EquipmentService {
     @Autowired
     private PillarRepository pillarRepository;
 
+    @Autowired
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
+    private Long getEquipmentLocationId(Equipment equipment) {
+        if (equipment != null && equipment.getPillar() != null && equipment.getPillar().getLocation() != null) {
+            return equipment.getPillar().getLocation().getId();
+        }
+        return null;
+    }
+
+    private boolean isEquipmentAccessible(Equipment equipment, Long locationId) {
+        if (locationId == null) return true;
+        Long locId = getEquipmentLocationId(equipment);
+        return locId != null && locId.equals(locationId);
+    }
+
     @Override
     public List<EquipmentDTO> getAllEquipment() {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         return equipmentRepository.findAll().stream()
+                .filter(e -> isEquipmentAccessible(e, targetLocationId))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     public EquipmentDTO getEquipmentById(Long id) {
-        return equipmentRepository.findById(id)
-                .map(this::mapToDTO)
+        Equipment equipment = equipmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Equipment not found with id: " + id));
+        Long locId = getEquipmentLocationId(equipment);
+        locationContextService.validateLocationAccess(locId);
+        return mapToDTO(equipment);
     }
 
     @Override
     @Transactional
     public EquipmentDTO createEquipment(EquipmentDTO dto) {
         validateEquipmentDates(dto);
+        if (dto.getPillarId() != null) {
+            Pillar pillar = pillarRepository.findById(dto.getPillarId())
+                    .orElseThrow(() -> new RuntimeException("Pillar not found with id: " + dto.getPillarId()));
+            if (pillar.getLocation() != null) {
+                locationContextService.validateLocationAccess(pillar.getLocation().getId());
+            }
+        }
         Equipment equipment = mapToEntity(dto);
         Equipment savedEquipment = equipmentRepository.save(equipment);
         return mapToDTO(savedEquipment);
@@ -53,7 +80,17 @@ public class EquipmentServiceImpl implements EquipmentService {
         validateEquipmentDates(dto);
         Equipment existingEquipment = equipmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Equipment not found with id: " + id));
-        
+        Long locId = getEquipmentLocationId(existingEquipment);
+        locationContextService.validateLocationAccess(locId);
+
+        if (dto.getPillarId() != null) {
+            Pillar newPillar = pillarRepository.findById(dto.getPillarId())
+                    .orElseThrow(() -> new RuntimeException("Pillar not found with id: " + dto.getPillarId()));
+            if (newPillar.getLocation() != null) {
+                locationContextService.validateLocationAccess(newPillar.getLocation().getId());
+            }
+        }
+
         updateEntityFromDTO(existingEquipment, dto);
         Equipment updatedEquipment = equipmentRepository.save(existingEquipment);
         return mapToDTO(updatedEquipment);
@@ -74,6 +111,8 @@ public class EquipmentServiceImpl implements EquipmentService {
     public void deleteEquipment(Long id) {
         Equipment equipment = equipmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Equipment not found with id: " + id));
+        Long locId = getEquipmentLocationId(equipment);
+        locationContextService.validateLocationAccess(locId);
         equipmentRepository.delete(equipment);
     }
 
@@ -81,6 +120,9 @@ public class EquipmentServiceImpl implements EquipmentService {
     public List<EquipmentDTO> getEquipmentByPillar(Long pillarId) {
         Pillar pillar = pillarRepository.findById(pillarId)
                 .orElseThrow(() -> new RuntimeException("Pillar not found with id: " + pillarId));
+        if (pillar.getLocation() != null) {
+            locationContextService.validateLocationAccess(pillar.getLocation().getId());
+        }
         return equipmentRepository.findByPillar(pillar).stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
@@ -88,8 +130,10 @@ public class EquipmentServiceImpl implements EquipmentService {
 
     @Override
     public List<EquipmentDTO> getEquipmentByStatus(String status) {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         EEquipmentStatus equipmentStatus = EEquipmentStatus.valueOf(status.toUpperCase());
         return equipmentRepository.findByStatus(equipmentStatus).stream()
+                .filter(e -> isEquipmentAccessible(e, targetLocationId))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }

@@ -11,7 +11,7 @@ import swp490.greeenslot.service.AlertAnalyticsService;
 
 import java.time.Instant;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/analytics/alerts")
 @Tag(name = "Alert Analytics", description = "APIs for alert analytics and dashboard metrics")
@@ -20,12 +20,17 @@ public class AlertAnalyticsController {
     @Autowired
     private AlertAnalyticsService alertAnalyticsService;
 
+    @Autowired
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_LOCATION_MANAGER')")
     @Operation(summary = "Get alert analytics", description = "Returns alert analytics metrics for a given date range")
     public ResponseEntity<AlertAnalyticsDTO> getAlertAnalytics(
             @RequestParam Instant startDate,
-            @RequestParam Instant endDate) {
-        return ResponseEntity.ok(alertAnalyticsService.getAlertAnalytics(startDate, endDate));
+            @RequestParam Instant endDate,
+            @RequestParam(required = false) Long locationId) {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(locationId);
+        return ResponseEntity.ok(alertAnalyticsService.getAlertAnalytics(startDate, endDate, targetLocationId));
     }
 }

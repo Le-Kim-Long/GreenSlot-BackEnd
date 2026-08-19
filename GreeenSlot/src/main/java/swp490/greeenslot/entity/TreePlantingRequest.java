@@ -55,6 +55,12 @@ public class TreePlantingRequest {
     @JoinColumn(name = "processed_by")
     private User processedBy;
 
+    @Column(name = "amount", precision = 18, scale = 2)
+    private java.math.BigDecimal amount;
+
+    @Column(name = "payment_url", length = 1000)
+    private String paymentUrl;
+
     @PrePersist
     protected void onCreate() {
         if (requestedAt == null) {

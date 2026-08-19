@@ -30,7 +30,7 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
             @Param("end") LocalDateTime end
     );
 
-    @Query("SELECT t FROM PaymentTransaction t WHERE t.status = 'SUCCESS' AND t.paymentDate BETWEEN :start AND :end AND t.rental.gardenSlot.pillar.location.id = :locationId ORDER BY t.paymentDate ASC")
+    @Query("SELECT t FROM PaymentTransaction t WHERE t.status = 'SUCCESS' AND t.paymentDate BETWEEN :start AND :end AND t.rental.gardenSlot.location.id = :locationId ORDER BY t.paymentDate ASC")
     List<PaymentTransaction> findSuccessfulTransactionsByLocationBetween(
             @Param("locationId") Long locationId,
             @Param("start") LocalDateTime start,

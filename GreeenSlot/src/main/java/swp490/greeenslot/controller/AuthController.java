@@ -13,7 +13,7 @@ import swp490.greeenslot.dto.ResetPasswordRequestDTO;
 import swp490.greeenslot.dto.SignupRequestDTO;
 import swp490.greeenslot.service.AuthService;
 
-@CrossOrigin(origins = {"https://greenslot-frontend4.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -34,10 +34,52 @@ public class AuthController {
         return ResponseEntity.ok(jwtResponse);
     }
 
+    @PostMapping("/google")
+    public ResponseEntity<?> authenticateGoogle(@Valid @RequestBody swp490.greeenslot.dto.GoogleLoginRequestDTO googleRequest, jakarta.servlet.http.HttpServletRequest request) {
+        if (!rateLimiterService.isAllowed(request.getRemoteAddr())) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS)
+                    .body(new MessageResponseDTO("Too many requests. Please try again later."));
+        }
+        try {
+            JwtResponseDTO jwtResponse = authService.authenticateWithGoogle(googleRequest);
+            return ResponseEntity.ok(jwtResponse);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new MessageResponseDTO(e.getMessage()));
+        }
+    }
+
     @PostMapping("/register")
     public ResponseEntity<MessageResponseDTO> register(@Valid @RequestBody SignupRequestDTO signUpRequest) {
         authService.registerUser(signUpRequest);
-        return ResponseEntity.ok(new MessageResponseDTO("User registered successfully!"));
+        return ResponseEntity.ok(new MessageResponseDTO("Mã OTP xác thực đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư!"));
+    }
+
+    @PostMapping("/verify-otp")
+    public ResponseEntity<?> verifyOtp(@Valid @RequestBody swp490.greeenslot.dto.VerifyOtpRequestDTO request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+        if (!rateLimiterService.isAllowed(httpRequest.getRemoteAddr())) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS)
+                    .body(new MessageResponseDTO("Too many requests. Please try again later."));
+        }
+        try {
+            JwtResponseDTO jwtResponse = authService.verifyRegistrationOtp(request);
+            return ResponseEntity.ok(jwtResponse);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new MessageResponseDTO(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/resend-otp")
+    public ResponseEntity<?> resendOtp(@Valid @RequestBody swp490.greeenslot.dto.ResendOtpRequestDTO request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+        if (!rateLimiterService.isAllowed(httpRequest.getRemoteAddr())) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS)
+                    .body(new MessageResponseDTO("Too many requests. Please try again later."));
+        }
+        try {
+            authService.resendRegistrationOtp(request.getEmail());
+            return ResponseEntity.ok(new MessageResponseDTO("Mã OTP mới đã được gửi đến email của bạn!"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new MessageResponseDTO(e.getMessage()));
+        }
     }
 
     @PostMapping("/forgot-password")

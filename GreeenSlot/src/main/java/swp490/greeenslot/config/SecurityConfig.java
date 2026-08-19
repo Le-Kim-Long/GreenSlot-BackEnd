@@ -57,7 +57,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("https://greenslot-frontend4.vercel.app", "*"));
+        configuration.setAllowedOrigins(Arrays.asList("https://green-slot-front-end.vercel.app", "https://greenslot-taupe.vercel.app", "https://greenslot-frontend4.vercel.app", "http://localhost:5173", "http://localhost:3000", "*"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Collections.singletonList("*"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -75,10 +75,12 @@ public class SecurityConfig {
                 auth.requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/cameras/**").permitAll()
                     .requestMatchers("/api/iot/sensors/data").permitAll()
-                    .requestMatchers("/api/iot/device/data").permitAll()
                     .requestMatchers("/api/iot/sensors/types").permitAll()
+                    .requestMatchers("/api/iot/pump/**").permitAll()
                     .requestMatchers("/api/payments/vnpay-ipn", "/api/payments/vnpay-return").permitAll()
                     .requestMatchers("/api/bookings/available").permitAll()
+                    .requestMatchers("/api/images/view/**", "/uploads/**").permitAll()
+                    .requestMatchers("/api/locations/**").permitAll()
                     .requestMatchers(
                             "/",
                             "/error",

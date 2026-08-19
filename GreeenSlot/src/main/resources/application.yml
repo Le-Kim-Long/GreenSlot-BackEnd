@@ -3,40 +3,37 @@ server:
 
 spring:
   profiles:
+    # Defaults to 'sqlserver' for local development
     active: ${SPRING_PROFILES_ACTIVE:sqlserver}
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
-  datasource:
-    # --- CẤU HÌNH DATABASE (POSTGRESQL DEFAULT) ---
-    # SECURITY: All credentials MUST be provided via environment variables in production.
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/GreenSlotDB}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:12345}
-    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
+      max-file-size: 50MB
+      max-request-size: 50MB
   jpa:
     hibernate:
-      # ddl-auto: create for fresh DB; update for existing. On Render first deployment, use 'create'; local dev uses 'update'
       ddl-auto: ${SPRING_JPA_DDL_AUTO:update}
     show-sql: ${SHOW_SQL:false}
     properties:
       hibernate:
         format_sql: true
-        dialect: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.PostgreSQLDialect}
 
   mail:
-    host: ${MAIL_HOST:}
+    host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
+    username: ${MAIL_USERNAME:thongcctse140148@fpt.edu.vn}
+    password: ${MAIL_PASSWORD:gufqvlfnsloyzvcv}
     properties:
       mail:
         smtp:
           auth: true
           starttls:
             enable: true
-
+            required: true
+  # TẠO THÊM KHỐI NÀY ĐỂ KẾT NỐI CAMERA
+  iot:
+    camera:
+      # IP mặc định là của mạch ESP32-CAM. Người khác kéo code về có thể tự đổi IP bằng biến môi trường IOT_CAMERA_URL
+      url: ${IOT_CAMERA_URL:http://10.10.10.242/capture}
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -51,17 +48,19 @@ greeenslot:
     # SECURITY: JWT secret MUST be set via environment variable — no fallback
     jwtSecret: ${JWT_SECRET:YmV6a29kZXJTZWNyZXRLZXlXaGljaE11c3RCZUExbGVhc3QyNTZCaXRzTG9uZ0ZvckpXVA==}
     jwtExpirationMs: ${JWT_EXPIRATION_MS:86400000} # 24 hours
-    frontendResetUrl: ${FRONTEND_RESET_URL:http://localhost:3000/reset-password}
+    frontendResetUrl: ${FRONTEND_RESET_URL:https://green-slot-front-end.vercel.app/reset-password}
     resetTokenExpirationMs: ${RESET_TOKEN_EXPIRATION_MS:3600000} # 1 hour
   vnpay:
     tmnCode: ${VNP_TMN_CODE:1COY3S4A}
     hashSecret: ${VNP_HASH_SECRET:FJTNAGQQ30CITUPLSH4BUTT9OL323SMQ}
     url: ${VNP_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
-    returnUrl: ${VNP_RETURN_URL:http://localhost:8080/api/payments/vnpay-return}
-    frontendReturnUrl: ${FRONTEND_RETURN_URL:http://localhost:5173/payment-result}
+    returnUrl: ${VNP_RETURN_URL:https://greenslot-backend.onrender.com/api/payments/vnpay-return}
+    frontendReturnUrl: ${FRONTEND_RETURN_URL:https://green-slot-front-end.vercel.app/payment-result}
+    mobileReturnUrl: ${MOBILE_RETURN_URL:greenslot://payment-result}
     ipnUrl: ${VNP_IPN_URL:}
 
 ---
+# --- POSTGRESQL PROFILE (Render Production) ---
 spring:
   config:
     activate:
@@ -71,12 +70,22 @@ spring:
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:12345}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      idle-timeout: 30000
+      max-lifetime: 600000
+      connection-timeout: 20000
   jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
+
+
 ---
+# --- MYSQL PROFILE ---
 spring:
   config:
     activate:
@@ -92,12 +101,13 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
 
 ---
+# --- SQL SERVER PROFILE (Local Development Default) ---
 spring:
   config:
     activate:
       on-profile: sqlserver
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=GreenSlotDB;encrypt=true;trustServerCertificate=true;}
+    url: ${SPRING_DATASOURCE_URL:jdbc:sqlserver://localhost:1433;databaseName=GreenSlotDB;encrypt=true;trustServerCertificate=true;sendStringParametersAsUnicode=true;}
     username: ${DB_USERNAME:sa}
     password: ${DB_PASSWORD:12345}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
@@ -105,4 +115,3 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.SQLServerDialect
-

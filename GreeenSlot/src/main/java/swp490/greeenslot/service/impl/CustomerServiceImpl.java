@@ -2,23 +2,16 @@ package swp490.greeenslot.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import swp490.greeenslot.dto.AvailableSlotDTO;
-import swp490.greeenslot.dto.GardeningTaskResponseDTO;
-import swp490.greeenslot.dto.RentalHistoryDTO;
-import swp490.greeenslot.dto.SensorReadingResponseDTO;
-import swp490.greeenslot.dto.ServiceCategoryDTO;
+import org.springframework.transaction.annotation.Transactional;
+import swp490.greeenslot.dto.*;
 import swp490.greeenslot.entity.*;
-import swp490.greeenslot.repository.EquipmentRepository;
-import swp490.greeenslot.repository.GardenSlotRepository;
-import swp490.greeenslot.repository.GardeningTaskRepository;
-import swp490.greeenslot.repository.SensorReadingRepository;
-import swp490.greeenslot.repository.ServiceCategoryRepository;
-import swp490.greeenslot.repository.SlotRentalRepository;
-import swp490.greeenslot.repository.UserRepository;
+import swp490.greeenslot.repository.*;
 import swp490.greeenslot.service.CustomerService;
+import swp490.greeenslot.service.NotificationService;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -33,16 +26,21 @@ public class CustomerServiceImpl implements CustomerService {
     private final GardeningTaskRepository gardeningTaskRepository;
     private final SlotRentalRepository slotRentalRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     @Override
     public List<AvailableSlotDTO> getAvailableSlots() {
-        List<GardenSlot> slots = gardenSlotRepository.findByPillarLocationIdAndStatus(null, ESlotStatus.AVAILABLE);
+        List<GardenSlot> slots = gardenSlotRepository.findAll().stream()
+                .filter(g -> g.getStatus() == ESlotStatus.AVAILABLE)
+                .collect(Collectors.toList());
         return slots.stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
     @Override
     public List<AvailableSlotDTO> getAvailableSlotsByLocation(Long locationId) {
-        List<GardenSlot> slots = gardenSlotRepository.findByStatusAndLocationId(ESlotStatus.AVAILABLE, locationId);
+        List<GardenSlot> slots = (locationId == null) 
+                ? gardenSlotRepository.findAll().stream().filter(g -> g.getStatus() == ESlotStatus.AVAILABLE).collect(Collectors.toList())
+                : gardenSlotRepository.findByLocationIdAndStatus(locationId, ESlotStatus.AVAILABLE);
         return slots.stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
@@ -88,12 +86,15 @@ public class CustomerServiceImpl implements CustomerService {
             throw new IllegalArgumentException("Slot is not associated with a pillar");
         }
 
-        List<Equipment> equipmentList = equipmentRepository.findByPillar(pillar);
-        if (equipmentList.isEmpty()) {
-            throw new IllegalArgumentException("No equipment found for this pillar");
+        String deviceId = pillar.getPillarCode();
+        if (deviceId == null || deviceId.isBlank()) {
+            List<Equipment> equipmentList = equipmentRepository.findByPillar(pillar);
+            if (!equipmentList.isEmpty()) {
+                deviceId = equipmentList.get(0).getSerialNumber();
+            } else {
+                throw new IllegalArgumentException("No device or equipment configured for this pillar");
+            }
         }
-
-        String deviceId = equipmentList.get(0).getSerialNumber();
         ESensorType sensorTypeEnum = sensorType != null ? ESensorType.fromCode(sensorType) : null;
 
         return sensorReadingRepository.findByDeviceIdAndSensorTypeOrderByRecordedAtDesc(deviceId, sensorTypeEnum,
@@ -139,7 +140,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     private AvailableSlotDTO mapToDTO(GardenSlot slot) {
         Pillar pillar = slot.getPillar();
-        Location location = pillar != null ? pillar.getLocation() : null;
+        Location location = slot.getLocation() != null ? slot.getLocation() : (pillar != null ? pillar.getLocation() : null);
 
         // Get default tree for this pillar
         Tree tree = pillar != null ? pillar.getDefaultTree() : null;
@@ -167,6 +168,8 @@ public class CustomerServiceImpl implements CustomerService {
                 .slotNumber(slot.getSlotNumber())
                 .status(slot.getStatus() != null ? slot.getStatus().name() : null)
                 .price(slot.getPrice())
+                .area(slot.getArea())
+                .maxPillars(slot.getMaxPillars() != null ? slot.getMaxPillars() : slot.calculateMaxPillars())
                 .imageUrl(slot.getImageUrl())
                 .pillarId(pillar != null ? pillar.getId() : null)
                 .pillarCode(pillar != null ? pillar.getPillarCode() : null)
@@ -212,21 +215,59 @@ public class CustomerServiceImpl implements CustomerService {
 
     private RentalHistoryDTO mapToRentalHistoryDTO(SlotRental rental) {
         GardenSlot slot = rental.getGardenSlot();
-        Pillar pillar = slot != null ? slot.getPillar() : null;
-        Location location = pillar != null ? pillar.getLocation() : null;
+        Location location = (slot != null && slot.getLocation() != null) ? slot.getLocation() : (slot != null && slot.getPillar() != null ? slot.getPillar().getLocation() : null);
 
-        return new RentalHistoryDTO(
+        List<Pillar> slotPillars = slot != null ? slot.getPillars() : null;
+        List<String> pillarCodes = new ArrayList<>();
+        List<RentalHistoryDTO.PillarInfo> pillarInfos = new ArrayList<>();
+        if (slotPillars != null && !slotPillars.isEmpty()) {
+            for (Pillar p : slotPillars) {
+                pillarCodes.add(p.getPillarCode());
+                pillarInfos.add(new RentalHistoryDTO.PillarInfo(
+                        p.getId(),
+                        p.getPillarCode(),
+                        p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
+                        p.getCameraStreamUrl(),
+                        p.getCameraStatus()
+                ));
+            }
+        } else if (slot != null && slot.getPillar() != null) {
+            pillarCodes.add(slot.getPillar().getPillarCode());
+            pillarInfos.add(new RentalHistoryDTO.PillarInfo(
+                    slot.getPillar().getId(),
+                    slot.getPillar().getPillarCode(),
+                    slot.getPillar().getStatus() != null ? slot.getPillar().getStatus().name() : "ACTIVE",
+                    slot.getPillar().getCameraStreamUrl(),
+                    slot.getPillar().getCameraStatus()
+            ));
+        }
+        String primaryPillarCode = !pillarCodes.isEmpty() ? String.join(", ", pillarCodes) : (slot != null && slot.getPillar() != null ? slot.getPillar().getPillarCode() : "N/A");
+
+        Integer harvestDays = rental.getTree() != null ? rental.getTree().getHarvestDays() : null;
+        java.time.LocalDateTime expectedHarvestAt = (rental.getPlantedAt() != null && harvestDays != null && harvestDays > 0)
+                ? rental.getPlantedAt().plusDays(harvestDays)
+                : null;
+
+        RentalHistoryDTO dto = new RentalHistoryDTO(
                 rental.getId(),
                 slot != null ? slot.getId() : null,
                 slot != null ? slot.getSlotNumber() : null,
-                pillar != null ? pillar.getPillarCode() : null,
+                primaryPillarCode,
                 location != null ? location.getName() : null,
                 location != null ? location.getAddress() : null,
                 rental.getStartTime(),
                 rental.getEndTime(),
                 rental.getStatus() != null ? rental.getStatus().name() : null,
-                null // transactions can be added later if needed
+                null, // transactions can be added later if needed
+                rental.getTree() != null ? rental.getTree().getTreeName() : null,
+                rental.getHarvestNotifiedAt(),
+                rental.getHarvestDecision(),
+                rental.getPlantedAt(),
+                expectedHarvestAt
         );
+        dto.setPillars(pillarInfos);
+        dto.setPillarCodes(pillarCodes);
+        return dto;
     }
 
     @Override
@@ -235,5 +276,95 @@ public class CustomerServiceImpl implements CustomerService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
         user.setDeletedAt(LocalDateTime.now());
         userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
+    public void recordHarvestDecision(Long rentalId, HarvestDecisionRequestDTO request, String username) {
+        if (request == null || request.getDecision() == null) {
+            throw new IllegalArgumentException("Harvest decision is required (SELF or STAFF).");
+        }
+
+        String decision = request.getDecision().trim().toUpperCase();
+        if (!"SELF".equals(decision) && !"STAFF".equals(decision)) {
+            throw new IllegalArgumentException("Decision must be either SELF or STAFF.");
+        }
+
+        SlotRental rental = slotRentalRepository.findById(rentalId)
+                .orElseThrow(() -> new IllegalArgumentException("Rental not found with id: " + rentalId));
+
+        if (rental.getUser() == null || !rental.getUser().getUsername().equals(username)) {
+            throw new IllegalArgumentException("Unauthorized: You do not own this rental contract.");
+        }
+
+        rental.setHarvestDecision(decision);
+
+        if ("SELF".equals(decision)) {
+            // Khách tự thu hoạch -> reset cây trên ô đất
+            resetHarvestedTree(rental);
+        }
+        slotRentalRepository.save(rental);
+
+        if (rental.getGardenSlot() != null) {
+            List<GardeningTask> harvestTasks = gardeningTaskRepository
+                    .findByTargetSlotIdAndTaskTypeOrderByCreatedAtDesc(rental.getGardenSlot().getId(), ETaskType.HARVEST);
+            GardeningTask task = harvestTasks.stream()
+                    .filter(t -> t.getStatus() != ETaskStatus.COMPLETED && t.getStatus() != ETaskStatus.CANCELLED)
+                    .findFirst()
+                    .orElse(null);
+
+            if (task != null) {
+                if ("SELF".equals(decision)) {
+                    task.setStatus(ETaskStatus.CANCELLED);
+                    gardeningTaskRepository.save(task);
+                }
+            }
+
+            // Notify location managers and staff about customer's harvest decision
+            if (notificationService != null) {
+                String customerName = rental.getUser().getFullName() != null ? rental.getUser().getFullName() : username;
+                String slotNumber = rental.getGardenSlot().getSlotNumber();
+                String decisionText = "SELF".equals(decision) ? "Tự thu hoạch" : "Nhân viên hỗ trợ thu hoạch";
+                String title = "Khách hàng đã chọn phương thức thu hoạch";
+                String message = String.format("Khách hàng %s tại ô %s đã chọn phương thức thu hoạch: %s.",
+                        customerName, slotNumber, decisionText);
+
+                Long locationId = (rental.getGardenSlot().getLocation() != null)
+                        ? rental.getGardenSlot().getLocation().getId()
+                        : (rental.getGardenSlot().getPillar() != null && rental.getGardenSlot().getPillar().getLocation() != null
+                            ? rental.getGardenSlot().getPillar().getLocation().getId() : null);
+
+                List<User> recipients = new ArrayList<>();
+                if (locationId != null) {
+                    recipients.addAll(userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locationId));
+                    recipients.addAll(userRepository.findByRoleNameAndLocation(ERole.ROLE_GARDEN_STAFF, locationId));
+                }
+                if (recipients.isEmpty()) {
+                    recipients.addAll(userRepository.findByRoleName(ERole.ROLE_MANAGER));
+                    recipients.addAll(userRepository.findByRoleName(ERole.ROLE_GARDEN_STAFF));
+                }
+
+                for (User recipient : recipients) {
+                    notificationService.createNotification(
+                            recipient.getId(),
+                            title,
+                            message,
+                            "HARVEST_DECISION_RECEIVED",
+                            rental.getId(),
+                            "/dashboard/manager/tasks"
+                    );
+                }
+            }
+        }
+    }
+
+    private void resetHarvestedTree(SlotRental rental) {
+        rental.setTree(null);
+        rental.setTreeStatus(null);
+        rental.setTreeNotes(null);
+        rental.setPlantedAt(null);
+        rental.setHarvestReminderSent(false);
+        rental.setHarvestNotifiedAt(null);
+        rental.setHarvestDecision(null);
     }
 }

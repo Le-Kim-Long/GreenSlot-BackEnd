@@ -10,6 +10,7 @@ import swp490.greeenslot.service.BusinessManagementService;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +51,12 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Autowired
     private GardeningTaskRepository gardeningTaskRepository;
 
+    @Autowired
+    private TreeRepository treeRepository;
+
+    @Autowired
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
     // ==========================================
     // Location CRUD
     // ==========================================
@@ -88,16 +95,12 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Override
     @Transactional(readOnly = true)
     public List<LocationDTO> getAllLocations() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof UserDetailsImpl) {
-            UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-            User currentUser = userRepository.findById(userDetails.getId()).orElse(null);
-            if (currentUser != null && currentUser.getRoles().stream().anyMatch(r -> r.getName() == ERole.ROLE_LOCATION_MANAGER)) {
-                if (currentUser.getLocation() != null) {
-                    return List.of(mapToLocationDTO(currentUser.getLocation()));
-                } else {
-                    return List.of();
-                }
+        if (locationContextService.isLocationManager()) {
+            User currentUser = locationContextService.getCurrentUser();
+            if (currentUser != null && currentUser.getLocation() != null) {
+                return List.of(mapToLocationDTO(currentUser.getLocation()));
+            } else {
+                return List.of();
             }
         }
         
@@ -138,6 +141,35 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             throw new IllegalArgumentException("Invalid pillar status. Must be ACTIVE or MAINTENANCE");
         }
         pillar.setStatus(status);
+
+        EPillarType pillarType = EPillarType.MEDIUM;
+        if (dto.getPillarType() != null && !dto.getPillarType().trim().isEmpty()) {
+            try {
+                pillarType = EPillarType.valueOf(dto.getPillarType().trim().toUpperCase());
+            } catch (Exception e) {
+                pillarType = EPillarType.MEDIUM;
+            }
+        }
+        pillar.setPillarType(pillarType);
+        pillar.setCapacityHoles(dto.getCapacityHoles() != null && dto.getCapacityHoles() > 0 ? dto.getCapacityHoles() : pillarType.getDefaultHoles());
+        pillar.setPrice(dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) > 0 ? dto.getPrice() : pillarType.getDefaultPrice());
+
+        if (dto.getDefaultTreeId() != null && dto.getDefaultTreeId() > 0) {
+            Tree tree = treeRepository.findById(dto.getDefaultTreeId()).orElse(null);
+            pillar.setDefaultTree(tree);
+        } else {
+            pillar.setDefaultTree(null);
+        }
+
+        if (dto.getSlotId() != null) {
+            if (dto.getSlotId() > 0) {
+                GardenSlot slot = gardenSlotRepository.findById(dto.getSlotId()).orElse(null);
+                pillar.setGardenSlot(slot);
+            } else {
+                pillar.setGardenSlot(null);
+            }
+        }
+
         pillar.setLocation(location);
         pillar.setImageUrl(dto.getImageUrl());
 
@@ -162,6 +194,37 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
                 throw new IllegalArgumentException("Invalid pillar status. Must be ACTIVE or MAINTENANCE");
             }
         }
+        if (dto.getPillarType() != null && !dto.getPillarType().trim().isEmpty()) {
+            try {
+                pillar.setPillarType(EPillarType.valueOf(dto.getPillarType().trim().toUpperCase()));
+            } catch (Exception e) {
+                // Keep current if invalid
+            }
+        }
+        if (dto.getCapacityHoles() != null && dto.getCapacityHoles() > 0) {
+            pillar.setCapacityHoles(dto.getCapacityHoles());
+        }
+        if (dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) > 0) {
+            pillar.setPrice(dto.getPrice());
+        }
+        if (dto.getDefaultTreeId() != null) {
+            if (dto.getDefaultTreeId() > 0) {
+                Tree tree = treeRepository.findById(dto.getDefaultTreeId()).orElse(null);
+                pillar.setDefaultTree(tree);
+            } else {
+                pillar.setDefaultTree(null);
+            }
+        }
+
+        if (dto.getSlotId() != null) {
+            if (dto.getSlotId() > 0) {
+                GardenSlot slot = gardenSlotRepository.findById(dto.getSlotId()).orElse(null);
+                pillar.setGardenSlot(slot);
+            } else {
+                pillar.setGardenSlot(null);
+            }
+        }
+
         pillar.setLocation(location);
         pillar.setImageUrl(dto.getImageUrl());
 
@@ -172,7 +235,9 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Override
     @Transactional(readOnly = true)
     public List<PillarDTO> getAllPillars() {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         return pillarRepository.findAll().stream()
+                .filter(p -> targetLocationId == null || (p.getLocation() != null && targetLocationId.equals(p.getLocation().getId())))
                 .map(this::mapToPillarDTO)
                 .collect(Collectors.toList());
     }
@@ -186,7 +251,22 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     }
 
     private PillarDTO mapToPillarDTO(Pillar p) {
-        return new PillarDTO(p.getId(), p.getPillarCode(), p.getStatus().name(), p.getLocation().getId(), p.getImageUrl());
+        PillarDTO dto = new PillarDTO(p.getId(), p.getPillarCode(), p.getStatus().name(), p.getLocation() != null ? p.getLocation().getId() : null, p.getImageUrl());
+        dto.setPillarType(p.getEffectivePillarType().name());
+        dto.setPillarTypeName(p.getEffectivePillarType().getDisplayName());
+        dto.setCapacityHoles(p.getEffectiveHoles());
+        dto.setPrice(p.getEffectivePrice());
+        dto.setRequiredArea(p.getEffectiveArea());
+        if (p.getDefaultTree() != null) {
+            dto.setDefaultTreeId(p.getDefaultTree().getId());
+            dto.setDefaultTreeName(p.getDefaultTree().getTreeName());
+            dto.setDefaultTreePrice(p.getDefaultTree().getPrice());
+        }
+        if (p.getGardenSlot() != null) {
+            dto.setSlotId(p.getGardenSlot().getId());
+            dto.setSlotNumber(p.getGardenSlot().getSlotNumber());
+        }
+        return dto;
     }
 
     // ==========================================
@@ -196,11 +276,50 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Override
     @Transactional
     public GardenSlotDTO createSlot(GardenSlotDTO dto) {
-        Pillar pillar = pillarRepository.findById(dto.getPillarId())
-                .orElseThrow(() -> new IllegalArgumentException("Pillar not found with ID " + dto.getPillarId()));
+        Long targetLocId = dto.getLocationId() != null 
+                ? dto.getLocationId() 
+                : locationContextService.resolveTargetLocationId(null);
+
+        Location location = null;
+        if (targetLocId != null) {
+            location = locationRepository.findById(targetLocId)
+                    .orElseThrow(() -> new IllegalArgumentException("Location not found with ID " + targetLocId));
+        }
+
+        // Validate area & calculate capacity
+        Double area = dto.getArea() != null && dto.getArea() > 0 ? dto.getArea() : 3.0;
+        int maxPillars = Math.max(1, (int) Math.floor(area / 1.5));
+
+        // Determine list of selected pillar IDs
+        List<Long> selectedPillarIds = new ArrayList<>();
+        if (dto.getPillarIds() != null && !dto.getPillarIds().isEmpty()) {
+            selectedPillarIds.addAll(dto.getPillarIds());
+        } else if (dto.getPillarId() != null && dto.getPillarId() > 0) {
+            selectedPillarIds.add(dto.getPillarId());
+        }
+
+        List<Pillar> pillarsToAssign = new ArrayList<>();
+        double totalRequiredArea = 0.0;
+        BigDecimal calculatedPillarsPrice = BigDecimal.ZERO;
+        if (!selectedPillarIds.isEmpty()) {
+            pillarsToAssign = pillarRepository.findAllById(selectedPillarIds);
+            for (Pillar p : pillarsToAssign) {
+                if (location != null && p.getLocation() != null && !p.getLocation().getId().equals(location.getId())) {
+                    throw new IllegalArgumentException("Trụ " + p.getPillarCode() + " không thuộc cùng cơ sở với ô vườn.");
+                }
+                totalRequiredArea += p.getEffectiveArea();
+                calculatedPillarsPrice = calculatedPillarsPrice.add(p.getEffectivePrice());
+            }
+        }
+
+        if (totalRequiredArea > area) {
+            throw new IllegalArgumentException(String.format(
+                "Ô vườn diện tích %.1f m² không đủ chỗ cho các trụ đã chọn (cần tối thiểu %.1f m² theo quy chuẩn không gian từng loại trụ: Nhỏ 1.0 m², Vừa 1.5 m², Lớn 2.0 m²).",
+                area, totalRequiredArea));
+        }
 
         GardenSlot slot = new GardenSlot();
-        slot.setSlotNumber(dto.getSlotNumber());
+        slot.setSlotNumber(dto.getSlotNumber().trim());
         
         ESlotStatus status;
         try {
@@ -209,11 +328,31 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             throw new IllegalArgumentException("Invalid slot status. Must be AVAILABLE, RENTED, or MAINTENANCE");
         }
         slot.setStatus(status);
-        slot.setPrice(dto.getPrice());
+        
+        // Auto-assign calculated price if price is not provided or zero
+        BigDecimal finalPrice = (dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) > 0)
+                ? dto.getPrice()
+                : (calculatedPillarsPrice.compareTo(BigDecimal.ZERO) > 0 ? calculatedPillarsPrice : BigDecimal.ZERO);
+        slot.setPrice(finalPrice);
+        slot.setArea(area);
+        slot.setMaxPillars(maxPillars);
         slot.setImageUrl(dto.getImageUrl());
-        slot.setPillar(pillar);
+        slot.setLocation(location);
 
         GardenSlot saved = gardenSlotRepository.save(slot);
+
+        // Assign selected pillars to this slot
+        if (!pillarsToAssign.isEmpty()) {
+            for (Pillar p : pillarsToAssign) {
+                p.setGardenSlot(saved);
+                if (location != null && p.getLocation() == null) {
+                    p.setLocation(location);
+                }
+                pillarRepository.save(p);
+            }
+            saved.setPillars(pillarsToAssign);
+        }
+
         return mapToSlotDTO(saved);
     }
 
@@ -223,10 +362,46 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         GardenSlot slot = gardenSlotRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID " + id));
 
-        Pillar pillar = pillarRepository.findById(dto.getPillarId())
-                .orElseThrow(() -> new IllegalArgumentException("Pillar not found with ID " + dto.getPillarId()));
+        Long targetLocId = dto.getLocationId() != null 
+                ? dto.getLocationId() 
+                : (slot.getLocation() != null ? slot.getLocation().getId() : locationContextService.resolveTargetLocationId(null));
 
-        slot.setSlotNumber(dto.getSlotNumber());
+        Location location = null;
+        if (targetLocId != null) {
+            location = locationRepository.findById(targetLocId)
+                    .orElseThrow(() -> new IllegalArgumentException("Location not found with ID " + targetLocId));
+        }
+
+        // Validate area & calculate capacity
+        Double area = dto.getArea() != null && dto.getArea() > 0 ? dto.getArea() : (slot.getArea() != null ? slot.getArea() : 3.0);
+        int maxPillars = Math.max(1, (int) Math.floor(area / 1.5));
+
+        // Determine list of selected pillar IDs
+        List<Long> selectedPillarIds = new ArrayList<>();
+        if (dto.getPillarIds() != null) {
+            selectedPillarIds.addAll(dto.getPillarIds());
+        } else if (dto.getPillarId() != null && dto.getPillarId() > 0) {
+            selectedPillarIds.add(dto.getPillarId());
+        }
+
+        List<Pillar> newPillars = new ArrayList<>();
+        double totalRequiredArea = 0.0;
+        BigDecimal calculatedPillarsPrice = BigDecimal.ZERO;
+        if (!selectedPillarIds.isEmpty()) {
+            newPillars = pillarRepository.findAllById(selectedPillarIds);
+            for (Pillar p : newPillars) {
+                totalRequiredArea += p.getEffectiveArea();
+                calculatedPillarsPrice = calculatedPillarsPrice.add(p.getEffectivePrice());
+            }
+        }
+
+        if (totalRequiredArea > area) {
+            throw new IllegalArgumentException(String.format(
+                "Ô vườn diện tích %.1f m² không đủ chỗ cho các trụ đã chọn (cần tối thiểu %.1f m² theo quy chuẩn không gian từng loại trụ: Nhỏ 1.0 m², Vừa 1.5 m², Lớn 2.0 m²).",
+                area, totalRequiredArea));
+        }
+
+        slot.setSlotNumber(dto.getSlotNumber().trim());
         if (dto.getStatus() != null) {
             try {
                 slot.setStatus(ESlotStatus.valueOf(dto.getStatus().toUpperCase()));
@@ -234,9 +409,40 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
                 throw new IllegalArgumentException("Invalid slot status. Must be AVAILABLE, RENTED, or MAINTENANCE");
             }
         }
-        slot.setPrice(dto.getPrice());
+        
+        BigDecimal finalPrice = (dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) > 0)
+                ? dto.getPrice()
+                : (calculatedPillarsPrice.compareTo(BigDecimal.ZERO) > 0 ? calculatedPillarsPrice : slot.getPrice());
+        slot.setPrice(finalPrice);
+        slot.setArea(area);
+        slot.setMaxPillars(maxPillars);
         slot.setImageUrl(dto.getImageUrl());
-        slot.setPillar(pillar);
+        if (location != null) {
+            slot.setLocation(location);
+        }
+
+        // Unassign old pillars not in selectedPillarIds
+        List<Pillar> existingPillars = pillarRepository.findByGardenSlotId(slot.getId());
+        for (Pillar p : existingPillars) {
+            if (!selectedPillarIds.contains(p.getId())) {
+                p.setGardenSlot(null);
+                pillarRepository.save(p);
+            }
+        }
+
+        // Assign newly selected pillars
+        if (!newPillars.isEmpty()) {
+            for (Pillar p : newPillars) {
+                p.setGardenSlot(slot);
+                if (slot.getLocation() != null) {
+                    p.setLocation(slot.getLocation());
+                }
+                pillarRepository.save(p);
+            }
+            slot.setPillars(newPillars);
+        } else {
+            slot.setPillars(new ArrayList<>());
+        }
 
         GardenSlot saved = gardenSlotRepository.save(slot);
         return mapToSlotDTO(saved);
@@ -245,7 +451,11 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Override
     @Transactional(readOnly = true)
     public List<GardenSlotDTO> getAllSlots() {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         return gardenSlotRepository.findAll().stream()
+                .filter(s -> targetLocationId == null 
+                        || (s.getLocation() != null && targetLocationId.equals(s.getLocation().getId()))
+                        || (s.getPillars() != null && s.getPillars().stream().anyMatch(p -> p.getLocation() != null && targetLocationId.equals(p.getLocation().getId()))))
                 .map(this::mapToSlotDTO)
                 .collect(Collectors.toList());
     }
@@ -259,7 +469,40 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     }
 
     private GardenSlotDTO mapToSlotDTO(GardenSlot s) {
-        return new GardenSlotDTO(s.getId(), s.getSlotNumber(), s.getStatus().name(), s.getPrice(), s.getPillar().getId(), s.getImageUrl());
+        List<Pillar> slotPillars = (s.getPillars() != null && !s.getPillars().isEmpty()) 
+                ? s.getPillars() 
+                : pillarRepository.findByGardenSlotId(s.getId());
+        List<Long> pIds = slotPillars.stream().map(Pillar::getId).collect(Collectors.toList());
+        List<String> pCodes = slotPillars.stream().map(Pillar::getPillarCode).collect(Collectors.toList());
+        Long singlePillarId = pIds.isEmpty() ? null : pIds.get(0);
+        
+        Long locId = s.getLocation() != null ? s.getLocation().getId() : (slotPillars.stream().filter(p -> p.getLocation() != null).map(p -> p.getLocation().getId()).findFirst().orElse(null));
+        String locName = s.getLocation() != null ? s.getLocation().getName() : (slotPillars.stream().filter(p -> p.getLocation() != null).map(p -> p.getLocation().getName()).findFirst().orElse(null));
+
+        Double area = s.getArea() != null ? s.getArea() : 3.0;
+        Integer maxPillars = s.getMaxPillars() != null ? s.getMaxPillars() : Math.max(1, (int) Math.floor(area / 1.5));
+
+        int totalHoles = slotPillars.stream().mapToInt(Pillar::getEffectiveHoles).sum();
+        BigDecimal calculatedPillarsPrice = slotPillars.stream().map(Pillar::getEffectivePrice).reduce(BigDecimal.ZERO, BigDecimal::add);
+        double requiredArea = slotPillars.stream().mapToDouble(Pillar::getEffectiveArea).sum();
+
+        GardenSlotDTO dto = new GardenSlotDTO();
+        dto.setId(s.getId());
+        dto.setSlotNumber(s.getSlotNumber());
+        dto.setStatus(s.getStatus() != null ? s.getStatus().name() : "AVAILABLE");
+        dto.setPrice(s.getPrice());
+        dto.setArea(area);
+        dto.setMaxPillars(maxPillars);
+        dto.setLocationId(locId);
+        dto.setLocationName(locName);
+        dto.setPillarId(singlePillarId);
+        dto.setPillarIds(pIds);
+        dto.setPillarCodes(pCodes);
+        dto.setTotalHoles(totalHoles);
+        dto.setCalculatedPillarsPrice(calculatedPillarsPrice);
+        dto.setRequiredArea(requiredArea);
+        dto.setImageUrl(s.getImageUrl());
+        return dto;
     }
 
     // ==========================================
@@ -372,18 +615,21 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Override
     @Transactional(readOnly = true)
     public List<ActiveRentalDTO> getActiveRentals() {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         List<SlotRental> rentals = slotRentalRepository.findAllActiveRentals();
-        return rentals.stream().map(r -> new ActiveRentalDTO(
-                r.getId(),
-                r.getUser().getUsername(),
-                r.getUser().getFullName(),
-                r.getGardenSlot().getSlotNumber(),
-                r.getGardenSlot().getPillar().getPillarCode(),
-                r.getGardenSlot().getPillar().getLocation().getName(),
-                r.getStartTime(),
-                r.getEndTime(),
-                r.getStatus().name()
-        )).collect(Collectors.toList());
+        return rentals.stream()
+                .filter(r -> targetLocationId == null || (r.getGardenSlot() != null && r.getGardenSlot().getPillar() != null && r.getGardenSlot().getPillar().getLocation() != null && targetLocationId.equals(r.getGardenSlot().getPillar().getLocation().getId())))
+                .map(r -> new ActiveRentalDTO(
+                        r.getId(),
+                        r.getUser().getUsername(),
+                        r.getUser().getFullName(),
+                        r.getGardenSlot().getSlotNumber(),
+                        r.getGardenSlot().getPillar().getPillarCode(),
+                        r.getGardenSlot().getPillar().getLocation().getName(),
+                        r.getStartTime(),
+                        r.getEndTime(),
+                        r.getStatus().name()
+                )).collect(Collectors.toList());
     }
 
     // ==========================================
@@ -435,10 +681,9 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         return transactions.stream()
                 .filter(t -> t.getRental() != null 
                         && t.getRental().getGardenSlot() != null 
-                        && t.getRental().getGardenSlot().getPillar() != null 
-                        && t.getRental().getGardenSlot().getPillar().getLocation() != null)
+                        && (t.getRental().getGardenSlot().getLocation() != null || (t.getRental().getGardenSlot().getPillar() != null && t.getRental().getGardenSlot().getPillar().getLocation() != null)))
                 .collect(Collectors.groupingBy(
-                        t -> t.getRental().getGardenSlot().getPillar().getLocation(),
+                        t -> t.getRental().getGardenSlot().getLocation() != null ? t.getRental().getGardenSlot().getLocation() : t.getRental().getGardenSlot().getPillar().getLocation(),
                         Collectors.reducing(BigDecimal.ZERO, PaymentTransaction::getAmount, BigDecimal::add)
                 ))
                 .entrySet().stream()
@@ -449,9 +694,8 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
                         transactions.stream()
                                 .filter(t -> t.getRental() != null 
                                         && t.getRental().getGardenSlot() != null 
-                                        && t.getRental().getGardenSlot().getPillar() != null 
-                                        && t.getRental().getGardenSlot().getPillar().getLocation() != null
-                                        && t.getRental().getGardenSlot().getPillar().getLocation().equals(entry.getKey()))
+                                        && (entry.getKey().equals(t.getRental().getGardenSlot().getLocation()) || 
+                                            (t.getRental().getGardenSlot().getPillar() != null && entry.getKey().equals(t.getRental().getGardenSlot().getPillar().getLocation()))))
                                 .count()
                 ))
                 .collect(Collectors.toList());
@@ -465,25 +709,32 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         return transactions.stream()
                 .filter(t -> t.getRental() != null 
                         && t.getRental().getGardenSlot() != null 
-                        && t.getRental().getGardenSlot().getPillar() != null 
-                        && t.getRental().getGardenSlot().getPillar().getLocation() != null
+                        && (t.getRental().getGardenSlot().getLocation() != null || (t.getRental().getGardenSlot().getPillar() != null && t.getRental().getGardenSlot().getPillar().getLocation() != null))
                         && t.getRental().getUser() != null)
-                .map(t -> new TransactionDeclarationDTO(
-                        t.getId(),
-                        t.getRental().getId(),
-                        t.getRental().getGardenSlot().getSlotNumber(),
-                        t.getRental().getUser().getUsername(),
-                        t.getRental().getUser().getFullName(),
-                        t.getAmount(),
-                        t.getTransactionCode(),
-                        t.getPaymentMethod() != null ? t.getPaymentMethod().name() : null,
-                        t.getPaymentDate(),
-                        t.getStatus() != null ? t.getStatus().name() : null,
-                        t.getRental().getGardenSlot().getPillar().getLocation().getName(),
-                        t.getRental().getGardenSlot().getPillar().getPillarCode(),
-                        "Khach hang thue slot " + t.getRental().getGardenSlot().getSlotNumber() + 
-                        " tai " + t.getRental().getGardenSlot().getPillar().getLocation().getName()
-                ))
+                .map(t -> {
+                    GardenSlot slot = t.getRental().getGardenSlot();
+                    Location loc = slot.getLocation() != null ? slot.getLocation() : (slot.getPillar() != null ? slot.getPillar().getLocation() : null);
+                    String locName = loc != null ? loc.getName() : "N/A";
+                    String pillarCode = (slot.getPillars() != null && !slot.getPillars().isEmpty())
+                            ? slot.getPillars().stream().map(Pillar::getPillarCode).collect(Collectors.joining(", "))
+                            : (slot.getPillar() != null ? slot.getPillar().getPillarCode() : "N/A");
+
+                    return new TransactionDeclarationDTO(
+                            t.getId(),
+                            t.getRental().getId(),
+                            slot.getSlotNumber(),
+                            t.getRental().getUser().getUsername(),
+                            t.getRental().getUser().getFullName(),
+                            t.getAmount(),
+                            t.getTransactionCode(),
+                            t.getPaymentMethod() != null ? t.getPaymentMethod().name() : null,
+                            t.getPaymentDate(),
+                            t.getStatus() != null ? t.getStatus().name() : null,
+                            locName,
+                            pillarCode,
+                            "Khach hang thue slot " + slot.getSlotNumber() + " tai " + locName
+                    );
+                })
                 .collect(Collectors.toList());
     }
 
@@ -511,9 +762,11 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         Pillar pillar = pillarRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Pillar not found with ID " + id));
 
-        boolean hasSlots = gardenSlotRepository.existsByPillarId(id);
-        if (hasSlots) {
-            throw new IllegalArgumentException("Cannot delete Pillar with ID " + id + " because it contains associated Garden Slot records.");
+        if (pillar.getGardenSlot() != null) {
+            boolean hasActiveRental = slotRentalRepository.existsByGardenSlotIdAndStatus(pillar.getGardenSlot().getId(), ERentalStatus.ACTIVE);
+            if (hasActiveRental) {
+                throw new IllegalArgumentException("Cannot delete Pillar with ID " + id + " because its associated Garden Slot is actively rented.");
+            }
         }
 
         pillarRepository.delete(pillar);
@@ -523,16 +776,22 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Transactional
     public void deleteSlot(Long id) {
         GardenSlot slot = gardenSlotRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID " + id));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ô vườn với ID: " + id));
 
         boolean hasActiveRental = slotRentalRepository.existsByGardenSlotIdAndStatus(id, ERentalStatus.ACTIVE);
         if (hasActiveRental) {
-            throw new IllegalArgumentException("Cannot delete Garden Slot with ID " + id + " because it has associated active SlotRental records.");
+            throw new IllegalArgumentException("Không thể xóa ô vườn " + slot.getSlotNumber() + " vì đang có hợp đồng thuê hoạt động.");
         }
 
-        boolean hasPaymentTransaction = paymentTransactionRepository.existsByRentalGardenSlotId(id);
-        if (hasPaymentTransaction) {
-            throw new IllegalArgumentException("Cannot delete Garden Slot with ID " + id + " because it has associated PaymentTransaction records.");
+        // Unlink any pillars attached to this slot to prevent Foreign Key constraint errors
+        List<Pillar> assignedPillars = pillarRepository.findByGardenSlotId(id);
+        for (Pillar p : assignedPillars) {
+            p.setGardenSlot(null);
+            pillarRepository.save(p);
+        }
+
+        if (slot.getPillars() != null) {
+            slot.getPillars().clear();
         }
 
         gardenSlotRepository.delete(slot);

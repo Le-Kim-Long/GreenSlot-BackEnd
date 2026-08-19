@@ -7,22 +7,25 @@ import org.springframework.stereotype.Repository;
 import org.springframework.data.jpa.repository.Lock;
 import jakarta.persistence.LockModeType;
 import swp490.greeenslot.entity.SlotRental;
+import swp490.greeenslot.entity.Tree;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
 public interface SlotRentalRepository extends JpaRepository<SlotRental, Long> {
+
+    List<SlotRental> findByTree(Tree tree);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM SlotRental r WHERE r.id = :id")
     java.util.Optional<SlotRental> findByIdWithPessimisticLock(@Param("id") Long id);
 
     List<SlotRental> findByUserUsernameOrderByStartTimeDesc(String username);
 
-    @Query("SELECT r FROM SlotRental r " +
+    @Query("SELECT DISTINCT r FROM SlotRental r " +
            "JOIN FETCH r.gardenSlot s " +
-           "JOIN FETCH s.pillar p " +
-           "JOIN FETCH p.location l " +
+           "JOIN FETCH s.location l " +
+           "LEFT JOIN FETCH s.pillars p " +
            "WHERE r.user.username = :username " +
            "ORDER BY r.startTime DESC")
     List<SlotRental> findByUserUsernameWithSlotAndPillarAndLocation(@Param("username") String username);
@@ -50,4 +53,17 @@ public interface SlotRentalRepository extends JpaRepository<SlotRental, Long> {
 
     @Query("SELECT r FROM SlotRental r WHERE r.status = 'ACTIVE' AND r.endTime < :now")
     List<SlotRental> findExpiredRentals(@Param("now") LocalDateTime now);
+
+    @Query("SELECT r FROM SlotRental r WHERE r.status = 'ACTIVE' AND r.tree IS NOT NULL AND r.plantedAt IS NOT NULL")
+    List<SlotRental> findHarvestReminderCandidates();
+
+    @Query("SELECT r FROM SlotRental r WHERE r.status = 'ACTIVE' AND r.tree IS NOT NULL " +
+           "AND r.gardenSlot.location.id = :locationId ORDER BY r.plantedAt ASC")
+    List<SlotRental> findActiveWithTreeByLocationId(@Param("locationId") Long locationId);
+
+    @Query("SELECT DISTINCT p.id FROM SlotRental r JOIN r.rentedPillars p WHERE (r.status = 'ACTIVE' OR r.status = 'PENDING') AND (r.endTime IS NULL OR r.endTime > :now)")
+    List<Long> findCurrentlyRentedPillarIds(@Param("now") LocalDateTime now);
+
+    @Query("SELECT r FROM SlotRental r JOIN r.rentedPillars p WHERE p.id IN :pillarIds AND (r.status = 'ACTIVE' OR r.status = 'PENDING') AND (r.endTime IS NULL OR r.endTime > :now)")
+    List<SlotRental> findActiveRentalsByPillarIds(@Param("pillarIds") List<Long> pillarIds, @Param("now") LocalDateTime now);
 }

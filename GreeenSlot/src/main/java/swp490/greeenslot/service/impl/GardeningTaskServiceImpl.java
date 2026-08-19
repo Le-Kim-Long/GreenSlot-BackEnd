@@ -10,6 +10,7 @@ import swp490.greeenslot.service.GardeningTaskService;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class GardeningTaskServiceImpl implements GardeningTaskService {
@@ -34,6 +35,35 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
     @Autowired
     private swp490.greeenslot.service.FirebaseMessagingService firebaseMessagingService;
+
+    @Autowired
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
+    @Autowired
+    private swp490.greeenslot.service.HarvestHistoryService harvestHistoryService;
+
+    private Long getSlotLocationId(GardenSlot slot) {
+        if (slot != null) {
+            if (slot.getLocation() != null) {
+                return slot.getLocation().getId();
+            }
+            if (slot.getPillar() != null && slot.getPillar().getLocation() != null) {
+                return slot.getPillar().getLocation().getId();
+            }
+        }
+        return null;
+    }
+
+    private List<User> findLocationManagers(GardenSlot slot) {
+        Long locationId = getSlotLocationId(slot);
+        List<User> managers = locationId != null
+                ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locationId)
+                : List.of();
+        if (managers.isEmpty()) {
+            managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
+        }
+        return managers;
+    }
 
     @Override
     @Transactional
@@ -69,7 +99,27 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         task.setAssignedStaff(null); // Unassigned initially
         task.setCreatedAt(now);
 
-        return gardeningTaskRepository.save(task);
+        GardeningTask savedTask = gardeningTaskRepository.save(task);
+
+        // Notify location managers about new service request
+        if (notificationService != null) {
+            List<User> managers = findLocationManagers(slot);
+            String title = "Yêu cầu dịch vụ mới";
+            String message = String.format("Khách hàng %s đã yêu cầu dịch vụ '%s' cho ô đất %s.",
+                    username, serviceType.getServiceName(), slot.getSlotNumber());
+            for (User manager : managers) {
+                notificationService.createNotification(
+                        manager.getId(),
+                        title,
+                        message,
+                        "SERVICE_REQUEST_CREATED",
+                        savedTask.getId(),
+                        "/dashboard/manager/tasks"
+                );
+            }
+        }
+
+        return savedTask;
     }
 
     @Override
@@ -106,6 +156,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         task.setTaskType(type);
         task.setTargetSlot(slot);
         task.setAssignedStaff(null); // Unassigned initially
+        if (request.getEvidenceImageUrl() != null && !request.getEvidenceImageUrl().trim().isEmpty()) {
+            task.setEvidenceImageUrl(request.getEvidenceImageUrl().trim());
+        }
         task.setCreatedAt(LocalDateTime.now());
 
         return gardeningTaskRepository.save(task);
@@ -137,21 +190,28 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         task.setAssignedStaff(staff);
         GardeningTask savedTask = gardeningTaskRepository.save(task);
 
-        // Notify staff about task assignment
-        notificationService.createNotification(
-                staff.getId(),
-                "New Task Assigned",
-                String.format("You have been assigned to task: %s for slot %s",
-                        task.getTaskName(), task.getTargetSlot() != null ? task.getTargetSlot().getSlotNumber() : "N/A"),
-                "TASK_ASSIGNMENT"
-        );
+        String slotNumber = task.getTargetSlot() != null ? task.getTargetSlot().getSlotNumber() : "N/A";
 
-        firebaseMessagingService.sendPushNotification(
-                staff.getId(),
-                "New Task Assigned",
-                String.format("Task: %s - Slot: %s",
-                        task.getTaskName(), task.getTargetSlot() != null ? task.getTargetSlot().getSlotNumber() : "N/A")
-        );
+        // Notify staff about task assignment
+        if (notificationService != null) {
+            notificationService.createNotification(
+                    staff.getId(),
+                    "Phân công nhiệm vụ mới",
+                    String.format("Bạn đã được phân công nhiệm vụ: %s tại ô %s",
+                            task.getTaskName(), slotNumber),
+                    "TASK_ASSIGNMENT",
+                    task.getId(),
+                    "/dashboard/staff/tasks"
+            );
+        }
+
+        if (firebaseMessagingService != null) {
+            firebaseMessagingService.sendPushNotification(
+                    staff.getId(),
+                    "Phân công nhiệm vụ mới",
+                    String.format("Nhiệm vụ: %s - Ô: %s", task.getTaskName(), slotNumber)
+            );
+        }
 
         return savedTask;
     }
@@ -162,8 +222,108 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
     }
 
     @Override
+    public List<GardeningTask> getAvailableTasks(String username) {
+        User staff = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
+        if (staff.getLocation() == null) {
+            return List.of();
+        }
+        return gardeningTaskRepository.findUnassignedByLocationId(staff.getLocation().getId());
+    }
+
+    @Override
+    @Transactional
+    public GardeningTask claimTask(Long taskId, String username) {
+        GardeningTask task = gardeningTaskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
+
+        if (task.getAssignedStaff() != null) {
+            throw new IllegalArgumentException("Task has already been claimed by another staff member");
+        }
+
+        User staff = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
+
+        task.setAssignedStaff(staff);
+        return gardeningTaskRepository.save(task);
+    }
+
+    @Override
+    @Transactional
+    public GardeningTask notifyHarvestChoice(Long taskId, String username) {
+        GardeningTask task = gardeningTaskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
+
+        if (task.getTaskType() != ETaskType.HARVEST) {
+            throw new IllegalArgumentException("Only HARVEST tasks support the harvest-choice notification");
+        }
+        if (task.getAssignedStaff() == null || !task.getAssignedStaff().getUsername().equals(username)) {
+            throw new IllegalArgumentException("Task is not assigned to the authenticated staff member " + username);
+        }
+        if (task.getTargetSlot() == null) {
+            throw new IllegalArgumentException("Task has no target slot");
+        }
+
+        List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(task.getTargetSlot().getId(), LocalDateTime.now());
+        if (activeRentals.isEmpty()) {
+            throw new IllegalArgumentException("No active rental found for this slot");
+        }
+        SlotRental rental = activeRentals.get(0);
+        if (rental.getUser() == null) {
+            throw new IllegalArgumentException("Rental has no associated customer");
+        }
+
+        rental.setHarvestNotifiedAt(LocalDateTime.now());
+        rental.setHarvestDecision(null);
+        slotRentalRepository.save(rental);
+
+        String staffName = task.getAssignedStaff().getFullName();
+        String slotNumber = task.getTargetSlot().getSlotNumber();
+        String treeName = rental.getTree() != null ? rental.getTree().getTreeName() : "cây trồng";
+
+        String message = String.format(
+                "Nhân viên %s báo: cây %s tại ô đất %s đã sẵn sàng thu hoạch. Bạn muốn tự thu hoạch hay nhờ nhân viên thu hoạch giúp?",
+                staffName, treeName, slotNumber);
+
+        if (notificationService != null) {
+            notificationService.createNotification(
+                    rental.getUser().getId(),
+                    "Sẵn sàng thu hoạch",
+                    message,
+                    "HARVEST_CHOICE",
+                    rental.getId(),
+                    "/dashboard/customer/rentals"
+            );
+        }
+
+        if (firebaseMessagingService != null) {
+            firebaseMessagingService.sendPushNotification(
+                    rental.getUser().getId(),
+                    "Sẵn sàng thu hoạch",
+                    String.format("%s báo cây %s tại ô %s đã sẵn sàng thu hoạch", staffName, treeName, slotNumber)
+            );
+        }
+
+        return task;
+    }
+
+    @Override
     public List<GardeningTask> getAllTasks() {
-        return gardeningTaskRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
+        List<GardeningTask> all = gardeningTaskRepository.findAll(org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
+        if (targetLocationId == null) {
+            return all;
+        }
+        return all.stream().filter(t -> {
+            Long slotLocId = getSlotLocationId(t.getTargetSlot());
+            if (slotLocId != null) {
+                return targetLocationId.equals(slotLocId);
+            }
+            if (t.getAssignedStaff() != null && t.getAssignedStaff().getLocation() != null) {
+                return targetLocationId.equals(t.getAssignedStaff().getLocation().getId());
+            }
+            return false;
+        }).collect(java.util.stream.Collectors.toList());
     }
 
     @Override
@@ -211,6 +371,25 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             if (task.getStatus() == ETaskStatus.REJECTED) {
                 task.setRejectionReason(null);
             }
+
+            // Notify location managers about task submission
+            if (notificationService != null) {
+                List<User> managers = findLocationManagers(task.getTargetSlot());
+                String slotNumber = task.getTargetSlot() != null ? task.getTargetSlot().getSlotNumber() : "N/A";
+                String title = "Nhiệm vụ chờ duyệt";
+                String message = String.format("Nhân viên %s đã nộp bằng chứng hoàn thành nhiệm vụ '%s' tại ô %s. Vui lòng kiểm tra và duyệt.",
+                        username, task.getTaskName(), slotNumber);
+                for (User manager : managers) {
+                    notificationService.createNotification(
+                            manager.getId(),
+                            title,
+                            message,
+                            "TASK_SUBMITTED",
+                            task.getId(),
+                            "/dashboard/manager/tasks"
+                    );
+                }
+            }
         }
 
         task.setStatus(newStatus);
@@ -246,6 +425,25 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         originalTask.setDescription(originalTask.getDescription() + "\n[BLOCKED_BY_ISSUE: " + savedIssue.getTaskName() + "]");
         gardeningTaskRepository.save(originalTask);
 
+        // Notify location managers about reported issue
+        if (notificationService != null) {
+            List<User> managers = findLocationManagers(originalTask.getTargetSlot());
+            String slotNumber = originalTask.getTargetSlot() != null ? originalTask.getTargetSlot().getSlotNumber() : "N/A";
+            String title = "Báo cáo sự cố từ nhân viên";
+            String message = String.format("Nhân viên %s báo cáo sự cố tại ô %s: %s - %s",
+                    username, slotNumber, request.getIssueTitle(), request.getDescription());
+            for (User manager : managers) {
+                notificationService.createNotification(
+                        manager.getId(),
+                        title,
+                        message,
+                        "TASK_ISSUE",
+                        savedIssue.getId(),
+                        "/dashboard/manager/tasks"
+                );
+            }
+        }
+
         return savedIssue;
     }
 
@@ -259,18 +457,39 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             throw new IllegalArgumentException("Task must be in PENDING_APPROVAL status to be reviewed. Current status: " + task.getStatus());
         }
 
+        String slotNumber = task.getTargetSlot() != null ? task.getTargetSlot().getSlotNumber() : "N/A";
+
         if ("APPROVE".equalsIgnoreCase(request.getAction())) {
             task.setStatus(ETaskStatus.COMPLETED);
             task.setRejectionReason(null);
-            
+
             // Notify staff
-            if (task.getAssignedStaff() != null) {
+            if (task.getAssignedStaff() != null && notificationService != null) {
                 notificationService.createNotification(
                         task.getAssignedStaff().getId(),
-                        "Task Approved",
-                        "Your work on task " + task.getTaskName() + " has been approved.",
-                        "TASK_APPROVED"
+                        "Nhiệm vụ đã được duyệt",
+                        String.format("Nhiệm vụ '%s' tại ô %s đã được quản lý phê duyệt.", task.getTaskName(), slotNumber),
+                        "TASK_APPROVED",
+                        task.getId(),
+                        "/dashboard/staff/tasks"
                 );
+            }
+
+            // If requested by customer, notify customer
+            if (task.getRequestedBy() != null && notificationService != null) {
+                notificationService.createNotification(
+                        task.getRequestedBy().getId(),
+                        "Yêu cầu chăm sóc hoàn tất",
+                        String.format("Yêu cầu dịch vụ '%s' tại ô đất %s đã được hoàn thành và nghiệm thu.", task.getTaskName(), slotNumber),
+                        "TASK_COMPLETED",
+                        task.getId(),
+                        "/dashboard/customer/rentals"
+                );
+            }
+
+            // Công việc thu hoạch hoàn tất -> báo cho khách hàng, ghi rõ nhân viên đã xử lý
+            if (task.getTaskType() == ETaskType.HARVEST && task.getTargetSlot() != null) {
+                notifyCustomerHarvestDone(task);
             }
         } else if ("REJECT".equalsIgnoreCase(request.getAction())) {
             if (request.getRejectionReason() == null || request.getRejectionReason().trim().isEmpty()) {
@@ -280,12 +499,14 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             task.setRejectionReason(request.getRejectionReason());
             
             // Notify staff
-            if (task.getAssignedStaff() != null) {
+            if (task.getAssignedStaff() != null && notificationService != null) {
                 notificationService.createNotification(
                         task.getAssignedStaff().getId(),
-                        "Task Rejected",
-                        "Your work on task " + task.getTaskName() + " has been rejected. Reason: " + request.getRejectionReason(),
-                        "TASK_REJECTED"
+                        "Nhiệm vụ bị từ chối duyệt",
+                        String.format("Nhiệm vụ '%s' tại ô %s bị từ chối duyệt. Lý do: %s", task.getTaskName(), slotNumber, request.getRejectionReason()),
+                        "TASK_REJECTED",
+                        task.getId(),
+                        "/dashboard/staff/tasks"
                 );
             }
         } else {
@@ -293,5 +514,163 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         }
 
         return gardeningTaskRepository.save(task);
+    }
+
+    private void notifyCustomerHarvestDone(GardeningTask task) {
+        List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(task.getTargetSlot().getId(), LocalDateTime.now());
+        if (activeRentals.isEmpty()) {
+            return;
+        }
+        SlotRental rental = activeRentals.get(0);
+        if (rental.getUser() == null) {
+            return;
+        }
+
+        String staffName = task.getAssignedStaff() != null ? task.getAssignedStaff().getFullName() : "Nhân viên làm vườn";
+        String slotNumber = task.getTargetSlot().getSlotNumber();
+        String treeName = rental.getTree() != null ? rental.getTree().getTreeName() : "cây trồng";
+
+        String message = String.format("Nhân viên %s đã thu hoạch xong cây %s tại ô đất %s.", staffName, treeName, slotNumber);
+
+        if (notificationService != null) {
+            notificationService.createNotification(
+                    rental.getUser().getId(),
+                    "Đã thu hoạch xong",
+                    message,
+                    "HARVEST_DONE",
+                    rental.getId(),
+                    "/dashboard/customer/rentals"
+            );
+        }
+
+        if (firebaseMessagingService != null) {
+            firebaseMessagingService.sendPushNotification(
+                    rental.getUser().getId(),
+                    "Đã thu hoạch xong",
+                    String.format("%s đã thu hoạch cây %s tại ô %s", staffName, treeName, slotNumber)
+            );
+        }
+
+        // Lưu lại lịch sử thu hoạch TRƯỚC khi xóa dữ liệu cây khỏi rental
+        harvestHistoryService.recordHarvest(rental, "STAFF", task.getAssignedStaff());
+
+        // Thu hoạch xong -> ô đất trở lại trạng thái "chưa trồng", sẵn sàng cho yêu cầu trồng cây mới
+        rental.setTree(null);
+        rental.setTreeStatus(null);
+        rental.setTreeNotes(null);
+        rental.setPlantedAt(null);
+        rental.setHarvestReminderSent(false);
+        rental.setHarvestNotifiedAt(null);
+        rental.setHarvestDecision(null);
+        slotRentalRepository.save(rental);
+    }
+
+    @Override
+    @Transactional
+    public GardeningTask updateEvidenceImage(Long taskId, String evidenceImageUrl) {
+        GardeningTask task = gardeningTaskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
+        task.setEvidenceImageUrl(evidenceImageUrl);
+        return gardeningTaskRepository.save(task);
+    }
+
+    private boolean hasActiveHarvestTask(SlotRental rental) {
+        if (rental.getGardenSlot() == null) {
+            return false;
+        }
+        List<GardeningTask> tasks = gardeningTaskRepository.findByTargetSlotIdAndTaskTypeOrderByCreatedAtDesc(
+                rental.getGardenSlot().getId(), ETaskType.HARVEST);
+        return tasks.stream().anyMatch(t -> t.getStatus() != ETaskStatus.COMPLETED && t.getStatus() != ETaskStatus.CANCELLED);
+    }
+
+    @Override
+    public List<EligibleHarvestRentalDTO> getEligibleEarlyHarvestRentals(String username) {
+        User staff = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
+        if (staff.getLocation() == null) {
+            return List.of();
+        }
+        List<SlotRental> rentals = slotRentalRepository.findActiveWithTreeByLocationId(staff.getLocation().getId());
+        return rentals.stream()
+                .filter(r -> !hasActiveHarvestTask(r))
+                .map(r -> new EligibleHarvestRentalDTO(
+                        r.getId(),
+                        r.getGardenSlot() != null ? r.getGardenSlot().getSlotNumber() : null,
+                        r.getTree() != null ? r.getTree().getTreeName() : null,
+                        r.getPlantedAt()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public GardeningTask notifyEarlyHarvest(Long rentalId, String username) {
+        User staff = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
+
+        SlotRental rental = slotRentalRepository.findById(rentalId)
+                .orElseThrow(() -> new IllegalArgumentException("Rental not found with id: " + rentalId));
+
+        if (rental.getStatus() != ERentalStatus.ACTIVE || rental.getTree() == null) {
+            throw new IllegalArgumentException("This rental has no active tree to harvest");
+        }
+        if (rental.getGardenSlot() == null) {
+            throw new IllegalArgumentException("Rental has no target slot");
+        }
+
+        Long rentalLocationId = getSlotLocationId(rental.getGardenSlot());
+        if (staff.getLocation() == null || !staff.getLocation().getId().equals(rentalLocationId)) {
+            throw new IllegalArgumentException("You can only notify harvest for rentals at your own location");
+        }
+
+        if (hasActiveHarvestTask(rental)) {
+            throw new IllegalArgumentException("This rental already has an active harvest task in progress");
+        }
+
+        String slotNumber = rental.getGardenSlot().getSlotNumber();
+        String treeName = rental.getTree().getTreeName();
+
+        GardeningTask task = new GardeningTask();
+        task.setTaskName("Thu hoạch sớm: " + treeName + " - Ô " + slotNumber);
+        task.setDescription("Nhân viên " + staff.getFullName() + " chủ động báo thu hoạch sớm cho cây " + treeName
+                + " tại ô " + slotNumber + " (chưa đủ số ngày sinh trưởng dự kiến).");
+        task.setStatus(ETaskStatus.PENDING);
+        task.setTaskType(ETaskType.HARVEST);
+        task.setTargetSlot(rental.getGardenSlot());
+        task.setRequestedBy(rental.getUser());
+        task.setAssignedStaff(staff);
+        task.setCreatedAt(LocalDateTime.now());
+        GardeningTask savedTask = gardeningTaskRepository.save(task);
+
+        rental.setHarvestNotifiedAt(LocalDateTime.now());
+        rental.setHarvestDecision(null);
+        slotRentalRepository.save(rental);
+
+        if (rental.getUser() != null) {
+            String message = String.format(
+                    "Nhân viên %s báo: cây %s tại ô đất %s đã sẵn sàng thu hoạch (báo sớm). Bạn muốn tự thu hoạch hay nhờ nhân viên thu hoạch giúp?",
+                    staff.getFullName(), treeName, slotNumber);
+
+            if (notificationService != null) {
+                notificationService.createNotification(
+                        rental.getUser().getId(),
+                        "Sẵn sàng thu hoạch",
+                        message,
+                        "HARVEST_CHOICE",
+                        rental.getId(),
+                        "/dashboard/customer/rentals"
+                );
+            }
+
+            if (firebaseMessagingService != null) {
+                firebaseMessagingService.sendPushNotification(
+                        rental.getUser().getId(),
+                        "Sẵn sàng thu hoạch",
+                        String.format("%s báo cây %s tại ô %s đã sẵn sàng thu hoạch", staff.getFullName(), treeName, slotNumber)
+                );
+            }
+        }
+
+        return savedTask;
     }
 }
