@@ -47,16 +47,26 @@ public class VNPayUtils {
         String vnp_Version = "2.1.0";
         String vnp_Command = "pay";
         String vnp_TxnRef = txnRef;
-        String vnp_OrderInfo = orderInfo;
+        String vnp_OrderInfo = sanitizeOrderInfo(orderInfo);
         String vnp_OrderType = "other";
+        
         // VNPay expects amount in cents/VND without decimals (e.g. multiplied by 100)
-        String vnp_Amount = amount.multiply(new BigDecimal(100)).setScale(0).toString();
+        long vnpAmountLong = amount.multiply(BigDecimal.valueOf(100)).setScale(0, java.math.RoundingMode.HALF_UP).longValue();
+        String vnp_Amount = String.valueOf(vnpAmountLong);
         String vnp_Locale = "vn";
+
+        // Sanitize IP Address to strictly valid IPv4 (reject IPv6 like 0:0:0:0:0:0:0:1)
         String vnp_IpAddr = ipAddress;
+        if (vnp_IpAddr == null || vnp_IpAddr.isBlank() || vnp_IpAddr.contains(":") || "localhost".equalsIgnoreCase(vnp_IpAddr)) {
+            vnp_IpAddr = "127.0.0.1";
+        } else if (vnp_IpAddr.contains(",")) {
+            vnp_IpAddr = vnp_IpAddr.split(",")[0].trim();
+        }
 
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh"));
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
         String vnp_CreateDate = now.format(formatter);
+        String vnp_ExpireDate = now.plusMinutes(15).format(formatter);
 
         String effectiveReturnUrl = returnUrl;
         if (isMobile) {
@@ -79,6 +89,7 @@ public class VNPayUtils {
         }
         vnp_Params.put("vnp_IpAddr", vnp_IpAddr);
         vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
+        vnp_Params.put("vnp_ExpireDate", vnp_ExpireDate);
 
         // Sort keys alphabetically
         List<String> fieldNames = new ArrayList<>(vnp_Params.keySet());
@@ -104,6 +115,16 @@ public class VNPayUtils {
         queryUrl += "&vnp_SecureHash=" + vnp_SecureHash;
 
         return url + "?" + queryUrl;
+    }
+
+    private String sanitizeOrderInfo(String input) {
+        if (input == null || input.isBlank()) {
+            return "GreenSlot Payment";
+        }
+        String temp = java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD);
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
+        String noAccents = pattern.matcher(temp).replaceAll("").replace('đ', 'd').replace('Đ', 'D');
+        return noAccents.replaceAll("[^a-zA-Z0-9 \\-_#.]", " ").replaceAll("\\s+", " ").trim();
     }
 
     public boolean verifySignature(Map<String, String> fields) {

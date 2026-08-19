@@ -161,6 +161,15 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             pillar.setDefaultTree(null);
         }
 
+        if (dto.getSlotId() != null) {
+            if (dto.getSlotId() > 0) {
+                GardenSlot slot = gardenSlotRepository.findById(dto.getSlotId()).orElse(null);
+                pillar.setGardenSlot(slot);
+            } else {
+                pillar.setGardenSlot(null);
+            }
+        }
+
         pillar.setLocation(location);
         pillar.setImageUrl(dto.getImageUrl());
 
@@ -207,6 +216,15 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             }
         }
 
+        if (dto.getSlotId() != null) {
+            if (dto.getSlotId() > 0) {
+                GardenSlot slot = gardenSlotRepository.findById(dto.getSlotId()).orElse(null);
+                pillar.setGardenSlot(slot);
+            } else {
+                pillar.setGardenSlot(null);
+            }
+        }
+
         pillar.setLocation(location);
         pillar.setImageUrl(dto.getImageUrl());
 
@@ -243,6 +261,10 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             dto.setDefaultTreeId(p.getDefaultTree().getId());
             dto.setDefaultTreeName(p.getDefaultTree().getTreeName());
             dto.setDefaultTreePrice(p.getDefaultTree().getPrice());
+        }
+        if (p.getGardenSlot() != null) {
+            dto.setSlotId(p.getGardenSlot().getId());
+            dto.setSlotNumber(p.getGardenSlot().getSlotNumber());
         }
         return dto;
     }

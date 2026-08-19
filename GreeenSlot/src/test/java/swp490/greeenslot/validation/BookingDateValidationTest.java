@@ -67,6 +67,12 @@ class BookingDateValidationTest {
     @Mock
     private VNPayUtils vnPayUtils;
 
+    @Mock
+    private swp490.greeenslot.repository.TreeRepository treeRepository;
+
+    @Mock
+    private swp490.greeenslot.repository.PillarRepository pillarRepository;
+
     @InjectMocks
     private BookingServiceImpl bookingService;
 
@@ -225,5 +231,78 @@ class BookingDateValidationTest {
         assertNotNull(response);
         assertEquals(101L, response.getRentalId());
         verify(slotRentalRepository).save(any(SlotRental.class));
+    }
+
+    @Test
+    @DisplayName("Tree Harvest Validation: Should reject booking if tree harvest days exceed rental duration")
+    void testService_CreateBooking_TreeHarvestExceedsRentalDuration_ThrowsException() {
+        BookingRequestDTO request = new BookingRequestDTO();
+        request.setSlotId(10L);
+        request.setDurationInMonths(1); // 30 days
+        request.setTreeId(5L);
+
+        swp490.greeenslot.entity.Tree tree = new swp490.greeenslot.entity.Tree();
+        tree.setId(5L);
+        tree.setTreeName("Cà chua Bi");
+        tree.setHarvestDays(45); // 45 > 30
+
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(gardenSlotRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testSlot));
+        when(paymentTransactionRepository.findRecentPendingTransactions(eq(10L), any(LocalDateTime.class)))
+                .thenReturn(Collections.emptyList());
+        when(slotRentalRepository.findCurrentlyRentedPillarIds(any(LocalDateTime.class)))
+                .thenReturn(Collections.emptyList());
+        when(treeRepository.findById(5L)).thenReturn(Optional.of(tree));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                bookingService.createBooking(request, "testuser", "127.0.0.1")
+        );
+
+        assertTrue(ex.getMessage().contains("vượt quá thời hạn thuê"));
+    }
+
+    @Test
+    @DisplayName("Pillar Fallback: Should fallback to location pillars when slot has no assigned pillars")
+    void testService_CreateBooking_SlotWithoutPillars_FallsBackToLocation() {
+        swp490.greeenslot.entity.Location loc = new swp490.greeenslot.entity.Location();
+        loc.setId(2L);
+
+        GardenSlot emptySlot = new GardenSlot();
+        emptySlot.setId(20L);
+        emptySlot.setSlotNumber("S-02");
+        emptySlot.setStatus(ESlotStatus.AVAILABLE);
+        emptySlot.setLocation(loc);
+        emptySlot.setPillars(Collections.emptyList());
+
+        Pillar locPillar = new Pillar();
+        locPillar.setId(201L);
+        locPillar.setPillarCode("P-LOC-01");
+        locPillar.setStatus(EPillarStatus.ACTIVE);
+        locPillar.setPrice(new BigDecimal("180000"));
+        locPillar.setCapacityHoles(24);
+
+        BookingRequestDTO request = new BookingRequestDTO();
+        request.setSlotId(20L);
+        request.setDurationInMonths(2);
+        request.setPillarIds(List.of(201L));
+
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(gardenSlotRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(emptySlot));
+        when(paymentTransactionRepository.findRecentPendingTransactions(eq(20L), any(LocalDateTime.class)))
+                .thenReturn(Collections.emptyList());
+        when(slotRentalRepository.findCurrentlyRentedPillarIds(any(LocalDateTime.class)))
+                .thenReturn(Collections.emptyList());
+        when(pillarRepository.findByLocationId(2L)).thenReturn(List.of(locPillar));
+
+        SlotRental savedRental = new SlotRental();
+        savedRental.setId(200L);
+        when(slotRentalRepository.save(any(SlotRental.class))).thenReturn(savedRental);
+        when(vnPayUtils.buildPaymentUrl(anyString(), any(BigDecimal.class), anyString(), anyString(), anyBoolean()))
+                .thenReturn("http://vnpay.mock/url");
+
+        BookingResponseDTO response = bookingService.createBooking(request, "testuser", "127.0.0.1");
+
+        assertNotNull(response);
+        assertEquals(200L, response.getRentalId());
     }
 }

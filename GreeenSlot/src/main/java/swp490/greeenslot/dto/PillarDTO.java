@@ -37,6 +37,9 @@ public class PillarDTO {
     private String defaultTreeName;
     private BigDecimal defaultTreePrice;
 
+    private Long slotId;
+    private String slotNumber;
+
     public PillarDTO(Long id, String pillarCode, String status, Long locationId, String imageUrl) {
         this.id = id;
         this.pillarCode = pillarCode;

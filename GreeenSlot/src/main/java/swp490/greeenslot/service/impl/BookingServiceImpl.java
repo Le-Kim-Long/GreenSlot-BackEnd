@@ -83,8 +83,13 @@ public class BookingServiceImpl implements BookingService {
                 .filter(g -> {
                     List<Pillar> pillars = g.getPillars();
                     if (pillars == null || pillars.isEmpty()) {
-                        if (g.getPillar() != null) pillars = List.of(g.getPillar());
-                        else return g.getStatus() == ESlotStatus.AVAILABLE;
+                        if (g.getPillar() != null) {
+                            pillars = List.of(g.getPillar());
+                        } else if (g.getLocation() != null) {
+                            pillars = pillarRepository.findByLocationId(g.getLocation().getId());
+                        } else {
+                            return g.getStatus() == ESlotStatus.AVAILABLE;
+                        }
                     }
                     // At least one pillar must not be rented and status == ACTIVE
                     return pillars.stream().anyMatch(p -> p.getStatus() == EPillarStatus.ACTIVE && !rentedPillarIdSet.contains(p.getId()));
@@ -130,11 +135,13 @@ public class BookingServiceImpl implements BookingService {
         }
         LocalDateTime end = start.plusMonths(months);
 
-        // Resolve available slot pillars
+        // Resolve available slot pillars (fallback to location's unassigned pillars if slot has no assigned pillars)
         List<Pillar> slotPillars = slot.getPillars();
         if (slotPillars == null || slotPillars.isEmpty()) {
             if (slot.getPillar() != null) {
                 slotPillars = List.of(slot.getPillar());
+            } else if (slot.getLocation() != null) {
+                slotPillars = pillarRepository.findByLocationId(slot.getLocation().getId());
             } else {
                 slotPillars = Collections.emptyList();
             }
@@ -152,7 +159,7 @@ public class BookingServiceImpl implements BookingService {
                 }
             }
             if (selectedPillars.size() != requestedPillarIdSet.size()) {
-                throw new IllegalArgumentException("Một hoặc nhiều trụ bạn chọn không thuộc ô vườn này");
+                throw new IllegalArgumentException("Một hoặc nhiều trụ bạn chọn không thuộc ô vườn hoặc cơ sở này");
             }
         } else {
             // Default: select all active and non-rented pillars in this slot
@@ -183,6 +190,18 @@ public class BookingServiceImpl implements BookingService {
                     .filter(Objects::nonNull)
                     .findFirst()
                     .orElse(null);
+        }
+
+        // Validate tree growth time vs rental duration
+        if (selectedTree != null && selectedTree.getHarvestDays() != null && selectedTree.getHarvestDays() > 0) {
+            int maxRentalDays = months * 30;
+            if (selectedTree.getHarvestDays() > maxRentalDays) {
+                int minMonths = (int) Math.ceil(selectedTree.getHarvestDays() / 30.0);
+                throw new IllegalArgumentException(String.format(
+                    "Thời gian sinh trưởng của giống cây '%s' (%d ngày) vượt quá thời hạn thuê (%d tháng = %d ngày). Vui lòng chọn thời gian thuê tối thiểu %d tháng.",
+                    selectedTree.getTreeName(), selectedTree.getHarvestDays(), months, maxRentalDays, minMonths
+                ));
+            }
         }
 
         // Calculate amount:

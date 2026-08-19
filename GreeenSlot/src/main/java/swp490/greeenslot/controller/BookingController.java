@@ -29,6 +29,9 @@ public class BookingController {
     @Autowired
     private BookingService bookingService;
 
+    @Autowired
+    private swp490.greeenslot.repository.PillarRepository pillarRepository;
+
     @GetMapping("/available")
     @Operation(summary = "Browse available garden slots", description = "Filters slots by Location ID if provided. Otherwise returns all available slots.")
     public ResponseEntity<List<AvailableSlotResponseDTO>> getAvailableSlots(@RequestParam(required = false) Long locationId) {
@@ -37,7 +40,7 @@ public class BookingController {
             Location loc = s.getLocation() != null ? s.getLocation() : (s.getPillar() != null ? s.getPillar().getLocation() : null);
             List<Pillar> slotPillars = (s.getPillars() != null && !s.getPillars().isEmpty())
                     ? s.getPillars()
-                    : (s.getPillar() != null ? List.of(s.getPillar()) : Collections.emptyList());
+                    : (s.getPillar() != null ? List.of(s.getPillar()) : (loc != null ? pillarRepository.findByLocationId(loc.getId()) : Collections.emptyList()));
             
             List<String> codes = slotPillars.stream().map(Pillar::getPillarCode).collect(Collectors.toList());
             String primaryCode = !codes.isEmpty() ? String.join(", ", codes) : "N/A";
