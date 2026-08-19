@@ -157,6 +157,7 @@ public class BookingServiceImpl implements BookingService {
                 || (request.getLargePillarsCount() != null && request.getLargePillarsCount() > 0);
 
         List<Pillar> selectedPillars = new ArrayList<>();
+        List<Pillar> newlyProvisionedPillars = new ArrayList<>();
 
         if (hasCustomCounts) {
             int smallCount = request.getSmallPillarsCount() != null ? Math.max(0, request.getSmallPillarsCount()) : 0;
@@ -172,9 +173,17 @@ public class BookingServiceImpl implements BookingService {
             }
 
             // Allocate or create pillars matching requested counts
-            selectedPillars.addAll(allocateOrCreatePillars(slot, EPillarType.SMALL, smallCount, currentlyRentedSet));
-            selectedPillars.addAll(allocateOrCreatePillars(slot, EPillarType.MEDIUM, mediumCount, currentlyRentedSet));
-            selectedPillars.addAll(allocateOrCreatePillars(slot, EPillarType.LARGE, largeCount, currentlyRentedSet));
+            PillarAllocationResult sRes = allocateOrCreatePillars(slot, EPillarType.SMALL, smallCount, currentlyRentedSet);
+            PillarAllocationResult mRes = allocateOrCreatePillars(slot, EPillarType.MEDIUM, mediumCount, currentlyRentedSet);
+            PillarAllocationResult lRes = allocateOrCreatePillars(slot, EPillarType.LARGE, largeCount, currentlyRentedSet);
+
+            selectedPillars.addAll(sRes.allPillars);
+            selectedPillars.addAll(mRes.allPillars);
+            selectedPillars.addAll(lRes.allPillars);
+
+            newlyProvisionedPillars.addAll(sRes.newlyCreatedPillars);
+            newlyProvisionedPillars.addAll(mRes.newlyCreatedPillars);
+            newlyProvisionedPillars.addAll(lRes.newlyCreatedPillars);
         } else if (request.getPillarIds() != null && !request.getPillarIds().isEmpty()) {
             Set<Long> requestedPillarIdSet = new HashSet<>(request.getPillarIds());
             for (Pillar p : slotPillars) {
@@ -193,7 +202,9 @@ public class BookingServiceImpl implements BookingService {
         } else {
             // If slot has no pillars created yet in DB, automatically provision standard template pillars fitting slot area
             int defaultMediumPillars = Math.max(1, (int) Math.floor(slotMaxArea / 1.5));
-            selectedPillars.addAll(allocateOrCreatePillars(slot, EPillarType.MEDIUM, defaultMediumPillars, currentlyRentedSet));
+            PillarAllocationResult mRes = allocateOrCreatePillars(slot, EPillarType.MEDIUM, defaultMediumPillars, currentlyRentedSet);
+            selectedPillars.addAll(mRes.allPillars);
+            newlyProvisionedPillars.addAll(mRes.newlyCreatedPillars);
         }
 
         if (selectedPillars.isEmpty()) {
@@ -276,6 +287,85 @@ public class BookingServiceImpl implements BookingService {
         // Set slot status to PENDING_PAYMENT to reserve it temporarily
         slot.setStatus(ESlotStatus.PENDING_PAYMENT);
         gardenSlotRepository.save(slot);
+
+        // If new pillars need to be physically prepared and assembled at the location, trigger notification & task
+        if (!newlyProvisionedPillars.isEmpty()) {
+            long newSmall = newlyProvisionedPillars.stream().filter(p -> p.getEffectivePillarType() == EPillarType.SMALL).count();
+            long newMedium = newlyProvisionedPillars.stream().filter(p -> p.getEffectivePillarType() == EPillarType.MEDIUM).count();
+            long newLarge = newlyProvisionedPillars.stream().filter(p -> p.getEffectivePillarType() == EPillarType.LARGE).count();
+
+            List<String> parts = new ArrayList<>();
+            if (newLarge > 0) parts.add(newLarge + " Trụ Lớn");
+            if (newMedium > 0) parts.add(newMedium + " Trụ Vừa");
+            if (newSmall > 0) parts.add(newSmall + " Trụ Nhỏ");
+            String pillarSummary = String.join(", ", parts);
+
+            // 1. Create setup task for technical staff
+            GardeningTask setupTask = new GardeningTask();
+            setupTask.setTaskName("Lắp đặt bổ sung " + newlyProvisionedPillars.size() + " trụ cho Ô " + slot.getSlotNumber());
+            setupTask.setDescription(String.format(
+                "Khách hàng %s vừa đặt thuê %d trụ tại Ô %s. Cơ sở cần chuẩn bị và lắp đặt bổ sung %s trước ngày %s.",
+                user.getFullName() != null ? user.getFullName() : user.getUsername(),
+                selectedPillars.size(),
+                slot.getSlotNumber(),
+                pillarSummary,
+                start.toLocalDate()
+            ));
+            setupTask.setTaskType(ETaskType.MAINTENANCE);
+            setupTask.setStatus(ETaskStatus.PENDING);
+            setupTask.setTargetSlot(slot);
+            setupTask.setRequestedBy(user);
+
+            if (slot.getLocation() != null) {
+                List<User> staffList = userRepository.findByRoleNameAndLocation(ERole.ROLE_GARDEN_STAFF, slot.getLocation().getId());
+                if (!staffList.isEmpty()) {
+                    setupTask.setAssignedStaff(staffList.get(0));
+                }
+            }
+            gardeningTaskRepository.save(setupTask);
+
+            // 2. Notify Location Manager(s) of this location
+            List<User> managers = (slot.getLocation() != null)
+                ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, slot.getLocation().getId())
+                : Collections.emptyList();
+            if (managers.isEmpty()) {
+                managers = userRepository.findByRoleName(ERole.ROLE_LOCATION_MANAGER);
+            }
+            if (managers.isEmpty()) {
+                managers = userRepository.findByRoleName(ERole.ROLE_ADMIN);
+            }
+
+            for (User mgr : managers) {
+                notificationService.createNotification(
+                    mgr.getId(),
+                    "⚠️ Yêu cầu bổ sung trụ: Ô " + slot.getSlotNumber(),
+                    String.format(
+                        "Khách hàng %s đã đặt thuê %d trụ tại Ô %s (Cơ sở cần bổ sung %d trụ: %s). Vui lòng điều phối nhân viên lắp đặt hoàn thiện trước ngày %s.",
+                        user.getFullName() != null ? user.getFullName() : user.getUsername(),
+                        selectedPillars.size(),
+                        slot.getSlotNumber(),
+                        newlyProvisionedPillars.size(),
+                        pillarSummary,
+                        start.toLocalDate()
+                    ),
+                    "PILLAR_SETUP_REQUIRED",
+                    rental.getId(),
+                    "/dashboard/manager/tasks"
+                );
+            }
+
+            if (setupTask.getAssignedStaff() != null) {
+                notificationService.createNotification(
+                    setupTask.getAssignedStaff().getId(),
+                    "Nhiệm vụ mới: Lắp đặt trụ cho Ô " + slot.getSlotNumber(),
+                    String.format("Bạn được giao nhiệm vụ lắp đặt bổ sung %s cho Ô %s trước ngày %s.",
+                        pillarSummary, slot.getSlotNumber(), start.toLocalDate()),
+                    "TASK_ASSIGNED",
+                    setupTask.getId(),
+                    "/dashboard/staff/tasks"
+                );
+            }
+        }
 
         // Generate vnpTxnRef: BOOK_[slotId]_[duration]_[uuid]
         String uuid = UUID.randomUUID().toString().substring(0, 8);
@@ -814,29 +904,34 @@ public class BookingServiceImpl implements BookingService {
         rental.setHarvestDecision(null);
     }
 
-    private List<Pillar> allocateOrCreatePillars(GardenSlot slot, EPillarType type, int count, Set<Long> currentlyRentedSet) {
-        if (count <= 0) return Collections.emptyList();
+    private static class PillarAllocationResult {
+        List<Pillar> allPillars = new ArrayList<>();
+        List<Pillar> newlyCreatedPillars = new ArrayList<>();
+    }
 
-        List<Pillar> allocated = new ArrayList<>();
+    private PillarAllocationResult allocateOrCreatePillars(GardenSlot slot, EPillarType type, int count, Set<Long> currentlyRentedSet) {
+        PillarAllocationResult result = new PillarAllocationResult();
+        if (count <= 0) return result;
+
         List<Pillar> existing = (slot.getLocation() != null)
                 ? pillarRepository.findByLocationId(slot.getLocation().getId())
                 : Collections.emptyList();
 
         for (Pillar p : existing) {
-            if (allocated.size() >= count) break;
+            if (result.allPillars.size() >= count) break;
             if (p.getEffectivePillarType() == type 
                     && p.getStatus() == EPillarStatus.ACTIVE 
                     && !currentlyRentedSet.contains(p.getId()) 
-                    && !allocated.contains(p)) {
-                allocated.add(p);
+                    && !result.allPillars.contains(p)) {
+                result.allPillars.add(p);
             }
         }
 
-        int needed = count - allocated.size();
+        int needed = count - result.allPillars.size();
         for (int i = 1; i <= needed; i++) {
             Pillar p = new Pillar();
             String suffix = type == EPillarType.SMALL ? "S" : type == EPillarType.LARGE ? "L" : "M";
-            String code = "P-" + slot.getSlotNumber() + "-" + suffix + (allocated.size() + i);
+            String code = "P-" + slot.getSlotNumber() + "-" + suffix + (result.allPillars.size() + i);
             p.setPillarCode(code);
             p.setPillarType(type);
             p.setCapacityHoles(type.getDefaultHoles());
@@ -845,9 +940,10 @@ public class BookingServiceImpl implements BookingService {
             p.setGardenSlot(slot);
             p.setLocation(slot.getLocation());
             Pillar saved = pillarRepository.save(p);
-            allocated.add(saved);
+            result.allPillars.add(saved);
+            result.newlyCreatedPillars.add(saved);
         }
 
-        return allocated;
+        return result;
     }
 }

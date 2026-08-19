@@ -73,6 +73,12 @@ class BookingDateValidationTest {
     @Mock
     private swp490.greeenslot.repository.PillarRepository pillarRepository;
 
+    @Mock
+    private swp490.greeenslot.repository.GardeningTaskRepository gardeningTaskRepository;
+
+    @Mock
+    private swp490.greeenslot.service.NotificationService notificationService;
+
     @InjectMocks
     private BookingServiceImpl bookingService;
 
@@ -304,5 +310,81 @@ class BookingDateValidationTest {
 
         assertNotNull(response);
         assertEquals(200L, response.getRentalId());
+    }
+
+    @Test
+    @DisplayName("Pillar Provisioning: Should create Setup Task and notify Location Manager when custom pillars are newly provisioned")
+    void testService_CreateBooking_MissingPillars_CreatesSetupTaskAndNotifiesManager() {
+        swp490.greeenslot.entity.Location loc = new swp490.greeenslot.entity.Location();
+        loc.setId(5L);
+        loc.setName("Cơ sở Quận 9");
+
+        GardenSlot largeSlot = new GardenSlot();
+        largeSlot.setId(50L);
+        largeSlot.setSlotNumber("S-05");
+        largeSlot.setArea(10.0); // 10m2 can fit 5 Large Pillars (2.0m2 each = 10.0m2)
+        largeSlot.setStatus(ESlotStatus.AVAILABLE);
+        largeSlot.setLocation(loc);
+        largeSlot.setPillars(Collections.emptyList());
+
+        // Location has only 1 large pillar in DB, but customer requests 3 Large Pillars
+        Pillar existingPillar = new Pillar();
+        existingPillar.setId(501L);
+        existingPillar.setPillarCode("P-05-L1");
+        existingPillar.setPillarType(swp490.greeenslot.entity.EPillarType.LARGE);
+        existingPillar.setStatus(EPillarStatus.ACTIVE);
+        existingPillar.setPrice(new BigDecimal("300000"));
+        existingPillar.setCapacityHoles(48);
+
+        User manager = new User();
+        manager.setId(99L);
+        manager.setUsername("managerQ9");
+
+        BookingRequestDTO request = new BookingRequestDTO();
+        request.setSlotId(50L);
+        request.setDurationInMonths(2);
+        request.setLargePillarsCount(3); // Requests 3, but only 1 exists -> 2 will be provisioned
+
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+        when(gardenSlotRepository.findByIdForUpdate(50L)).thenReturn(Optional.of(largeSlot));
+        when(paymentTransactionRepository.findRecentPendingTransactions(eq(50L), any(LocalDateTime.class)))
+                .thenReturn(Collections.emptyList());
+        when(slotRentalRepository.findCurrentlyRentedPillarIds(any(LocalDateTime.class)))
+                .thenReturn(Collections.emptyList());
+        when(pillarRepository.findByLocationId(5L)).thenReturn(List.of(existingPillar));
+        when(pillarRepository.save(any(Pillar.class))).thenAnswer(inv -> {
+            Pillar p = inv.getArgument(0);
+            p.setId((long) (Math.random() * 1000 + 1000));
+            return p;
+        });
+
+        when(userRepository.findByRoleNameAndLocation(swp490.greeenslot.entity.ERole.ROLE_LOCATION_MANAGER, 5L))
+                .thenReturn(List.of(manager));
+        when(userRepository.findByRoleNameAndLocation(swp490.greeenslot.entity.ERole.ROLE_GARDEN_STAFF, 5L))
+                .thenReturn(Collections.emptyList());
+
+        SlotRental savedRental = new SlotRental();
+        savedRental.setId(500L);
+        when(slotRentalRepository.save(any(SlotRental.class))).thenReturn(savedRental);
+        when(vnPayUtils.buildPaymentUrl(anyString(), any(BigDecimal.class), anyString(), anyString(), anyBoolean()))
+                .thenReturn("http://vnpay.mock/url");
+
+        BookingResponseDTO response = bookingService.createBooking(request, "testuser", "127.0.0.1");
+
+        assertNotNull(response);
+        assertEquals(500L, response.getRentalId());
+
+        // Verify that GardeningTask was created and saved
+        verify(gardeningTaskRepository).save(any(swp490.greeenslot.entity.GardeningTask.class));
+
+        // Verify that Notification was sent to Location Manager
+        verify(notificationService).createNotification(
+                eq(99L),
+                eq("⚠️ Yêu cầu bổ sung trụ: Ô S-05"),
+                anyString(),
+                eq("PILLAR_SETUP_REQUIRED"),
+                eq(500L),
+                eq("/dashboard/manager/tasks")
+        );
     }
 }
