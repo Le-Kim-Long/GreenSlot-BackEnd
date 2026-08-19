@@ -76,8 +76,10 @@ public class HarvestReminderServiceImpl implements HarvestReminderService {
 
                 // 2. Thông báo cho nhân viên tại địa điểm về công việc thu hoạch mới
                 if (notificationService != null && rental.getGardenSlot() != null) {
-                    Long locationId = (rental.getGardenSlot().getPillar() != null && rental.getGardenSlot().getPillar().getLocation() != null)
-                            ? rental.getGardenSlot().getPillar().getLocation().getId() : null;
+                    Long locationId = (rental.getGardenSlot().getLocation() != null)
+                            ? rental.getGardenSlot().getLocation().getId()
+                            : (rental.getGardenSlot().getPillar() != null && rental.getGardenSlot().getPillar().getLocation() != null
+                                ? rental.getGardenSlot().getPillar().getLocation().getId() : null);
                     List<User> staffList = locationId != null
                             ? userRepository.findByRoleNameAndLocation(ERole.ROLE_GARDEN_STAFF, locationId)
                             : List.of();

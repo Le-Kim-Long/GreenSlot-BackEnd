@@ -26,6 +26,10 @@ public class Pillar {
     private EPillarStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "slot_id")
+    private GardenSlot gardenSlot;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "location_id")
     private Location location;
 

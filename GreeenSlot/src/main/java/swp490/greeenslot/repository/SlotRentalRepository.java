@@ -22,10 +22,10 @@ public interface SlotRentalRepository extends JpaRepository<SlotRental, Long> {
 
     List<SlotRental> findByUserUsernameOrderByStartTimeDesc(String username);
 
-    @Query("SELECT r FROM SlotRental r " +
+    @Query("SELECT DISTINCT r FROM SlotRental r " +
            "JOIN FETCH r.gardenSlot s " +
-           "JOIN FETCH s.pillar p " +
-           "JOIN FETCH p.location l " +
+           "JOIN FETCH s.location l " +
+           "LEFT JOIN FETCH s.pillars p " +
            "WHERE r.user.username = :username " +
            "ORDER BY r.startTime DESC")
     List<SlotRental> findByUserUsernameWithSlotAndPillarAndLocation(@Param("username") String username);
@@ -58,6 +58,6 @@ public interface SlotRentalRepository extends JpaRepository<SlotRental, Long> {
     List<SlotRental> findHarvestReminderCandidates();
 
     @Query("SELECT r FROM SlotRental r WHERE r.status = 'ACTIVE' AND r.tree IS NOT NULL " +
-           "AND r.gardenSlot.pillar.location.id = :locationId ORDER BY r.plantedAt ASC")
+           "AND r.gardenSlot.location.id = :locationId ORDER BY r.plantedAt ASC")
     List<SlotRental> findActiveWithTreeByLocationId(@Param("locationId") Long locationId);
 }

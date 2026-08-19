@@ -145,47 +145,75 @@ public class DataInitializer {
                     userRepository.save(u);
                 });
 
-                Pillar pillar1 = new Pillar();
-                pillar1.setPillarCode("P-Q1-01");
-                pillar1.setStatus(EPillarStatus.ACTIVE);
-                pillar1.setLocation(location1);
-                pillarRepository.save(pillar1);
-
+                // 1. Tạo Ô vườn S-Q1-01 thuộc Cơ sở Q1, chứa 2 trụ (P-Q1-01A, P-Q1-01B)
                 GardenSlot slot1 = new GardenSlot();
-                slot1.setSlotNumber("S-Q1-01-A");
+                slot1.setSlotNumber("S-Q1-01");
                 slot1.setStatus(ESlotStatus.AVAILABLE);
                 slot1.setPrice(BigDecimal.valueOf(500000));
-                slot1.setPillar(pillar1);
+                slot1.setLocation(location1);
                 gardenSlotRepository.save(slot1);
 
+                Pillar pillar1A = new Pillar();
+                pillar1A.setPillarCode("P-Q1-01A");
+                pillar1A.setStatus(EPillarStatus.ACTIVE);
+                pillar1A.setLocation(location1);
+                pillar1A.setGardenSlot(slot1);
+                pillar1A.setCameraStreamUrl("http://10.10.10.242/capture");
+                pillar1A.setCameraStatus("ONLINE");
+                pillarRepository.save(pillar1A);
+
+                Pillar pillar1B = new Pillar();
+                pillar1B.setPillarCode("P-Q1-01B");
+                pillar1B.setStatus(EPillarStatus.ACTIVE);
+                pillar1B.setLocation(location1);
+                pillar1B.setGardenSlot(slot1);
+                pillarRepository.save(pillar1B);
+
+                // 2. Tạo Ô vườn S-Q1-02 thuộc Cơ sở Q1, chứa 2 trụ (P-Q1-02A, P-Q1-02B)
                 GardenSlot slot2 = new GardenSlot();
-                slot2.setSlotNumber("S-Q1-01-B");
+                slot2.setSlotNumber("S-Q1-02");
                 slot2.setStatus(ESlotStatus.AVAILABLE);
                 slot2.setPrice(BigDecimal.valueOf(500000));
-                slot2.setPillar(pillar1);
+                slot2.setLocation(location1);
                 gardenSlotRepository.save(slot2);
 
-                Pillar pillar2 = new Pillar();
-                pillar2.setPillarCode("P-Q7-01");
-                pillar2.setStatus(EPillarStatus.ACTIVE);
-                pillar2.setLocation(location2);
-                pillarRepository.save(pillar2);
+                Pillar pillar2A = new Pillar();
+                pillar2A.setPillarCode("P-Q1-02A");
+                pillar2A.setStatus(EPillarStatus.ACTIVE);
+                pillar2A.setLocation(location1);
+                pillar2A.setGardenSlot(slot2);
+                pillarRepository.save(pillar2A);
 
+                Pillar pillar2B = new Pillar();
+                pillar2B.setPillarCode("P-Q1-02B");
+                pillar2B.setStatus(EPillarStatus.ACTIVE);
+                pillar2B.setLocation(location1);
+                pillar2B.setGardenSlot(slot2);
+                pillarRepository.save(pillar2B);
+
+                // 3. Tạo Ô vườn S-Q7-01 thuộc Cơ sở Q7, chứa 2 trụ (P-Q7-01A, P-Q7-01B)
                 GardenSlot slot3 = new GardenSlot();
-                slot3.setSlotNumber("S-Q7-01-A");
+                slot3.setSlotNumber("S-Q7-01");
                 slot3.setStatus(ESlotStatus.AVAILABLE);
                 slot3.setPrice(BigDecimal.valueOf(600000));
-                slot3.setPillar(pillar2);
+                slot3.setLocation(location2);
                 gardenSlotRepository.save(slot3);
 
-                GardenSlot slot4 = new GardenSlot();
-                slot4.setSlotNumber("S-Q7-01-B");
-                slot4.setStatus(ESlotStatus.AVAILABLE);
-                slot4.setPrice(BigDecimal.valueOf(600000));
-                slot4.setPillar(pillar2);
-                gardenSlotRepository.save(slot4);
+                Pillar pillar3A = new Pillar();
+                pillar3A.setPillarCode("P-Q7-01A");
+                pillar3A.setStatus(EPillarStatus.ACTIVE);
+                pillar3A.setLocation(location2);
+                pillar3A.setGardenSlot(slot3);
+                pillarRepository.save(pillar3A);
 
-                System.out.println("[DataInitializer] Created sample Locations (Q1 & Q7), Pillars, and GardenSlots.");
+                Pillar pillar3B = new Pillar();
+                pillar3B.setPillarCode("P-Q7-01B");
+                pillar3B.setStatus(EPillarStatus.ACTIVE);
+                pillar3B.setLocation(location2);
+                pillar3B.setGardenSlot(slot3);
+                pillarRepository.save(pillar3B);
+
+                System.out.println("[DataInitializer] Created sample Locations (Q1 & Q7), GardenSlots (1 Location -> N Slots), and Pillars (1 Slot -> N Pillars).");
             } else {
                 // Ensure Q7 exists and location_manager_q7 is mapped if present
                 if (locationRepository.findByName("Cơ sở Quận 7").isEmpty()) {
@@ -210,11 +238,13 @@ public class DataInitializer {
                 // Ensure Pillar arduino-greenhouse-01 is created and mapped for IoT Hardware testing
                 if (pillarRepository.findByPillarCode("arduino-greenhouse-01").isEmpty()) {
                     Location loc1 = locationRepository.findByName("Cơ sở Quận 1").orElse(null);
+                    GardenSlot slot1Db = gardenSlotRepository.findBySlotNumber("S-Q1-01").orElse(null);
                     if (loc1 != null) {
                         Pillar iotPillar = new Pillar();
                         iotPillar.setPillarCode("arduino-greenhouse-01");
                         iotPillar.setStatus(EPillarStatus.ACTIVE);
                         iotPillar.setLocation(loc1);
+                        iotPillar.setGardenSlot(slot1Db);
                         pillarRepository.save(iotPillar);
                     }
                 }

@@ -9,6 +9,8 @@ public class RentalHistoryDTO {
     private Long slotId;
     private String slotNumber;
     private String pillarCode;
+    private List<String> pillarCodes = new java.util.ArrayList<>();
+    private List<PillarInfo> pillars = new java.util.ArrayList<>();
     private String locationName;
     private String locationAddress;
     private LocalDateTime startTime;
@@ -20,6 +22,35 @@ public class RentalHistoryDTO {
     private String harvestDecision;
     private LocalDateTime plantedAt;
     private LocalDateTime expectedHarvestAt;
+
+    public static class PillarInfo {
+        private Long id;
+        private String pillarCode;
+        private String status;
+        private String cameraStreamUrl;
+        private String cameraStatus;
+
+        public PillarInfo() {}
+
+        public PillarInfo(Long id, String pillarCode, String status, String cameraStreamUrl, String cameraStatus) {
+            this.id = id;
+            this.pillarCode = pillarCode;
+            this.status = status;
+            this.cameraStreamUrl = cameraStreamUrl;
+            this.cameraStatus = cameraStatus;
+        }
+
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public String getPillarCode() { return pillarCode; }
+        public void setPillarCode(String pillarCode) { this.pillarCode = pillarCode; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getCameraStreamUrl() { return cameraStreamUrl; }
+        public void setCameraStreamUrl(String cameraStreamUrl) { this.cameraStreamUrl = cameraStreamUrl; }
+        public String getCameraStatus() { return cameraStatus; }
+        public void setCameraStatus(String cameraStatus) { this.cameraStatus = cameraStatus; }
+    }
 
     public static class PaymentTransactionInfo {
         private Long id;
@@ -134,6 +165,22 @@ public class RentalHistoryDTO {
 
     public void setPillarCode(String pillarCode) {
         this.pillarCode = pillarCode;
+    }
+
+    public List<String> getPillarCodes() {
+        return pillarCodes;
+    }
+
+    public void setPillarCodes(List<String> pillarCodes) {
+        this.pillarCodes = pillarCodes;
+    }
+
+    public List<PillarInfo> getPillars() {
+        return pillars;
+    }
+
+    public void setPillars(List<PillarInfo> pillars) {
+        this.pillars = pillars;
     }
 
     public String getLocationName() {

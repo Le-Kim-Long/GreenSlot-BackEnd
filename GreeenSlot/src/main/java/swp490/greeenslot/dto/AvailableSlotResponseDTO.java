@@ -8,6 +8,8 @@ public class AvailableSlotResponseDTO {
     private BigDecimal price;
     private String status;
     private String pillarCode;
+    private java.util.List<String> pillarCodes = new java.util.ArrayList<>();
+    private Integer pillarCount;
     private String locationName;
     private String imageUrl;
     private Long locationId;
@@ -85,6 +87,22 @@ public class AvailableSlotResponseDTO {
 
     public void setPillarCode(String pillarCode) {
         this.pillarCode = pillarCode;
+    }
+
+    public java.util.List<String> getPillarCodes() {
+        return pillarCodes;
+    }
+
+    public void setPillarCodes(java.util.List<String> pillarCodes) {
+        this.pillarCodes = pillarCodes;
+    }
+
+    public Integer getPillarCount() {
+        return pillarCount;
+    }
+
+    public void setPillarCount(Integer pillarCount) {
+        this.pillarCount = pillarCount;
     }
 
     public String getLocationName() {

@@ -10,9 +10,12 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import swp490.greeenslot.dto.*;
 import swp490.greeenslot.entity.GardenSlot;
+import swp490.greeenslot.entity.Location;
+import swp490.greeenslot.entity.Pillar;
 import swp490.greeenslot.service.BookingService;
 
 import java.security.Principal;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,17 +32,28 @@ public class BookingController {
     @Operation(summary = "Browse available garden slots", description = "Filters slots by Location ID if provided. Otherwise returns all available slots.")
     public ResponseEntity<List<AvailableSlotResponseDTO>> getAvailableSlots(@RequestParam(required = false) Long locationId) {
         List<GardenSlot> slots = bookingService.getAvailableSlots(locationId);
-        List<AvailableSlotResponseDTO> dtoList = slots.stream().map(s -> new AvailableSlotResponseDTO(
-                s.getId(),
-                s.getSlotNumber(),
-                s.getPrice(),
-                s.getStatus().name(),
-                s.getPillar().getPillarCode(),
-                s.getPillar() != null && s.getPillar().getLocation() != null ? s.getPillar().getLocation().getName() : null,
-                s.getImageUrl(),
-                s.getPillar() != null && s.getPillar().getLocation() != null ? s.getPillar().getLocation().getId() : null,
-                s.getPillar() != null && s.getPillar().getLocation() != null ? s.getPillar().getLocation().getAddress() : null
-        )).collect(Collectors.toList());
+        List<AvailableSlotResponseDTO> dtoList = slots.stream().map(s -> {
+            Location loc = s.getLocation() != null ? s.getLocation() : (s.getPillar() != null ? s.getPillar().getLocation() : null);
+            List<String> codes = (s.getPillars() != null && !s.getPillars().isEmpty())
+                    ? s.getPillars().stream().map(Pillar::getPillarCode).collect(Collectors.toList())
+                    : (s.getPillar() != null ? List.of(s.getPillar().getPillarCode()) : Collections.emptyList());
+            String primaryCode = !codes.isEmpty() ? String.join(", ", codes) : "N/A";
+            
+            AvailableSlotResponseDTO dto = new AvailableSlotResponseDTO(
+                    s.getId(),
+                    s.getSlotNumber(),
+                    s.getPrice(),
+                    s.getStatus().name(),
+                    primaryCode,
+                    loc != null ? loc.getName() : null,
+                    s.getImageUrl(),
+                    loc != null ? loc.getId() : null,
+                    loc != null ? loc.getAddress() : null
+            );
+            dto.setPillarCodes(codes);
+            dto.setPillarCount(codes.size());
+            return dto;
+        }).collect(Collectors.toList());
         return ResponseEntity.ok(dtoList);
     }
 

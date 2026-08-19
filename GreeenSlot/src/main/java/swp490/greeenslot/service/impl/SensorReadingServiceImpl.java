@@ -171,7 +171,10 @@ public class SensorReadingServiceImpl implements SensorReadingService {
             }
         }
 
-        List<GardenSlot> slots = pillar != null ? gardenSlotRepository.findByPillarId(pillar.getId()) : List.of();
+        List<GardenSlot> slots = new java.util.ArrayList<>();
+        if (pillar != null && pillar.getGardenSlot() != null) {
+            slots.add(pillar.getGardenSlot());
+        }
         boolean hasActiveRentals = false;
         boolean autoSprayTriggered = false;
 

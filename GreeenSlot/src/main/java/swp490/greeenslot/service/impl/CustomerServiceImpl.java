@@ -30,13 +30,17 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public List<AvailableSlotDTO> getAvailableSlots() {
-        List<GardenSlot> slots = gardenSlotRepository.findByPillarLocationIdAndStatus(null, ESlotStatus.AVAILABLE);
+        List<GardenSlot> slots = gardenSlotRepository.findAll().stream()
+                .filter(g -> g.getStatus() == ESlotStatus.AVAILABLE)
+                .collect(Collectors.toList());
         return slots.stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
     @Override
     public List<AvailableSlotDTO> getAvailableSlotsByLocation(Long locationId) {
-        List<GardenSlot> slots = gardenSlotRepository.findByStatusAndLocationId(ESlotStatus.AVAILABLE, locationId);
+        List<GardenSlot> slots = (locationId == null) 
+                ? gardenSlotRepository.findAll().stream().filter(g -> g.getStatus() == ESlotStatus.AVAILABLE).collect(Collectors.toList())
+                : gardenSlotRepository.findByLocationIdAndStatus(locationId, ESlotStatus.AVAILABLE);
         return slots.stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
@@ -136,7 +140,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     private AvailableSlotDTO mapToDTO(GardenSlot slot) {
         Pillar pillar = slot.getPillar();
-        Location location = pillar != null ? pillar.getLocation() : null;
+        Location location = slot.getLocation() != null ? slot.getLocation() : (pillar != null ? pillar.getLocation() : null);
 
         // Get default tree for this pillar
         Tree tree = pillar != null ? pillar.getDefaultTree() : null;
@@ -209,19 +213,44 @@ public class CustomerServiceImpl implements CustomerService {
 
     private RentalHistoryDTO mapToRentalHistoryDTO(SlotRental rental) {
         GardenSlot slot = rental.getGardenSlot();
-        Pillar pillar = slot != null ? slot.getPillar() : null;
-        Location location = pillar != null ? pillar.getLocation() : null;
+        Location location = (slot != null && slot.getLocation() != null) ? slot.getLocation() : (slot != null && slot.getPillar() != null ? slot.getPillar().getLocation() : null);
+
+        List<Pillar> slotPillars = slot != null ? slot.getPillars() : null;
+        List<String> pillarCodes = new ArrayList<>();
+        List<RentalHistoryDTO.PillarInfo> pillarInfos = new ArrayList<>();
+        if (slotPillars != null && !slotPillars.isEmpty()) {
+            for (Pillar p : slotPillars) {
+                pillarCodes.add(p.getPillarCode());
+                pillarInfos.add(new RentalHistoryDTO.PillarInfo(
+                        p.getId(),
+                        p.getPillarCode(),
+                        p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
+                        p.getCameraStreamUrl(),
+                        p.getCameraStatus()
+                ));
+            }
+        } else if (slot != null && slot.getPillar() != null) {
+            pillarCodes.add(slot.getPillar().getPillarCode());
+            pillarInfos.add(new RentalHistoryDTO.PillarInfo(
+                    slot.getPillar().getId(),
+                    slot.getPillar().getPillarCode(),
+                    slot.getPillar().getStatus() != null ? slot.getPillar().getStatus().name() : "ACTIVE",
+                    slot.getPillar().getCameraStreamUrl(),
+                    slot.getPillar().getCameraStatus()
+            ));
+        }
+        String primaryPillarCode = !pillarCodes.isEmpty() ? String.join(", ", pillarCodes) : (slot != null && slot.getPillar() != null ? slot.getPillar().getPillarCode() : "N/A");
 
         Integer harvestDays = rental.getTree() != null ? rental.getTree().getHarvestDays() : null;
         java.time.LocalDateTime expectedHarvestAt = (rental.getPlantedAt() != null && harvestDays != null && harvestDays > 0)
                 ? rental.getPlantedAt().plusDays(harvestDays)
                 : null;
 
-        return new RentalHistoryDTO(
+        RentalHistoryDTO dto = new RentalHistoryDTO(
                 rental.getId(),
                 slot != null ? slot.getId() : null,
                 slot != null ? slot.getSlotNumber() : null,
-                pillar != null ? pillar.getPillarCode() : null,
+                primaryPillarCode,
                 location != null ? location.getName() : null,
                 location != null ? location.getAddress() : null,
                 rental.getStartTime(),
@@ -234,6 +263,9 @@ public class CustomerServiceImpl implements CustomerService {
                 rental.getPlantedAt(),
                 expectedHarvestAt
         );
+        dto.setPillars(pillarInfos);
+        dto.setPillarCodes(pillarCodes);
+        return dto;
     }
 
     @Override
@@ -295,8 +327,10 @@ public class CustomerServiceImpl implements CustomerService {
                 String message = String.format("Khách hàng %s tại ô %s đã chọn phương thức thu hoạch: %s.",
                         customerName, slotNumber, decisionText);
 
-                Long locationId = (rental.getGardenSlot().getPillar() != null && rental.getGardenSlot().getPillar().getLocation() != null)
-                        ? rental.getGardenSlot().getPillar().getLocation().getId() : null;
+                Long locationId = (rental.getGardenSlot().getLocation() != null)
+                        ? rental.getGardenSlot().getLocation().getId()
+                        : (rental.getGardenSlot().getPillar() != null && rental.getGardenSlot().getPillar().getLocation() != null
+                            ? rental.getGardenSlot().getPillar().getLocation().getId() : null);
 
                 List<User> recipients = new ArrayList<>();
                 if (locationId != null) {

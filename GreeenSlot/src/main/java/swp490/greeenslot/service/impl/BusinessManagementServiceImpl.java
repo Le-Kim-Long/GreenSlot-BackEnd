@@ -441,10 +441,9 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         return transactions.stream()
                 .filter(t -> t.getRental() != null 
                         && t.getRental().getGardenSlot() != null 
-                        && t.getRental().getGardenSlot().getPillar() != null 
-                        && t.getRental().getGardenSlot().getPillar().getLocation() != null)
+                        && (t.getRental().getGardenSlot().getLocation() != null || (t.getRental().getGardenSlot().getPillar() != null && t.getRental().getGardenSlot().getPillar().getLocation() != null)))
                 .collect(Collectors.groupingBy(
-                        t -> t.getRental().getGardenSlot().getPillar().getLocation(),
+                        t -> t.getRental().getGardenSlot().getLocation() != null ? t.getRental().getGardenSlot().getLocation() : t.getRental().getGardenSlot().getPillar().getLocation(),
                         Collectors.reducing(BigDecimal.ZERO, PaymentTransaction::getAmount, BigDecimal::add)
                 ))
                 .entrySet().stream()
@@ -455,9 +454,8 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
                         transactions.stream()
                                 .filter(t -> t.getRental() != null 
                                         && t.getRental().getGardenSlot() != null 
-                                        && t.getRental().getGardenSlot().getPillar() != null 
-                                        && t.getRental().getGardenSlot().getPillar().getLocation() != null
-                                        && t.getRental().getGardenSlot().getPillar().getLocation().equals(entry.getKey()))
+                                        && (entry.getKey().equals(t.getRental().getGardenSlot().getLocation()) || 
+                                            (t.getRental().getGardenSlot().getPillar() != null && entry.getKey().equals(t.getRental().getGardenSlot().getPillar().getLocation()))))
                                 .count()
                 ))
                 .collect(Collectors.toList());
@@ -471,25 +469,32 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         return transactions.stream()
                 .filter(t -> t.getRental() != null 
                         && t.getRental().getGardenSlot() != null 
-                        && t.getRental().getGardenSlot().getPillar() != null 
-                        && t.getRental().getGardenSlot().getPillar().getLocation() != null
+                        && (t.getRental().getGardenSlot().getLocation() != null || (t.getRental().getGardenSlot().getPillar() != null && t.getRental().getGardenSlot().getPillar().getLocation() != null))
                         && t.getRental().getUser() != null)
-                .map(t -> new TransactionDeclarationDTO(
-                        t.getId(),
-                        t.getRental().getId(),
-                        t.getRental().getGardenSlot().getSlotNumber(),
-                        t.getRental().getUser().getUsername(),
-                        t.getRental().getUser().getFullName(),
-                        t.getAmount(),
-                        t.getTransactionCode(),
-                        t.getPaymentMethod() != null ? t.getPaymentMethod().name() : null,
-                        t.getPaymentDate(),
-                        t.getStatus() != null ? t.getStatus().name() : null,
-                        t.getRental().getGardenSlot().getPillar().getLocation().getName(),
-                        t.getRental().getGardenSlot().getPillar().getPillarCode(),
-                        "Khach hang thue slot " + t.getRental().getGardenSlot().getSlotNumber() + 
-                        " tai " + t.getRental().getGardenSlot().getPillar().getLocation().getName()
-                ))
+                .map(t -> {
+                    GardenSlot slot = t.getRental().getGardenSlot();
+                    Location loc = slot.getLocation() != null ? slot.getLocation() : (slot.getPillar() != null ? slot.getPillar().getLocation() : null);
+                    String locName = loc != null ? loc.getName() : "N/A";
+                    String pillarCode = (slot.getPillars() != null && !slot.getPillars().isEmpty())
+                            ? slot.getPillars().stream().map(Pillar::getPillarCode).collect(Collectors.joining(", "))
+                            : (slot.getPillar() != null ? slot.getPillar().getPillarCode() : "N/A");
+
+                    return new TransactionDeclarationDTO(
+                            t.getId(),
+                            t.getRental().getId(),
+                            slot.getSlotNumber(),
+                            t.getRental().getUser().getUsername(),
+                            t.getRental().getUser().getFullName(),
+                            t.getAmount(),
+                            t.getTransactionCode(),
+                            t.getPaymentMethod() != null ? t.getPaymentMethod().name() : null,
+                            t.getPaymentDate(),
+                            t.getStatus() != null ? t.getStatus().name() : null,
+                            locName,
+                            pillarCode,
+                            "Khach hang thue slot " + slot.getSlotNumber() + " tai " + locName
+                    );
+                })
                 .collect(Collectors.toList());
     }
 
@@ -517,9 +522,11 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         Pillar pillar = pillarRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Pillar not found with ID " + id));
 
-        boolean hasSlots = gardenSlotRepository.existsByPillarId(id);
-        if (hasSlots) {
-            throw new IllegalArgumentException("Cannot delete Pillar with ID " + id + " because it contains associated Garden Slot records.");
+        if (pillar.getGardenSlot() != null) {
+            boolean hasActiveRental = slotRentalRepository.existsByGardenSlotIdAndStatus(pillar.getGardenSlot().getId(), ERentalStatus.ACTIVE);
+            if (hasActiveRental) {
+                throw new IllegalArgumentException("Cannot delete Pillar with ID " + id + " because its associated Garden Slot is actively rented.");
+            }
         }
 
         pillarRepository.delete(pillar);

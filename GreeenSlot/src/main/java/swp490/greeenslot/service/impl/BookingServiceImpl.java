@@ -64,7 +64,7 @@ public class BookingServiceImpl implements BookingService {
                     .filter(g -> g.getStatus() == ESlotStatus.AVAILABLE)
                     .collect(Collectors.toList());
         }
-        return gardenSlotRepository.findByPillarLocationIdAndStatus(locationId, ESlotStatus.AVAILABLE);
+        return gardenSlotRepository.findByLocationIdAndStatus(locationId, ESlotStatus.AVAILABLE);
     }
 
     @Override
@@ -382,8 +382,35 @@ public class BookingServiceImpl implements BookingService {
 
         for (SlotRental rental : rentals) {
             GardenSlot slot = rental.getGardenSlot();
-            Pillar pillar = slot.getPillar();
-            Location location = pillar.getLocation();
+            Location location = slot.getLocation() != null ? slot.getLocation() : (slot.getPillar() != null ? slot.getPillar().getLocation() : null);
+
+            List<Pillar> slotPillars = slot.getPillars();
+            List<String> pillarCodes = new ArrayList<>();
+            List<RentalHistoryDTO.PillarInfo> pillarInfos = new ArrayList<>();
+            if (slotPillars != null && !slotPillars.isEmpty()) {
+                for (Pillar p : slotPillars) {
+                    pillarCodes.add(p.getPillarCode());
+                    pillarInfos.add(new RentalHistoryDTO.PillarInfo(
+                            p.getId(),
+                            p.getPillarCode(),
+                            p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
+                            p.getCameraStreamUrl(),
+                            p.getCameraStatus()
+                    ));
+                }
+            } else if (slot.getPillar() != null) {
+                pillarCodes.add(slot.getPillar().getPillarCode());
+                pillarInfos.add(new RentalHistoryDTO.PillarInfo(
+                        slot.getPillar().getId(),
+                        slot.getPillar().getPillarCode(),
+                        slot.getPillar().getStatus() != null ? slot.getPillar().getStatus().name() : "ACTIVE",
+                        slot.getPillar().getCameraStreamUrl(),
+                        slot.getPillar().getCameraStatus()
+                ));
+            }
+            String primaryPillarCode = !pillarCodes.isEmpty() ? String.join(", ", pillarCodes) : "N/A";
+            String locationName = location != null ? location.getName() : "N/A";
+            String locationAddress = location != null ? location.getAddress() : "N/A";
 
             List<PaymentTransaction> txns = txnsByRentalId.getOrDefault(rental.getId(), Collections.emptyList());
             List<RentalHistoryDTO.PaymentTransactionInfo> txnInfos = new ArrayList<>();
@@ -402,13 +429,13 @@ public class BookingServiceImpl implements BookingService {
                     ? rental.getPlantedAt().plusDays(harvestDays)
                     : null;
 
-            history.add(new RentalHistoryDTO(
+            RentalHistoryDTO dto = new RentalHistoryDTO(
                     rental.getId(),
                     slot.getId(),
                     slot.getSlotNumber(),
-                    pillar.getPillarCode(),
-                    location.getName(),
-                    location.getAddress(),
+                    primaryPillarCode,
+                    locationName,
+                    locationAddress,
                     rental.getStartTime(),
                     rental.getEndTime(),
                     rental.getStatus().name(),
@@ -418,7 +445,10 @@ public class BookingServiceImpl implements BookingService {
                     rental.getHarvestDecision(),
                     rental.getPlantedAt(),
                     expectedHarvestAt
-            ));
+            );
+            dto.setPillars(pillarInfos);
+            dto.setPillarCodes(pillarCodes);
+            history.add(dto);
         }
 
         return history;
