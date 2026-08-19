@@ -332,7 +332,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         // Auto-assign calculated price if price is not provided or zero
         BigDecimal finalPrice = (dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) > 0)
                 ? dto.getPrice()
-                : (calculatedPillarsPrice.compareTo(BigDecimal.ZERO) > 0 ? calculatedPillarsPrice : BigDecimal.valueOf(500000));
+                : (calculatedPillarsPrice.compareTo(BigDecimal.ZERO) > 0 ? calculatedPillarsPrice : BigDecimal.ZERO);
         slot.setPrice(finalPrice);
         slot.setArea(area);
         slot.setMaxPillars(maxPillars);

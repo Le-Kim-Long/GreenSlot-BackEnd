@@ -24,8 +24,6 @@ public class GardenSlotDTO {
 
     private String status; // AVAILABLE, RENTED, MAINTENANCE
 
-    @NotNull(message = "Price is required")
-    @Min(value = 1000, message = "Price/Amount must be at least 1000")
     private BigDecimal price;
 
     private Double area; // m2
