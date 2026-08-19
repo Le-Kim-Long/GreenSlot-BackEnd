@@ -10,6 +10,7 @@ import swp490.greeenslot.service.BusinessManagementService;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -197,11 +198,34 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Override
     @Transactional
     public GardenSlotDTO createSlot(GardenSlotDTO dto) {
-        Pillar pillar = pillarRepository.findById(dto.getPillarId())
-                .orElseThrow(() -> new IllegalArgumentException("Pillar not found with ID " + dto.getPillarId()));
+        Long targetLocId = dto.getLocationId() != null 
+                ? dto.getLocationId() 
+                : locationContextService.resolveTargetLocationId(null);
+
+        Location location = null;
+        if (targetLocId != null) {
+            location = locationRepository.findById(targetLocId)
+                    .orElseThrow(() -> new IllegalArgumentException("Location not found with ID " + targetLocId));
+        }
+
+        // Validate area & calculate capacity
+        Double area = dto.getArea() != null && dto.getArea() > 0 ? dto.getArea() : 3.0;
+        int maxPillars = Math.max(1, (int) Math.floor(area / 1.5));
+
+        // Determine list of selected pillar IDs
+        List<Long> selectedPillarIds = new ArrayList<>();
+        if (dto.getPillarIds() != null && !dto.getPillarIds().isEmpty()) {
+            selectedPillarIds.addAll(dto.getPillarIds());
+        } else if (dto.getPillarId() != null && dto.getPillarId() > 0) {
+            selectedPillarIds.add(dto.getPillarId());
+        }
+
+        if (selectedPillarIds.size() > maxPillars) {
+            throw new IllegalArgumentException("Ô vườn diện tích " + area + " m² chỉ được gán tối đa " + maxPillars + " trụ (quy chuẩn 1.5 m²/trụ). Bạn đang chọn " + selectedPillarIds.size() + " trụ.");
+        }
 
         GardenSlot slot = new GardenSlot();
-        slot.setSlotNumber(dto.getSlotNumber());
+        slot.setSlotNumber(dto.getSlotNumber().trim());
         
         ESlotStatus status;
         try {
@@ -211,10 +235,29 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         }
         slot.setStatus(status);
         slot.setPrice(dto.getPrice());
+        slot.setArea(area);
+        slot.setMaxPillars(maxPillars);
         slot.setImageUrl(dto.getImageUrl());
-        slot.setPillar(pillar);
+        slot.setLocation(location);
 
         GardenSlot saved = gardenSlotRepository.save(slot);
+
+        // Assign selected pillars to this slot
+        if (!selectedPillarIds.isEmpty()) {
+            List<Pillar> pillarsToAssign = pillarRepository.findAllById(selectedPillarIds);
+            for (Pillar p : pillarsToAssign) {
+                if (location != null && p.getLocation() != null && !p.getLocation().getId().equals(location.getId())) {
+                    throw new IllegalArgumentException("Trụ " + p.getPillarCode() + " không thuộc cùng cơ sở với ô vườn.");
+                }
+                p.setGardenSlot(saved);
+                if (location != null && p.getLocation() == null) {
+                    p.setLocation(location);
+                }
+                pillarRepository.save(p);
+            }
+            saved.setPillars(pillarsToAssign);
+        }
+
         return mapToSlotDTO(saved);
     }
 
@@ -224,10 +267,33 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         GardenSlot slot = gardenSlotRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID " + id));
 
-        Pillar pillar = pillarRepository.findById(dto.getPillarId())
-                .orElseThrow(() -> new IllegalArgumentException("Pillar not found with ID " + dto.getPillarId()));
+        Long targetLocId = dto.getLocationId() != null 
+                ? dto.getLocationId() 
+                : (slot.getLocation() != null ? slot.getLocation().getId() : locationContextService.resolveTargetLocationId(null));
 
-        slot.setSlotNumber(dto.getSlotNumber());
+        Location location = null;
+        if (targetLocId != null) {
+            location = locationRepository.findById(targetLocId)
+                    .orElseThrow(() -> new IllegalArgumentException("Location not found with ID " + targetLocId));
+        }
+
+        // Validate area & calculate capacity
+        Double area = dto.getArea() != null && dto.getArea() > 0 ? dto.getArea() : (slot.getArea() != null ? slot.getArea() : 3.0);
+        int maxPillars = Math.max(1, (int) Math.floor(area / 1.5));
+
+        // Determine list of selected pillar IDs
+        List<Long> selectedPillarIds = new ArrayList<>();
+        if (dto.getPillarIds() != null) {
+            selectedPillarIds.addAll(dto.getPillarIds());
+        } else if (dto.getPillarId() != null && dto.getPillarId() > 0) {
+            selectedPillarIds.add(dto.getPillarId());
+        }
+
+        if (selectedPillarIds.size() > maxPillars) {
+            throw new IllegalArgumentException("Ô vườn diện tích " + area + " m² chỉ được gán tối đa " + maxPillars + " trụ (quy chuẩn 1.5 m²/trụ). Bạn đang chọn " + selectedPillarIds.size() + " trụ.");
+        }
+
+        slot.setSlotNumber(dto.getSlotNumber().trim());
         if (dto.getStatus() != null) {
             try {
                 slot.setStatus(ESlotStatus.valueOf(dto.getStatus().toUpperCase()));
@@ -236,8 +302,36 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             }
         }
         slot.setPrice(dto.getPrice());
+        slot.setArea(area);
+        slot.setMaxPillars(maxPillars);
         slot.setImageUrl(dto.getImageUrl());
-        slot.setPillar(pillar);
+        if (location != null) {
+            slot.setLocation(location);
+        }
+
+        // Unassign old pillars not in selectedPillarIds
+        List<Pillar> existingPillars = pillarRepository.findByGardenSlotId(slot.getId());
+        for (Pillar p : existingPillars) {
+            if (!selectedPillarIds.contains(p.getId())) {
+                p.setGardenSlot(null);
+                pillarRepository.save(p);
+            }
+        }
+
+        // Assign newly selected pillars
+        if (!selectedPillarIds.isEmpty()) {
+            List<Pillar> newPillars = pillarRepository.findAllById(selectedPillarIds);
+            for (Pillar p : newPillars) {
+                p.setGardenSlot(slot);
+                if (slot.getLocation() != null) {
+                    p.setLocation(slot.getLocation());
+                }
+                pillarRepository.save(p);
+            }
+            slot.setPillars(newPillars);
+        } else {
+            slot.setPillars(new ArrayList<>());
+        }
 
         GardenSlot saved = gardenSlotRepository.save(slot);
         return mapToSlotDTO(saved);
@@ -248,7 +342,9 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     public List<GardenSlotDTO> getAllSlots() {
         Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         return gardenSlotRepository.findAll().stream()
-                .filter(s -> targetLocationId == null || (s.getPillar() != null && s.getPillar().getLocation() != null && targetLocationId.equals(s.getPillar().getLocation().getId())))
+                .filter(s -> targetLocationId == null 
+                        || (s.getLocation() != null && targetLocationId.equals(s.getLocation().getId()))
+                        || (s.getPillars() != null && s.getPillars().stream().anyMatch(p -> p.getLocation() != null && targetLocationId.equals(p.getLocation().getId()))))
                 .map(this::mapToSlotDTO)
                 .collect(Collectors.toList());
     }
@@ -262,7 +358,33 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     }
 
     private GardenSlotDTO mapToSlotDTO(GardenSlot s) {
-        return new GardenSlotDTO(s.getId(), s.getSlotNumber(), s.getStatus().name(), s.getPrice(), s.getPillar().getId(), s.getImageUrl());
+        List<Pillar> slotPillars = (s.getPillars() != null && !s.getPillars().isEmpty()) 
+                ? s.getPillars() 
+                : pillarRepository.findByGardenSlotId(s.getId());
+        List<Long> pIds = slotPillars.stream().map(Pillar::getId).collect(Collectors.toList());
+        List<String> pCodes = slotPillars.stream().map(Pillar::getPillarCode).collect(Collectors.toList());
+        Long singlePillarId = pIds.isEmpty() ? null : pIds.get(0);
+        
+        Long locId = s.getLocation() != null ? s.getLocation().getId() : (slotPillars.stream().filter(p -> p.getLocation() != null).map(p -> p.getLocation().getId()).findFirst().orElse(null));
+        String locName = s.getLocation() != null ? s.getLocation().getName() : (slotPillars.stream().filter(p -> p.getLocation() != null).map(p -> p.getLocation().getName()).findFirst().orElse(null));
+
+        Double area = s.getArea() != null ? s.getArea() : 3.0;
+        Integer maxPillars = s.getMaxPillars() != null ? s.getMaxPillars() : Math.max(1, (int) Math.floor(area / 1.5));
+
+        GardenSlotDTO dto = new GardenSlotDTO();
+        dto.setId(s.getId());
+        dto.setSlotNumber(s.getSlotNumber());
+        dto.setStatus(s.getStatus() != null ? s.getStatus().name() : "AVAILABLE");
+        dto.setPrice(s.getPrice());
+        dto.setArea(area);
+        dto.setMaxPillars(maxPillars);
+        dto.setLocationId(locId);
+        dto.setLocationName(locName);
+        dto.setPillarId(singlePillarId);
+        dto.setPillarIds(pIds);
+        dto.setPillarCodes(pCodes);
+        dto.setImageUrl(s.getImageUrl());
+        return dto;
     }
 
     // ==========================================
@@ -540,12 +662,14 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
 
         boolean hasActiveRental = slotRentalRepository.existsByGardenSlotIdAndStatus(id, ERentalStatus.ACTIVE);
         if (hasActiveRental) {
-            throw new IllegalArgumentException("Cannot delete Garden Slot with ID " + id + " because it has associated active SlotRental records.");
+            throw new IllegalArgumentException("Không thể xóa ô vườn " + slot.getSlotNumber() + " vì đang có hợp đồng thuê hoạt động.");
         }
 
-        boolean hasPaymentTransaction = paymentTransactionRepository.existsByRentalGardenSlotId(id);
-        if (hasPaymentTransaction) {
-            throw new IllegalArgumentException("Cannot delete Garden Slot with ID " + id + " because it has associated PaymentTransaction records.");
+        // Unlink any pillars attached to this slot to prevent Foreign Key constraint errors
+        List<Pillar> assignedPillars = pillarRepository.findByGardenSlotId(id);
+        for (Pillar p : assignedPillars) {
+            p.setGardenSlot(null);
+            pillarRepository.save(p);
         }
 
         gardenSlotRepository.delete(slot);

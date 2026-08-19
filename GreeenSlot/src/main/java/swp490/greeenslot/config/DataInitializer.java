@@ -150,6 +150,8 @@ public class DataInitializer {
                 slot1.setSlotNumber("S-Q1-01");
                 slot1.setStatus(ESlotStatus.AVAILABLE);
                 slot1.setPrice(BigDecimal.valueOf(500000));
+                slot1.setArea(5.0);
+                slot1.setMaxPillars(3);
                 slot1.setLocation(location1);
                 gardenSlotRepository.save(slot1);
 
@@ -174,6 +176,8 @@ public class DataInitializer {
                 slot2.setSlotNumber("S-Q1-02");
                 slot2.setStatus(ESlotStatus.AVAILABLE);
                 slot2.setPrice(BigDecimal.valueOf(500000));
+                slot2.setArea(6.0);
+                slot2.setMaxPillars(4);
                 slot2.setLocation(location1);
                 gardenSlotRepository.save(slot2);
 
@@ -196,6 +200,8 @@ public class DataInitializer {
                 slot3.setSlotNumber("S-Q7-01");
                 slot3.setStatus(ESlotStatus.AVAILABLE);
                 slot3.setPrice(BigDecimal.valueOf(600000));
+                slot3.setArea(8.0);
+                slot3.setMaxPillars(5);
                 slot3.setLocation(location2);
                 gardenSlotRepository.save(slot3);
 

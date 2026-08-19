@@ -14,6 +14,8 @@ public class AvailableSlotResponseDTO {
     private String imageUrl;
     private Long locationId;
     private String locationAddress;
+    private Double area;
+    private Integer maxPillars;
 
     public AvailableSlotResponseDTO() {
     }
@@ -135,5 +137,21 @@ public class AvailableSlotResponseDTO {
 
     public void setLocationAddress(String locationAddress) {
         this.locationAddress = locationAddress;
+    }
+
+    public Double getArea() {
+        return area;
+    }
+
+    public void setArea(Double area) {
+        this.area = area;
+    }
+
+    public Integer getMaxPillars() {
+        return maxPillars;
+    }
+
+    public void setMaxPillars(Integer maxPillars) {
+        this.maxPillars = maxPillars;
     }
 }

@@ -168,6 +168,8 @@ public class CustomerServiceImpl implements CustomerService {
                 .slotNumber(slot.getSlotNumber())
                 .status(slot.getStatus() != null ? slot.getStatus().name() : null)
                 .price(slot.getPrice())
+                .area(slot.getArea())
+                .maxPillars(slot.getMaxPillars() != null ? slot.getMaxPillars() : slot.calculateMaxPillars())
                 .imageUrl(slot.getImageUrl())
                 .pillarId(pillar != null ? pillar.getId() : null)
                 .pillarCode(pillar != null ? pillar.getPillarCode() : null)

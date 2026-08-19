@@ -32,6 +32,12 @@ public class GardenSlot {
     @Column(precision = 12, scale = 2)
     private BigDecimal price;
 
+    @Column(name = "area")
+    private Double area;
+
+    @Column(name = "max_pillars")
+    private Integer maxPillars;
+
     @Column(name = "image_url")
     private String imageUrl;
 
@@ -41,6 +47,13 @@ public class GardenSlot {
 
     @OneToMany(mappedBy = "gardenSlot", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Pillar> pillars = new ArrayList<>();
+
+    public Integer calculateMaxPillars() {
+        if (this.area == null || this.area <= 0) {
+            return 1;
+        }
+        return Math.max(1, (int) Math.floor(this.area / 1.5));
+    }
 
     public Pillar getPillar() {
         return (pillars != null && !pillars.isEmpty()) ? pillars.get(0) : null;

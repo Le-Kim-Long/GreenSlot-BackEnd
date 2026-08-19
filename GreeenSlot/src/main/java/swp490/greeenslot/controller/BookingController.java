@@ -52,6 +52,8 @@ public class BookingController {
             );
             dto.setPillarCodes(codes);
             dto.setPillarCount(codes.size());
+            dto.setArea(s.getArea());
+            dto.setMaxPillars(s.getMaxPillars() != null ? s.getMaxPillars() : s.calculateMaxPillars());
             return dto;
         }).collect(Collectors.toList());
         return ResponseEntity.ok(dtoList);

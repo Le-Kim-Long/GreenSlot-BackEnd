@@ -17,6 +17,8 @@ public class AvailableSlotDTO {
     private String slotNumber;
     private String status;
     private BigDecimal price;
+    private Double area;
+    private Integer maxPillars;
     private String imageUrl;
     private Long pillarId;
     private String pillarCode;
