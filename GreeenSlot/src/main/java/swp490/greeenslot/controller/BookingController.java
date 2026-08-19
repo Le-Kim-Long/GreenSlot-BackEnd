@@ -47,15 +47,21 @@ public class BookingController {
                     .collect(Collectors.toList());
 
             int totalHoles = slotPillars.stream().mapToInt(Pillar::getEffectiveHoles).sum();
-            BigDecimal calculatedPillarsPrice = slotPillars.stream().map(Pillar::getEffectivePrice).reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal calculatedPillarsPrice = slotPillars.stream()
+                    .filter(p -> p.getStatus() == swp490.greeenslot.entity.EPillarStatus.ACTIVE)
+                    .map(Pillar::getEffectivePrice)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
             BigDecimal calculatedTreesPrice = slotPillars.stream()
-                    .map(p -> (p.getDefaultTree() != null && p.getDefaultTree().getPrice() != null) ? p.getDefaultTree().getPrice() : BigDecimal.ZERO)
+                    .filter(p -> p.getStatus() == swp490.greeenslot.entity.EPillarStatus.ACTIVE)
+                    .map(p -> (p.getDefaultTree() != null && p.getDefaultTree().getPrice() != null) 
+                            ? p.getDefaultTree().getPrice().multiply(BigDecimal.valueOf(p.getEffectiveHoles() / 24.0)) 
+                            : BigDecimal.ZERO)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             AvailableSlotResponseDTO dto = new AvailableSlotResponseDTO(
                     s.getId(),
                     s.getSlotNumber(),
-                    s.getPrice(),
+                    calculatedPillarsPrice,
                     s.getStatus().name(),
                     primaryCode,
                     loc != null ? loc.getName() : null,

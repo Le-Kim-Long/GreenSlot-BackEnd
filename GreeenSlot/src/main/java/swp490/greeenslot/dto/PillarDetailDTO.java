@@ -33,13 +33,18 @@ public class PillarDetailDTO {
     private String locationName;
     private Long slotId;
     private String slotNumber;
+    private Boolean isRented;
+    private Boolean isAvailable;
 
     public static PillarDetailDTO fromEntity(Pillar p) {
         if (p == null) return null;
+        boolean rented = p.getStatus() == swp490.greeenslot.entity.EPillarStatus.RENTED;
         return PillarDetailDTO.builder()
                 .id(p.getId())
                 .pillarCode(p.getPillarCode())
                 .status(p.getStatus() != null ? p.getStatus().name() : "ACTIVE")
+                .isRented(rented)
+                .isAvailable(!rented && p.getStatus() == swp490.greeenslot.entity.EPillarStatus.ACTIVE)
                 .pillarType(p.getEffectivePillarType().name())
                 .pillarTypeName(p.getEffectivePillarType().getDisplayName())
                 .capacityHoles(p.getEffectiveHoles())

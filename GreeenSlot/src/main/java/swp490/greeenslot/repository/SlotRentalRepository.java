@@ -60,4 +60,10 @@ public interface SlotRentalRepository extends JpaRepository<SlotRental, Long> {
     @Query("SELECT r FROM SlotRental r WHERE r.status = 'ACTIVE' AND r.tree IS NOT NULL " +
            "AND r.gardenSlot.location.id = :locationId ORDER BY r.plantedAt ASC")
     List<SlotRental> findActiveWithTreeByLocationId(@Param("locationId") Long locationId);
+
+    @Query("SELECT DISTINCT p.id FROM SlotRental r JOIN r.rentedPillars p WHERE (r.status = 'ACTIVE' OR r.status = 'PENDING') AND (r.endTime IS NULL OR r.endTime > :now)")
+    List<Long> findCurrentlyRentedPillarIds(@Param("now") LocalDateTime now);
+
+    @Query("SELECT r FROM SlotRental r JOIN r.rentedPillars p WHERE p.id IN :pillarIds AND (r.status = 'ACTIVE' OR r.status = 'PENDING') AND (r.endTime IS NULL OR r.endTime > :now)")
+    List<SlotRental> findActiveRentalsByPillarIds(@Param("pillarIds") List<Long> pillarIds, @Param("now") LocalDateTime now);
 }

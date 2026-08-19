@@ -30,6 +30,9 @@ public class RentalExpirationServiceImpl implements RentalExpirationService {
     private GardenSlotRepository gardenSlotRepository;
 
     @Autowired
+    private swp490.greeenslot.repository.PillarRepository pillarRepository;
+
+    @Autowired
     private NotificationService notificationService;
 
     @Autowired(required = false)
@@ -124,6 +127,13 @@ public class RentalExpirationServiceImpl implements RentalExpirationService {
             try {
                 rental.setStatus(ERentalStatus.EXPIRED);
                 slotRentalRepository.save(rental);
+
+                if (rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()) {
+                    for (swp490.greeenslot.entity.Pillar p : rental.getRentedPillars()) {
+                        p.setStatus(swp490.greeenslot.entity.EPillarStatus.ACTIVE);
+                        pillarRepository.save(p);
+                    }
+                }
                 
                 if (rental.getGardenSlot() != null) {
                     swp490.greeenslot.entity.GardenSlot slot = rental.getGardenSlot();

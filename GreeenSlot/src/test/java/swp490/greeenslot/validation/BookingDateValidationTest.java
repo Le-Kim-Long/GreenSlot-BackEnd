@@ -14,9 +14,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import swp490.greeenslot.dto.BookingRequestDTO;
 import swp490.greeenslot.dto.BookingResponseDTO;
+import swp490.greeenslot.entity.EPillarStatus;
 import swp490.greeenslot.entity.ESlotStatus;
 import swp490.greeenslot.entity.GardenSlot;
 import swp490.greeenslot.entity.PaymentTransaction;
+import swp490.greeenslot.entity.Pillar;
 import swp490.greeenslot.entity.SlotRental;
 import swp490.greeenslot.entity.User;
 import swp490.greeenslot.repository.GardenSlotRepository;
@@ -29,6 +31,7 @@ import swp490.greeenslot.config.VNPayUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -69,6 +72,7 @@ class BookingDateValidationTest {
 
     private User testUser;
     private GardenSlot testSlot;
+    private Pillar testPillar;
 
     @BeforeAll
     static void setUpValidator() {
@@ -82,11 +86,19 @@ class BookingDateValidationTest {
         testUser.setId(1L);
         testUser.setUsername("testuser");
 
+        testPillar = new Pillar();
+        testPillar.setId(101L);
+        testPillar.setPillarCode("P-01");
+        testPillar.setStatus(EPillarStatus.ACTIVE);
+        testPillar.setPrice(new BigDecimal("200000"));
+        testPillar.setCapacityHoles(36);
+
         testSlot = new GardenSlot();
         testSlot.setId(10L);
         testSlot.setSlotNumber("S-01");
         testSlot.setStatus(ESlotStatus.AVAILABLE);
         testSlot.setPrice(new BigDecimal("500000"));
+        testSlot.setPillars(List.of(testPillar));
     }
 
     // ================= DTO Bean Validation Tests =================
@@ -147,8 +159,6 @@ class BookingDateValidationTest {
 
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
         when(gardenSlotRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testSlot));
-        when(slotRentalRepository.findActiveRentals(eq(10L), any(LocalDateTime.class)))
-                .thenReturn(Collections.emptyList());
         when(paymentTransactionRepository.findRecentPendingTransactions(eq(10L), any(LocalDateTime.class)))
                 .thenReturn(Collections.emptyList());
 
@@ -169,9 +179,9 @@ class BookingDateValidationTest {
 
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
         when(gardenSlotRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testSlot));
-        when(slotRentalRepository.findActiveRentals(eq(10L), any(LocalDateTime.class)))
-                .thenReturn(Collections.emptyList());
         when(paymentTransactionRepository.findRecentPendingTransactions(eq(10L), any(LocalDateTime.class)))
+                .thenReturn(Collections.emptyList());
+        when(slotRentalRepository.findCurrentlyRentedPillarIds(any(LocalDateTime.class)))
                 .thenReturn(Collections.emptyList());
 
         SlotRental savedRental = new SlotRental();
@@ -199,9 +209,9 @@ class BookingDateValidationTest {
 
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
         when(gardenSlotRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testSlot));
-        when(slotRentalRepository.findActiveRentals(eq(10L), any(LocalDateTime.class)))
-                .thenReturn(Collections.emptyList());
         when(paymentTransactionRepository.findRecentPendingTransactions(eq(10L), any(LocalDateTime.class)))
+                .thenReturn(Collections.emptyList());
+        when(slotRentalRepository.findCurrentlyRentedPillarIds(any(LocalDateTime.class)))
                 .thenReturn(Collections.emptyList());
 
         SlotRental savedRental = new SlotRental();

@@ -44,6 +44,12 @@ public class BookingServiceImpl implements BookingService {
     private TreeRepository treeRepository;
 
     @Autowired
+    private PillarRepository pillarRepository;
+
+    @Autowired
+    private TreePlantingRequestRepository treePlantingRequestRepository;
+
+    @Autowired
     private VNPayUtils vnPayUtils;
 
     @Autowired
@@ -61,13 +67,29 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional(readOnly = true)
     public List<GardenSlot> getAvailableSlots(Long locationId) {
-        // Retrieve available slots (Hibernate automatically populates the newly added imageUrl field)
+        List<GardenSlot> allSlots;
         if (locationId == null) {
-            return gardenSlotRepository.findAll().stream()
-                    .filter(g -> g.getStatus() == ESlotStatus.AVAILABLE)
-                    .collect(Collectors.toList());
+            allSlots = gardenSlotRepository.findAll();
+        } else {
+            allSlots = gardenSlotRepository.findByLocationId(locationId);
         }
-        return gardenSlotRepository.findByLocationIdAndStatus(locationId, ESlotStatus.AVAILABLE);
+
+        LocalDateTime now = LocalDateTime.now();
+        List<Long> rentedPillarIds = slotRentalRepository.findCurrentlyRentedPillarIds(now);
+        Set<Long> rentedPillarIdSet = new HashSet<>(rentedPillarIds);
+
+        return allSlots.stream()
+                .filter(g -> g.getStatus() != ESlotStatus.MAINTENANCE)
+                .filter(g -> {
+                    List<Pillar> pillars = g.getPillars();
+                    if (pillars == null || pillars.isEmpty()) {
+                        if (g.getPillar() != null) pillars = List.of(g.getPillar());
+                        else return g.getStatus() == ESlotStatus.AVAILABLE;
+                    }
+                    // At least one pillar must not be rented and status == ACTIVE
+                    return pillars.stream().anyMatch(p -> p.getStatus() == EPillarStatus.ACTIVE && !rentedPillarIdSet.contains(p.getId()));
+                })
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -79,14 +101,8 @@ public class BookingServiceImpl implements BookingService {
         GardenSlot slot = gardenSlotRepository.findByIdForUpdate(request.getSlotId())
                 .orElseThrow(() -> new RuntimeException("Garden slot not found: " + request.getSlotId()));
 
-        if (slot.getStatus() != ESlotStatus.AVAILABLE) {
-            throw new RuntimeException("Slot is not available for booking");
-        }
-
-        // Check if there is any active rental for this slot
-        List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(slot.getId(), LocalDateTime.now());
-        if (!activeRentals.isEmpty()) {
-            throw new RuntimeException("Slot is already rented");
+        if (slot.getStatus() == ESlotStatus.MAINTENANCE) {
+            throw new RuntimeException("Slot is currently under maintenance");
         }
 
         // Check if there is a pending payment in the last 15 minutes
@@ -97,44 +113,14 @@ public class BookingServiceImpl implements BookingService {
 
         int months = request.getDurationInMonths();
         if (months <= 0) {
-            throw new IllegalArgumentException("Duration must be a positive integer greater than 0");
+            throw new IllegalArgumentException("Duration must be at least 1 month");
         }
         if (months > 120) {
             throw new IllegalArgumentException("Duration cannot exceed 120 months");
         }
 
-        // Resolve tree if selected or from slot pillars
-        Tree selectedTree = null;
-        if (request.getTreeId() != null && request.getTreeId() > 0) {
-            selectedTree = treeRepository.findById(request.getTreeId()).orElse(null);
-        }
-        if (selectedTree == null && slot.getPillars() != null && !slot.getPillars().isEmpty()) {
-            selectedTree = slot.getPillars().stream()
-                    .map(Pillar::getDefaultTree)
-                    .filter(Objects::nonNull)
-                    .findFirst()
-                    .orElse(null);
-        }
-
-        // Calculate amount:
-        // Monthly slot price * months + (Tree seed/package price * pillar count)
-        BigDecimal monthlySlotPrice = (slot.getPrice() != null && slot.getPrice().compareTo(BigDecimal.ZERO) > 0)
-                ? slot.getPrice()
-                : slot.calculateTotalPillarsPrice();
-        if (monthlySlotPrice == null || monthlySlotPrice.compareTo(BigDecimal.ZERO) <= 0) {
-            monthlySlotPrice = BigDecimal.valueOf(500000);
-        }
-
-        int pillarCount = (slot.getPillars() != null && !slot.getPillars().isEmpty()) ? slot.getPillars().size() : 1;
-        BigDecimal treeCost = BigDecimal.ZERO;
-        if (selectedTree != null && selectedTree.getPrice() != null && selectedTree.getPrice().compareTo(BigDecimal.ZERO) > 0) {
-            treeCost = selectedTree.getPrice().multiply(new BigDecimal(pillarCount));
-        }
-
-        BigDecimal amount = monthlySlotPrice.multiply(new BigDecimal(months)).add(treeCost);
-
-        LocalDateTime start = request.getStartTime();
         LocalDateTime now = LocalDateTime.now();
+        LocalDateTime start = request.getStartTime();
         if (start == null) {
             start = now;
         } else if (start.toLocalDate().isBefore(now.toLocalDate())) {
@@ -144,6 +130,79 @@ public class BookingServiceImpl implements BookingService {
         }
         LocalDateTime end = start.plusMonths(months);
 
+        // Resolve available slot pillars
+        List<Pillar> slotPillars = slot.getPillars();
+        if (slotPillars == null || slotPillars.isEmpty()) {
+            if (slot.getPillar() != null) {
+                slotPillars = List.of(slot.getPillar());
+            } else {
+                slotPillars = Collections.emptyList();
+            }
+        }
+
+        List<Long> currentlyRentedIds = slotRentalRepository.findCurrentlyRentedPillarIds(now);
+        Set<Long> currentlyRentedSet = new HashSet<>(currentlyRentedIds);
+
+        List<Pillar> selectedPillars = new ArrayList<>();
+        if (request.getPillarIds() != null && !request.getPillarIds().isEmpty()) {
+            Set<Long> requestedPillarIdSet = new HashSet<>(request.getPillarIds());
+            for (Pillar p : slotPillars) {
+                if (requestedPillarIdSet.contains(p.getId())) {
+                    selectedPillars.add(p);
+                }
+            }
+            if (selectedPillars.size() != requestedPillarIdSet.size()) {
+                throw new IllegalArgumentException("Một hoặc nhiều trụ bạn chọn không thuộc ô vườn này");
+            }
+        } else {
+            // Default: select all active and non-rented pillars in this slot
+            selectedPillars = slotPillars.stream()
+                    .filter(p -> p.getStatus() == EPillarStatus.ACTIVE && !currentlyRentedSet.contains(p.getId()))
+                    .collect(Collectors.toList());
+        }
+
+        if (selectedPillars.isEmpty()) {
+            throw new IllegalArgumentException("Vui lòng chọn ít nhất 1 trụ canh tác còn trống để thuê");
+        }
+
+        // Exclusivity validation: Ensure no selected pillar is already rented anywhere in the system
+        for (Pillar p : selectedPillars) {
+            if (p.getStatus() == EPillarStatus.RENTED || currentlyRentedSet.contains(p.getId())) {
+                throw new RuntimeException("Trụ " + p.getPillarCode() + " đã được khách hàng khác thuê. Vui lòng chọn trụ khác.");
+            }
+        }
+
+        // Resolve tree if selected or default
+        Tree selectedTree = null;
+        if (request.getTreeId() != null && request.getTreeId() > 0) {
+            selectedTree = treeRepository.findById(request.getTreeId()).orElse(null);
+        }
+        if (selectedTree == null) {
+            selectedTree = selectedPillars.stream()
+                    .map(Pillar::getDefaultTree)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        // Calculate amount:
+        // Monthly rent = sum of selected pillars' monthly prices (Slot base price = 0)
+        BigDecimal monthlySlotPrice = selectedPillars.stream()
+                .map(Pillar::getEffectivePrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Vegetable seedling cost scaled by hole capacity (Option 1: price * holes / 24.0)
+        BigDecimal totalTreeCost = BigDecimal.ZERO;
+        if (selectedTree != null && selectedTree.getPrice() != null && selectedTree.getPrice().compareTo(BigDecimal.ZERO) > 0) {
+            for (Pillar p : selectedPillars) {
+                double scale = (double) p.getEffectiveHoles() / 24.0;
+                BigDecimal scaledPrice = selectedTree.getPrice().multiply(BigDecimal.valueOf(scale));
+                totalTreeCost = totalTreeCost.add(scaledPrice);
+            }
+        }
+
+        BigDecimal amount = monthlySlotPrice.multiply(new BigDecimal(months)).add(totalTreeCost);
+
         // Create SlotRental in PENDING state
         SlotRental rental = new SlotRental();
         rental.setUser(user);
@@ -151,6 +210,7 @@ public class BookingServiceImpl implements BookingService {
         rental.setStartTime(start);
         rental.setEndTime(end);
         rental.setStatus(ERentalStatus.PENDING);
+        rental.setRentedPillars(selectedPillars);
         if (selectedTree != null) {
             rental.setTree(selectedTree);
             rental.setTreeStatus(ETreeStatus.HEALTHY);
@@ -174,6 +234,7 @@ public class BookingServiceImpl implements BookingService {
         txn.setStatus(EPaymentStatus.PENDING);
         paymentTransactionRepository.save(txn);
 
+        int pillarCount = selectedPillars.size();
         String orderInfo = "GreenSlot - Thue vuon " + slot.getSlotNumber() + " (" + pillarCount + " tru) trong " + months + " thang";
         boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
         String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile);
@@ -294,10 +355,26 @@ public class BookingServiceImpl implements BookingService {
                 rental.setStatus(ERentalStatus.ACTIVE);
                 slotRentalRepository.save(rental);
 
+                if (rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()) {
+                    for (Pillar p : rental.getRentedPillars()) {
+                        p.setStatus(EPillarStatus.RENTED);
+                        pillarRepository.save(p);
+                    }
+                }
+
                 GardenSlot slot = rental.getGardenSlot();
-                slot.setStatus(ESlotStatus.RENTED);
-                gardenSlotRepository.save(slot);
-                logger.info("Booking rental ID {} activated, Garden Slot ID {} status set to RENTED", rental.getId(), slot.getId());
+                if (slot != null) {
+                    List<Pillar> allSlotPillars = slot.getPillars();
+                    boolean allRented = allSlotPillars != null && !allSlotPillars.isEmpty() &&
+                            allSlotPillars.stream().allMatch(p -> p.getStatus() == EPillarStatus.RENTED);
+                    if (allRented) {
+                        slot.setStatus(ESlotStatus.RENTED);
+                    } else {
+                        slot.setStatus(ESlotStatus.AVAILABLE);
+                    }
+                    gardenSlotRepository.save(slot);
+                }
+                logger.info("Booking rental ID {} activated, Garden Slot ID {} status updated", rental.getId(), slot != null ? slot.getId() : null);
 
                 // Notify customer of successful payment and rental activation
                 User customer = rental.getUser();
@@ -355,6 +432,25 @@ public class BookingServiceImpl implements BookingService {
                         "Extension Successful",
                         String.format("Slot %s extended until %s", slotNumber, newEnd)
                 );
+            } else if (txnRef.startsWith("PLANT_")) {
+                String[] parts = txnRef.split("_");
+                Long requestId = Long.parseLong(parts[1]);
+                TreePlantingRequest req = treePlantingRequestRepository.findById(requestId).orElse(null);
+                if (req != null) {
+                    req.setStatus(EPlantingRequestStatus.APPROVED);
+                    req.setProcessedAt(LocalDateTime.now());
+                    treePlantingRequestRepository.save(req);
+                    logger.info("Tree planting request ID {} approved and paid via VNPay", req.getId());
+
+                    if (req.getRequestedBy() != null && notificationService != null) {
+                        notificationService.createNotification(
+                                req.getRequestedBy().getId(),
+                                "Thanh toan giong rau thanh cong",
+                                "Thanh toan tien giong rau " + (req.getNewTree() != null ? req.getNewTree().getTreeName() : "") + " thanh cong. Yeu cau trong da duoc tiep nhan va giao nhan vien xu ly.",
+                                "PAYMENT_SUCCESS"
+                        );
+                    }
+                }
             }
         } else {
             logger.warn("Transaction failed or cancelled for txnRef={}. Updating statuses to FAILED/CANCELLED", txnRef);
@@ -512,6 +608,13 @@ public class BookingServiceImpl implements BookingService {
         rental.setStatus(ERentalStatus.CANCELLED);
         slotRentalRepository.save(rental);
 
+        if (rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()) {
+            for (Pillar p : rental.getRentedPillars()) {
+                p.setStatus(EPillarStatus.ACTIVE);
+                pillarRepository.save(p);
+            }
+        }
+
         List<PaymentTransaction> pendingTxns = paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(rentalId);
         for (PaymentTransaction txn : pendingTxns) {
             if (txn.getStatus() == EPaymentStatus.PENDING) {
@@ -527,11 +630,8 @@ public class BookingServiceImpl implements BookingService {
         }
 
         GardenSlot slot = rental.getGardenSlot();
-        long activeOrPendingCount = slotRentalRepository.countOtherActiveOrPending(slot.getId(), rental.getId());
-        if (activeOrPendingCount == 0) {
-            slot.setStatus(ESlotStatus.AVAILABLE);
-            gardenSlotRepository.save(slot);
-        }
+        slot.setStatus(ESlotStatus.AVAILABLE);
+        gardenSlotRepository.save(slot);
     }
 
     @Override

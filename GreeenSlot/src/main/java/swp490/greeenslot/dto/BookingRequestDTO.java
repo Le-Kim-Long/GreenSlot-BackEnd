@@ -22,6 +22,16 @@ public class BookingRequestDTO {
 
     private Long treeId;
 
+    private java.util.List<Long> pillarIds = new java.util.ArrayList<>();
+
+    public java.util.List<Long> getPillarIds() {
+        return pillarIds;
+    }
+
+    public void setPillarIds(java.util.List<Long> pillarIds) {
+        this.pillarIds = pillarIds;
+    }
+
     public Long getTreeId() {
         return treeId;
     }

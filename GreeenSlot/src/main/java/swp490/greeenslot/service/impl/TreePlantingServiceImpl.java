@@ -7,6 +7,7 @@ import swp490.greeenslot.dto.TreePlantingRequestCreateDTO;
 import swp490.greeenslot.dto.TreePlantingRequestDTO;
 import swp490.greeenslot.entity.*;
 import swp490.greeenslot.repository.GardeningTaskRepository;
+import swp490.greeenslot.repository.PaymentTransactionRepository;
 import swp490.greeenslot.repository.SensorThresholdRepository;
 import swp490.greeenslot.repository.SlotRentalRepository;
 import swp490.greeenslot.repository.TreePlantingRequestRepository;
@@ -41,6 +42,12 @@ public class TreePlantingServiceImpl implements TreePlantingService {
 
     @Autowired
     private GardeningTaskRepository gardeningTaskRepository;
+
+    @Autowired
+    private PaymentTransactionRepository paymentTransactionRepository;
+
+    @Autowired(required = false)
+    private swp490.greeenslot.config.VNPayUtils vnPayUtils;
 
     @Autowired(required = false)
     private NotificationService notificationService;
@@ -162,6 +169,30 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             ));
         }
         
+        List<Pillar> rentedPillars = rental.getRentedPillars();
+        if (rentedPillars == null || rentedPillars.isEmpty()) {
+            if (rental.getGardenSlot() != null && rental.getGardenSlot().getPillars() != null) {
+                rentedPillars = rental.getGardenSlot().getPillars();
+            } else if (rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null) {
+                rentedPillars = List.of(rental.getGardenSlot().getPillar());
+            } else {
+                rentedPillars = java.util.Collections.emptyList();
+            }
+        }
+
+        java.math.BigDecimal totalTreeCost = java.math.BigDecimal.ZERO;
+        if (newTree.getPrice() != null && newTree.getPrice().compareTo(java.math.BigDecimal.ZERO) > 0) {
+            if (!rentedPillars.isEmpty()) {
+                for (Pillar p : rentedPillars) {
+                    double scale = (double) p.getEffectiveHoles() / 24.0;
+                    java.math.BigDecimal scaledPrice = newTree.getPrice().multiply(java.math.BigDecimal.valueOf(scale));
+                    totalTreeCost = totalTreeCost.add(scaledPrice);
+                }
+            } else {
+                totalTreeCost = newTree.getPrice();
+            }
+        }
+
         TreePlantingRequest request = new TreePlantingRequest();
         request.setRental(rental);
         request.setNewTree(newTree);
@@ -169,8 +200,27 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         request.setStatus(EPlantingRequestStatus.PENDING);
         request.setReason(dto.getReason());
         request.setNotes(dto.getNotes());
+        request.setAmount(totalTreeCost);
         
         TreePlantingRequest savedRequest = treePlantingRequestRepository.save(request);
+
+        if (vnPayUtils != null && totalTreeCost.compareTo(java.math.BigDecimal.ZERO) > 0) {
+            String uuid = java.util.UUID.randomUUID().toString().substring(0, 8);
+            String txnRef = "PLANT_" + savedRequest.getId() + "_" + uuid;
+            PaymentTransaction txn = new PaymentTransaction();
+            txn.setRental(rental);
+            txn.setAmount(totalTreeCost);
+            txn.setVnpTxnRef(txnRef);
+            txn.setPaymentDate(LocalDateTime.now());
+            txn.setStatus(EPaymentStatus.PENDING);
+            paymentTransactionRepository.save(txn);
+
+            String orderInfo = "GreenSlot - Mua giong cay " + newTree.getTreeName() + " (" + rentedPillars.size() + " tru)";
+            boolean isMobile = Boolean.TRUE.equals(dto.getIsMobile());
+            String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, totalTreeCost, "127.0.0.1", orderInfo, isMobile);
+            savedRequest.setPaymentUrl(paymentUrl);
+            savedRequest = treePlantingRequestRepository.save(savedRequest);
+        }
 
         // Notify location managers about planting request
         if (notificationService != null) {
@@ -426,7 +476,9 @@ public class TreePlantingServiceImpl implements TreePlantingService {
                 request.getRequestedAt(),
                 request.getProcessedAt(),
                 request.getProcessedBy() != null ? request.getProcessedBy().getId() : null,
-                request.getProcessedBy() != null ? request.getProcessedBy().getFullName() : null
+                request.getProcessedBy() != null ? request.getProcessedBy().getFullName() : null,
+                request.getAmount(),
+                request.getPaymentUrl()
         );
     }
 
