@@ -150,8 +150,32 @@ public class BookingServiceImpl implements BookingService {
         List<Long> currentlyRentedIds = slotRentalRepository.findCurrentlyRentedPillarIds(now);
         Set<Long> currentlyRentedSet = new HashSet<>(currentlyRentedIds);
 
+        double slotMaxArea = (slot.getArea() != null && slot.getArea() > 0) ? slot.getArea() : 3.0;
+
+        boolean hasCustomCounts = (request.getSmallPillarsCount() != null && request.getSmallPillarsCount() > 0)
+                || (request.getMediumPillarsCount() != null && request.getMediumPillarsCount() > 0)
+                || (request.getLargePillarsCount() != null && request.getLargePillarsCount() > 0);
+
         List<Pillar> selectedPillars = new ArrayList<>();
-        if (request.getPillarIds() != null && !request.getPillarIds().isEmpty()) {
+
+        if (hasCustomCounts) {
+            int smallCount = request.getSmallPillarsCount() != null ? Math.max(0, request.getSmallPillarsCount()) : 0;
+            int mediumCount = request.getMediumPillarsCount() != null ? Math.max(0, request.getMediumPillarsCount()) : 0;
+            int largeCount = request.getLargePillarsCount() != null ? Math.max(0, request.getLargePillarsCount()) : 0;
+
+            double totalCustomArea = (smallCount * 1.0) + (mediumCount * 1.5) + (largeCount * 2.0);
+            if (totalCustomArea > slotMaxArea + 0.01) {
+                throw new IllegalArgumentException(String.format(
+                    "Tổng diện tích các trụ đã chọn (%.1f m²) vượt quá diện tích tối đa của ô vườn (%.1f m²). Ô nhỏ không thể thuê nhiều trụ lớn, vui lòng giảm bớt trụ lớn hoặc chọn ô vườn có diện tích lớn hơn.",
+                    totalCustomArea, slotMaxArea
+                ));
+            }
+
+            // Allocate or create pillars matching requested counts
+            selectedPillars.addAll(allocateOrCreatePillars(slot, EPillarType.SMALL, smallCount, currentlyRentedSet));
+            selectedPillars.addAll(allocateOrCreatePillars(slot, EPillarType.MEDIUM, mediumCount, currentlyRentedSet));
+            selectedPillars.addAll(allocateOrCreatePillars(slot, EPillarType.LARGE, largeCount, currentlyRentedSet));
+        } else if (request.getPillarIds() != null && !request.getPillarIds().isEmpty()) {
             Set<Long> requestedPillarIdSet = new HashSet<>(request.getPillarIds());
             for (Pillar p : slotPillars) {
                 if (requestedPillarIdSet.contains(p.getId())) {
@@ -161,15 +185,28 @@ public class BookingServiceImpl implements BookingService {
             if (selectedPillars.size() != requestedPillarIdSet.size()) {
                 throw new IllegalArgumentException("Một hoặc nhiều trụ bạn chọn không thuộc ô vườn hoặc cơ sở này");
             }
-        } else {
+        } else if (!slotPillars.isEmpty()) {
             // Default: select all active and non-rented pillars in this slot
             selectedPillars = slotPillars.stream()
                     .filter(p -> p.getStatus() == EPillarStatus.ACTIVE && !currentlyRentedSet.contains(p.getId()))
                     .collect(Collectors.toList());
+        } else {
+            // If slot has no pillars created yet in DB, automatically provision standard template pillars fitting slot area
+            int defaultMediumPillars = Math.max(1, (int) Math.floor(slotMaxArea / 1.5));
+            selectedPillars.addAll(allocateOrCreatePillars(slot, EPillarType.MEDIUM, defaultMediumPillars, currentlyRentedSet));
         }
 
         if (selectedPillars.isEmpty()) {
             throw new IllegalArgumentException("Vui lòng chọn ít nhất 1 trụ canh tác còn trống để thuê");
+        }
+
+        // Slot area capacity validation
+        double totalAreaUsed = selectedPillars.stream().mapToDouble(Pillar::getEffectiveArea).sum();
+        if (totalAreaUsed > slotMaxArea + 0.01) {
+            throw new IllegalArgumentException(String.format(
+                "Tổng diện tích các trụ đã chọn (%.1f m²) vượt quá diện tích tối đa của ô vườn (%.1f m²). Vui lòng chọn số lượng trụ phù hợp với kích thước ô vườn.",
+                totalAreaUsed, slotMaxArea
+            ));
         }
 
         // Exclusivity validation: Ensure no selected pillar is already rented anywhere in the system
@@ -775,5 +812,42 @@ public class BookingServiceImpl implements BookingService {
         rental.setHarvestReminderSent(false);
         rental.setHarvestNotifiedAt(null);
         rental.setHarvestDecision(null);
+    }
+
+    private List<Pillar> allocateOrCreatePillars(GardenSlot slot, EPillarType type, int count, Set<Long> currentlyRentedSet) {
+        if (count <= 0) return Collections.emptyList();
+
+        List<Pillar> allocated = new ArrayList<>();
+        List<Pillar> existing = (slot.getLocation() != null)
+                ? pillarRepository.findByLocationId(slot.getLocation().getId())
+                : Collections.emptyList();
+
+        for (Pillar p : existing) {
+            if (allocated.size() >= count) break;
+            if (p.getEffectivePillarType() == type 
+                    && p.getStatus() == EPillarStatus.ACTIVE 
+                    && !currentlyRentedSet.contains(p.getId()) 
+                    && !allocated.contains(p)) {
+                allocated.add(p);
+            }
+        }
+
+        int needed = count - allocated.size();
+        for (int i = 1; i <= needed; i++) {
+            Pillar p = new Pillar();
+            String suffix = type == EPillarType.SMALL ? "S" : type == EPillarType.LARGE ? "L" : "M";
+            String code = "P-" + slot.getSlotNumber() + "-" + suffix + (allocated.size() + i);
+            p.setPillarCode(code);
+            p.setPillarType(type);
+            p.setCapacityHoles(type.getDefaultHoles());
+            p.setPrice(type.getDefaultPrice());
+            p.setStatus(EPillarStatus.ACTIVE);
+            p.setGardenSlot(slot);
+            p.setLocation(slot.getLocation());
+            Pillar saved = pillarRepository.save(p);
+            allocated.add(saved);
+        }
+
+        return allocated;
     }
 }
