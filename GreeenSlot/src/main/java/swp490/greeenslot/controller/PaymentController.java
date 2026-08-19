@@ -75,15 +75,7 @@ public class PaymentController {
             logger.info("vnpayReturn processed IPN result for txnRef={}: {}", txnRef, ipnResult);
         } catch (Exception e) {
             logger.error("Error processing VNPay return callback for txnRef={}", txnRef, e);
-            // If processing fails, redirect to failure page instead of success
-            String targetUrl = determineTargetUrl(fields, request);
-            String delimiter = targetUrl.contains("?") ? "&" : "?";
-            String redirectUrl = targetUrl + delimiter
-                    + "status=failed"
-                    + "&error=processing_error"
-                    + "&vnp_TxnRef=" + urlEncode(txnRef);
-            response.sendRedirect(redirectUrl);
-            return;
+            ipnResult = new HashMap<>();
         }
 
         String txnStatus = ipnResult.getOrDefault("TxnStatus", "");
@@ -93,11 +85,23 @@ public class PaymentController {
         String orderInfo = fields.getOrDefault("vnp_OrderInfo", "");
         String payDate = fields.getOrDefault("vnp_PayDate", "");
 
-        // Use the actual database transaction status, not the raw VNPay response code
-        String status = "SUCCESS".equals(txnStatus) ? "success" : "failed";
+        // Old logic fallback: Check if DB returned SUCCESS OR if VNPay response code is "00"
+        String status = ("SUCCESS".equals(txnStatus) || "00".equals(responseCode)) ? "success" : "failed";
 
         // Determine target URL (Frontend SPA or Mobile App)
-        String targetUrl = determineTargetUrl(fields, request);
+        String targetUrl = defaultReturnUrl;
+        String clientParam = fields.getOrDefault("client", fields.getOrDefault("source", ""));
+        String isMobileParam = fields.get("isMobile");
+        String customRedirectUrl = fields.get("redirectUrl");
+        String userAgent = request.getHeader("User-Agent");
+
+        if (customRedirectUrl != null && !customRedirectUrl.isEmpty()) {
+            targetUrl = customRedirectUrl;
+        } else if ("mobile".equalsIgnoreCase(clientParam)
+                || "true".equalsIgnoreCase(isMobileParam)
+                || (userAgent != null && (userAgent.contains("GreenSlotMobile") || userAgent.contains("Expo") || userAgent.contains("okhttp")))) {
+            targetUrl = mobileReturnUrl;
+        }
 
         String delimiter = targetUrl.contains("?") ? "&" : "?";
         String redirectUrl = targetUrl + delimiter
@@ -118,22 +122,5 @@ public class PaymentController {
         } catch (UnsupportedEncodingException e) {
             return value;
         }
-    }
-
-    private String determineTargetUrl(Map<String, String> fields, HttpServletRequest request) {
-        String targetUrl = defaultReturnUrl;
-        String clientParam = fields.getOrDefault("client", fields.getOrDefault("source", ""));
-        String isMobileParam = fields.get("isMobile");
-        String customRedirectUrl = fields.get("redirectUrl");
-        String userAgent = request.getHeader("User-Agent");
-
-        if (customRedirectUrl != null && !customRedirectUrl.isEmpty()) {
-            targetUrl = customRedirectUrl;
-        } else if ("mobile".equalsIgnoreCase(clientParam)
-                || "true".equalsIgnoreCase(isMobileParam)
-                || (userAgent != null && (userAgent.contains("GreenSlotMobile") || userAgent.contains("Expo") || userAgent.contains("okhttp")))) {
-            targetUrl = mobileReturnUrl;
-        }
-        return targetUrl;
     }
 }
