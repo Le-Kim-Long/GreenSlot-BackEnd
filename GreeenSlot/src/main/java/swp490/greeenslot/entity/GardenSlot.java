@@ -45,7 +45,7 @@ public class GardenSlot {
     @JoinColumn(name = "location_id")
     private Location location;
 
-    @OneToMany(mappedBy = "gardenSlot", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "gardenSlot", fetch = FetchType.LAZY)
     private List<Pillar> pillars = new ArrayList<>();
 
     public Integer calculateMaxPillars() {

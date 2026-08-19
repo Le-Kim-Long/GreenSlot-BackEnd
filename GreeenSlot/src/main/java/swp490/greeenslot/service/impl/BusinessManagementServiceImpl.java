@@ -658,7 +658,7 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Transactional
     public void deleteSlot(Long id) {
         GardenSlot slot = gardenSlotRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID " + id));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ô vườn với ID: " + id));
 
         boolean hasActiveRental = slotRentalRepository.existsByGardenSlotIdAndStatus(id, ERentalStatus.ACTIVE);
         if (hasActiveRental) {
@@ -670,6 +670,10 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         for (Pillar p : assignedPillars) {
             p.setGardenSlot(null);
             pillarRepository.save(p);
+        }
+
+        if (slot.getPillars() != null) {
+            slot.getPillars().clear();
         }
 
         gardenSlotRepository.delete(slot);
