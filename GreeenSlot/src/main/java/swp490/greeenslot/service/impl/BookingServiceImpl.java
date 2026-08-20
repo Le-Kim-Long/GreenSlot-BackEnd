@@ -227,10 +227,22 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
-        // Resolve tree if selected or default
+        // Resolve trees per pillar if multiple chosen, or single tree
+        List<Tree> resolvedTrees = new java.util.ArrayList<>();
+        if (request.getTreeIds() != null && !request.getTreeIds().isEmpty()) {
+            for (Long tId : request.getTreeIds()) {
+                if (tId != null && tId > 0) {
+                    treeRepository.findById(tId).ifPresent(resolvedTrees::add);
+                }
+            }
+        }
+        
         Tree selectedTree = null;
         if (request.getTreeId() != null && request.getTreeId() > 0) {
             selectedTree = treeRepository.findById(request.getTreeId()).orElse(null);
+        }
+        if (selectedTree == null && !resolvedTrees.isEmpty()) {
+            selectedTree = resolvedTrees.get(0);
         }
         if (selectedTree == null) {
             selectedTree = selectedPillars.stream()
@@ -240,14 +252,18 @@ public class BookingServiceImpl implements BookingService {
                     .orElse(null);
         }
 
-        // Validate tree growth time vs rental duration
-        if (selectedTree != null && selectedTree.getHarvestDays() != null && selectedTree.getHarvestDays() > 0) {
-            int maxRentalDays = months * 30;
-            if (selectedTree.getHarvestDays() > maxRentalDays) {
-                int minMonths = (int) Math.ceil(selectedTree.getHarvestDays() / 30.0);
+        // Validate tree growth time vs rental duration for all chosen trees
+        int maxRentalDays = months * 30;
+        List<Tree> allTreesToValidate = new java.util.ArrayList<>(resolvedTrees);
+        if (selectedTree != null && !allTreesToValidate.contains(selectedTree)) {
+            allTreesToValidate.add(selectedTree);
+        }
+        for (Tree t : allTreesToValidate) {
+            if (t.getHarvestDays() != null && t.getHarvestDays() > 0 && t.getHarvestDays() > maxRentalDays) {
+                int minMonths = (int) Math.ceil(t.getHarvestDays() / 30.0);
                 throw new IllegalArgumentException(String.format(
                     "Thời gian sinh trưởng của giống cây '%s' (%d ngày) vượt quá thời hạn thuê (%d tháng = %d ngày). Vui lòng chọn thời gian thuê tối thiểu %d tháng.",
-                    selectedTree.getTreeName(), selectedTree.getHarvestDays(), months, maxRentalDays, minMonths
+                    t.getTreeName(), t.getHarvestDays(), months, maxRentalDays, minMonths
                 ));
             }
         }
@@ -258,12 +274,14 @@ public class BookingServiceImpl implements BookingService {
                 .map(Pillar::getEffectivePrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Vegetable seedling cost scaled by hole capacity (Option 1: price * holes / 24.0)
+        // Vegetable seedling cost scaled by hole capacity for each pillar (Option 1: price * holes / 24.0)
         BigDecimal totalTreeCost = BigDecimal.ZERO;
-        if (selectedTree != null && selectedTree.getPrice() != null && selectedTree.getPrice().compareTo(BigDecimal.ZERO) > 0) {
-            for (Pillar p : selectedPillars) {
+        for (int i = 0; i < selectedPillars.size(); i++) {
+            Pillar p = selectedPillars.get(i);
+            Tree treeForPillar = (i < resolvedTrees.size()) ? resolvedTrees.get(i) : selectedTree;
+            if (treeForPillar != null && treeForPillar.getPrice() != null && treeForPillar.getPrice().compareTo(BigDecimal.ZERO) > 0) {
                 double scale = (double) p.getEffectiveHoles() / 24.0;
-                BigDecimal scaledPrice = selectedTree.getPrice().multiply(BigDecimal.valueOf(scale));
+                BigDecimal scaledPrice = treeForPillar.getPrice().multiply(BigDecimal.valueOf(scale));
                 totalTreeCost = totalTreeCost.add(scaledPrice);
             }
         }
