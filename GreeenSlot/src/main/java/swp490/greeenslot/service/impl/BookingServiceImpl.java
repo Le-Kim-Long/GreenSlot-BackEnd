@@ -680,28 +680,38 @@ public class BookingServiceImpl implements BookingService {
             GardenSlot slot = rental.getGardenSlot();
             Location location = slot.getLocation() != null ? slot.getLocation() : (slot.getPillar() != null ? slot.getPillar().getLocation() : null);
 
-            List<Pillar> slotPillars = slot.getPillars();
+            List<Pillar> rentedPillars = (rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty())
+                    ? rental.getRentedPillars()
+                    : slot.getPillars();
+
             List<String> pillarCodes = new ArrayList<>();
             List<RentalHistoryDTO.PillarInfo> pillarInfos = new ArrayList<>();
-            if (slotPillars != null && !slotPillars.isEmpty()) {
-                for (Pillar p : slotPillars) {
-                    pillarCodes.add(p.getPillarCode());
-                    pillarInfos.add(new RentalHistoryDTO.PillarInfo(
-                            p.getId(),
-                            p.getPillarCode(),
-                            p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
-                            p.getCameraStreamUrl(),
-                            p.getCameraStatus()
-                    ));
+            Set<String> seenCodes = new HashSet<>();
+
+            if (rentedPillars != null && !rentedPillars.isEmpty()) {
+                for (Pillar p : rentedPillars) {
+                    if (p != null && p.getPillarCode() != null && !seenCodes.contains(p.getPillarCode())) {
+                        seenCodes.add(p.getPillarCode());
+                        pillarCodes.add(p.getPillarCode());
+                        pillarInfos.add(new RentalHistoryDTO.PillarInfo(
+                                p.getId(),
+                                p.getPillarCode(),
+                                p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
+                                p.getCameraStreamUrl(),
+                                p.getCameraStatus()
+                        ));
+                    }
                 }
-            } else if (slot.getPillar() != null) {
-                pillarCodes.add(slot.getPillar().getPillarCode());
+            } else if (slot.getPillar() != null && !seenCodes.contains(slot.getPillar().getPillarCode())) {
+                Pillar p = slot.getPillar();
+                seenCodes.add(p.getPillarCode());
+                pillarCodes.add(p.getPillarCode());
                 pillarInfos.add(new RentalHistoryDTO.PillarInfo(
-                        slot.getPillar().getId(),
-                        slot.getPillar().getPillarCode(),
-                        slot.getPillar().getStatus() != null ? slot.getPillar().getStatus().name() : "ACTIVE",
-                        slot.getPillar().getCameraStreamUrl(),
-                        slot.getPillar().getCameraStatus()
+                        p.getId(),
+                        p.getPillarCode(),
+                        p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
+                        p.getCameraStreamUrl(),
+                        p.getCameraStatus()
                 ));
             }
             String primaryPillarCode = !pillarCodes.isEmpty() ? String.join(", ", pillarCodes) : "N/A";
