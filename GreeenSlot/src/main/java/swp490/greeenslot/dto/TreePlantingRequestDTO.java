@@ -30,4 +30,6 @@ public class TreePlantingRequestDTO {
     private String processedByName;
     private java.math.BigDecimal amount;
     private String paymentUrl;
+    private Long targetPillarId;
+    private String targetPillarCode;
 }

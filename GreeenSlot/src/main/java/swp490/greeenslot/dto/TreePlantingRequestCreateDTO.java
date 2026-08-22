@@ -25,4 +25,6 @@ public class TreePlantingRequestCreateDTO {
     private String notes;
 
     private Boolean isMobile;
+    
+    private Long targetPillarId;
 }

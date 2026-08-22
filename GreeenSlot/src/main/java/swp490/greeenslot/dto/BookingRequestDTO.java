@@ -60,12 +60,22 @@ public class BookingRequestDTO {
         this.pillarIds = pillarIds;
     }
 
+    private java.util.List<Long> treeIds = new java.util.ArrayList<>();
+
     public Long getTreeId() {
         return treeId;
     }
 
     public void setTreeId(Long treeId) {
         this.treeId = treeId;
+    }
+
+    public java.util.List<Long> getTreeIds() {
+        return treeIds;
+    }
+
+    public void setTreeIds(java.util.List<Long> treeIds) {
+        this.treeIds = treeIds;
     }
 
     public Long getSlotId() {

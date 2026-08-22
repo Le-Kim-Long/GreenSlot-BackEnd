@@ -30,6 +30,10 @@ public class TreePlantingRequest {
     private Tree newTree;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "target_pillar_id")
+    private Pillar targetPillar;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "requested_by")
     private User requestedBy;
 
