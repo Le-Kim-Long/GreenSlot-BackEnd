@@ -20,6 +20,8 @@ public class BookingRequestDTO {
 
     private Boolean isMobile;
 
+    private String mobileRedirectUrl;
+
     private Long treeId;
 
     private java.util.List<Long> pillarIds = new java.util.ArrayList<>();
@@ -108,5 +110,13 @@ public class BookingRequestDTO {
 
     public void setIsMobile(Boolean isMobile) {
         this.isMobile = isMobile;
+    }
+
+    public String getMobileRedirectUrl() {
+        return mobileRedirectUrl;
+    }
+
+    public void setMobileRedirectUrl(String mobileRedirectUrl) {
+        this.mobileRedirectUrl = mobileRedirectUrl;
     }
 }

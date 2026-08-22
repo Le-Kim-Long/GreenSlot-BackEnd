@@ -401,7 +401,7 @@ public class BookingServiceImpl implements BookingService {
         int pillarCount = selectedPillars.size();
         String orderInfo = "GreenSlot - Thue vuon " + slot.getSlotNumber() + " (" + pillarCount + " tru) trong " + months + " thang";
         boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
-        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile);
+        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile, request.getMobileRedirectUrl());
 
         return new BookingResponseDTO(rental.getId(), paymentUrl, txnRef);
     }
@@ -449,7 +449,7 @@ public class BookingServiceImpl implements BookingService {
 
         String orderInfo = "GreenSlot - Gia han vuon #" + rental.getId() + " them " + months + " thang";
         boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
-        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile);
+        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile, request.getMobileRedirectUrl());
 
         return new BookingResponseDTO(rental.getId(), paymentUrl, txnRef);
     }
@@ -817,6 +817,11 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress, boolean isMobile) {
+        return getOrRegeneratePaymentUrl(rentalId, username, ipAddress, isMobile, null);
+    }
+
+    public BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress,
+                                                        boolean isMobile, String mobileRedirectUrl) {
         SlotRental rental = slotRentalRepository.findByIdWithPessimisticLock(rentalId)
                 .orElseThrow(() -> new IllegalArgumentException("Slot rental not found with ID: " + rentalId));
 
@@ -850,7 +855,7 @@ public class BookingServiceImpl implements BookingService {
         paymentTransactionRepository.save(pendingTxn);
 
         String orderInfo = "GreenSlot - Thanh toan don thue vuon #" + rentalId;
-        String paymentUrl = vnPayUtils.buildPaymentUrl(newTxnRef, pendingTxn.getAmount(), ipAddress, orderInfo, isMobile);
+        String paymentUrl = vnPayUtils.buildPaymentUrl(newTxnRef, pendingTxn.getAmount(), ipAddress, orderInfo, isMobile, mobileRedirectUrl);
 
         return new BookingResponseDTO(rentalId, paymentUrl, newTxnRef);
     }

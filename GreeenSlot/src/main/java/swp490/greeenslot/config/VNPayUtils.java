@@ -44,6 +44,15 @@ public class VNPayUtils {
     }
 
     public String buildPaymentUrl(String txnRef, BigDecimal amount, String ipAddress, String orderInfo, boolean isMobile) {
+        return buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile, null);
+    }
+
+    /**
+     * Builds a mobile payment URL. The redirect URI is supplied by the client
+     * so Expo Go can use its exp:// URI, while a native build can use greenslot://.
+     */
+    public String buildPaymentUrl(String txnRef, BigDecimal amount, String ipAddress, String orderInfo,
+                                  boolean isMobile, String mobileRedirectUrl) {
         String vnp_Version = "2.1.0";
         String vnp_Command = "pay";
         String vnp_TxnRef = txnRef;
@@ -71,6 +80,10 @@ public class VNPayUtils {
         String effectiveReturnUrl = returnUrl;
         if (isMobile) {
             effectiveReturnUrl += (effectiveReturnUrl.contains("?") ? "&" : "?") + "client=mobile";
+            if (mobileRedirectUrl != null && !mobileRedirectUrl.isBlank()
+                    && isAllowedMobileRedirect(mobileRedirectUrl)) {
+                effectiveReturnUrl += "&redirectUrl=" + encode(mobileRedirectUrl);
+            }
         }
 
         Map<String, String> vnp_Params = new HashMap<>();
@@ -115,6 +128,13 @@ public class VNPayUtils {
         queryUrl += "&vnp_SecureHash=" + vnp_SecureHash;
 
         return url + "?" + queryUrl;
+    }
+
+    private boolean isAllowedMobileRedirect(String redirectUrl) {
+        return redirectUrl.startsWith("greenslot://")
+                || redirectUrl.startsWith("exp://")
+                || redirectUrl.startsWith("http://")
+                || redirectUrl.startsWith("https://");
     }
 
     private String sanitizeOrderInfo(String input) {
@@ -205,3 +225,4 @@ public class VNPayUtils {
         }
     }
 }
+

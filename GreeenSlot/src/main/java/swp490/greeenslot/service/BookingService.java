@@ -18,5 +18,6 @@ public interface BookingService {
     void cancelPendingBooking(Long rentalId, String username);
     BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress);
     BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress, boolean isMobile);
+    BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress, boolean isMobile, String mobileRedirectUrl);
     void recordHarvestDecision(Long rentalId, String decision, String username);
 }
