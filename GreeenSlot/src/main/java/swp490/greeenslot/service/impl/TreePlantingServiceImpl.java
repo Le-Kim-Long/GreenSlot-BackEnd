@@ -8,6 +8,7 @@ import swp490.greeenslot.dto.TreePlantingRequestDTO;
 import swp490.greeenslot.entity.*;
 import swp490.greeenslot.repository.GardeningTaskRepository;
 import swp490.greeenslot.repository.PaymentTransactionRepository;
+import swp490.greeenslot.repository.PillarRepository;
 import swp490.greeenslot.repository.SensorThresholdRepository;
 import swp490.greeenslot.repository.SlotRentalRepository;
 import swp490.greeenslot.repository.TreePlantingRequestRepository;
@@ -45,6 +46,9 @@ public class TreePlantingServiceImpl implements TreePlantingService {
 
     @Autowired
     private PaymentTransactionRepository paymentTransactionRepository;
+
+    @Autowired
+    private PillarRepository pillarRepository;
 
     @Autowired(required = false)
     private swp490.greeenslot.config.VNPayUtils vnPayUtils;
@@ -180,9 +184,31 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             }
         }
 
+        Pillar targetPillar = null;
+        if (dto.getTargetPillarId() != null && dto.getTargetPillarId() > 0) {
+            targetPillar = pillarRepository.findById(dto.getTargetPillarId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy trụ canh tác với ID: " + dto.getTargetPillarId()));
+            
+            final Long targetId = targetPillar.getId();
+            boolean belongsToRental = false;
+            if (!rentedPillars.isEmpty()) {
+                belongsToRental = rentedPillars.stream().anyMatch(p -> p.getId().equals(targetId));
+            }
+            if (!belongsToRental && rental.getGardenSlot() != null && rental.getGardenSlot().getPillars() != null) {
+                belongsToRental = rental.getGardenSlot().getPillars().stream().anyMatch(p -> p.getId().equals(targetId));
+            }
+
+            if (!belongsToRental) {
+                throw new IllegalArgumentException("Trụ " + targetPillar.getPillarCode() + " không thuộc hợp đồng thuê này.");
+            }
+        }
+
         java.math.BigDecimal totalTreeCost = java.math.BigDecimal.ZERO;
         if (newTree.getPrice() != null && newTree.getPrice().compareTo(java.math.BigDecimal.ZERO) > 0) {
-            if (!rentedPillars.isEmpty()) {
+            if (targetPillar != null) {
+                double scale = (double) targetPillar.getEffectiveHoles() / 24.0;
+                totalTreeCost = newTree.getPrice().multiply(java.math.BigDecimal.valueOf(scale));
+            } else if (!rentedPillars.isEmpty()) {
                 for (Pillar p : rentedPillars) {
                     double scale = (double) p.getEffectiveHoles() / 24.0;
                     java.math.BigDecimal scaledPrice = newTree.getPrice().multiply(java.math.BigDecimal.valueOf(scale));
@@ -196,6 +222,7 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         TreePlantingRequest request = new TreePlantingRequest();
         request.setRental(rental);
         request.setNewTree(newTree);
+        request.setTargetPillar(targetPillar);
         request.setRequestedBy(user);
         request.setStatus(EPlantingRequestStatus.PENDING);
         request.setReason(dto.getReason());
@@ -215,7 +242,8 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             txn.setStatus(EPaymentStatus.PENDING);
             paymentTransactionRepository.save(txn);
 
-            String orderInfo = "GreenSlot - Mua giong cay " + newTree.getTreeName() + " (" + rentedPillars.size() + " tru)";
+            String pillarDesc = targetPillar != null ? ("Trụ " + targetPillar.getPillarCode()) : (rentedPillars.size() + " tru");
+            String orderInfo = "GreenSlot - Mua giong cay " + newTree.getTreeName() + " (" + pillarDesc + ")";
             boolean isMobile = Boolean.TRUE.equals(dto.getIsMobile());
             String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, totalTreeCost, "127.0.0.1", orderInfo, isMobile);
             savedRequest.setPaymentUrl(paymentUrl);
@@ -281,11 +309,20 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         slotRentalRepository.save(rental);
 
         // Đồng bộ ngưỡng của cây trồng sang cấu hình cảm biến IoT của Trụ (Pillar) thuộc ô đất này
-        if (newTree != null && rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null) {
-            Pillar pillar = rental.getGardenSlot().getPillar();
-            String deviceId = pillar.getPillarCode();
-            if (deviceId != null && !deviceId.isBlank()) {
-                syncTreeThresholdsToDevice(deviceId, newTree);
+        if (newTree != null) {
+            if (request.getTargetPillar() != null && request.getTargetPillar().getPillarCode() != null) {
+                syncTreeThresholdsToDevice(request.getTargetPillar().getPillarCode(), newTree);
+            } else if (rental.getGardenSlot() != null && rental.getGardenSlot().getPillars() != null) {
+                for (Pillar p : rental.getGardenSlot().getPillars()) {
+                    if (p.getPillarCode() != null && !p.getPillarCode().isBlank()) {
+                        syncTreeThresholdsToDevice(p.getPillarCode(), newTree);
+                    }
+                }
+            } else if (rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null) {
+                Pillar pillar = rental.getGardenSlot().getPillar();
+                if (pillar.getPillarCode() != null && !pillar.getPillarCode().isBlank()) {
+                    syncTreeThresholdsToDevice(pillar.getPillarCode(), newTree);
+                }
             }
         }
 
@@ -478,7 +515,9 @@ public class TreePlantingServiceImpl implements TreePlantingService {
                 request.getProcessedBy() != null ? request.getProcessedBy().getId() : null,
                 request.getProcessedBy() != null ? request.getProcessedBy().getFullName() : null,
                 request.getAmount(),
-                request.getPaymentUrl()
+                request.getPaymentUrl(),
+                request.getTargetPillar() != null ? request.getTargetPillar().getId() : null,
+                request.getTargetPillar() != null ? request.getTargetPillar().getPillarCode() : null
         );
     }
 
