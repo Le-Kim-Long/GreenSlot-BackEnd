@@ -16,6 +16,8 @@ public class ExtensionRequestDTO {
 
     private Boolean isMobile;
 
+    private String mobileRedirectUrl;
+
     public Long getRentalId() {
         return rentalId;
     }
@@ -38,5 +40,13 @@ public class ExtensionRequestDTO {
 
     public void setIsMobile(Boolean isMobile) {
         this.isMobile = isMobile;
+    }
+
+    public String getMobileRedirectUrl() {
+        return mobileRedirectUrl;
+    }
+
+    public void setMobileRedirectUrl(String mobileRedirectUrl) {
+        this.mobileRedirectUrl = mobileRedirectUrl;
     }
 }
