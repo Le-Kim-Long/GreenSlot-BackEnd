@@ -160,13 +160,25 @@ public class BookingController {
     public ResponseEntity<BookingResponseDTO> repayBooking(
             @PathVariable Long rentalId,
             @RequestParam(required = false, defaultValue = "false") boolean isMobile,
+            @RequestParam(required = false) String customMobileRedirectUrl,
             Principal principal,
             HttpServletRequest httpServletRequest) {
         String ipAddress = httpServletRequest.getHeader("X-FORWARDED-FOR");
         if (ipAddress == null || ipAddress.isEmpty()) {
             ipAddress = httpServletRequest.getRemoteAddr();
         }
-        BookingResponseDTO response = bookingService.getOrRegeneratePaymentUrl(rentalId, principal.getName(), ipAddress, isMobile);
+        BookingResponseDTO response = bookingService.getOrRegeneratePaymentUrl(rentalId, principal.getName(), ipAddress, isMobile, customMobileRedirectUrl);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{rentalId}/payment-status")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get payment status for a rental", 
+               description = "Returns the current payment status, rental status, and transaction details for mobile app to check after VNPay redirect.")
+    public ResponseEntity<java.util.Map<String, Object>> getPaymentStatus(
+            @PathVariable Long rentalId,
+            Principal principal) {
+        java.util.Map<String, Object> status = bookingService.getPaymentStatus(rentalId, principal.getName());
+        return ResponseEntity.ok(status);
     }
 }

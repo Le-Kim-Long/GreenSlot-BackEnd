@@ -401,7 +401,8 @@ public class BookingServiceImpl implements BookingService {
         int pillarCount = selectedPillars.size();
         String orderInfo = "GreenSlot - Thue vuon " + slot.getSlotNumber() + " (" + pillarCount + " tru) trong " + months + " thang";
         boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
-        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile);
+        String customMobileRedirectUrl = request.getMobileRedirectUrl();
+        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile, customMobileRedirectUrl);
 
         return new BookingResponseDTO(rental.getId(), paymentUrl, txnRef);
     }
@@ -449,7 +450,8 @@ public class BookingServiceImpl implements BookingService {
 
         String orderInfo = "GreenSlot - Gia han vuon #" + rental.getId() + " them " + months + " thang";
         boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
-        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile);
+        String customMobileRedirectUrl = request.getMobileRedirectUrl();
+        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile, customMobileRedirectUrl);
 
         return new BookingResponseDTO(rental.getId(), paymentUrl, txnRef);
     }
@@ -817,6 +819,12 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress, boolean isMobile) {
+        return getOrRegeneratePaymentUrl(rentalId, username, ipAddress, isMobile, null);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress, boolean isMobile, String customMobileRedirectUrl) {
         SlotRental rental = slotRentalRepository.findByIdWithPessimisticLock(rentalId)
                 .orElseThrow(() -> new IllegalArgumentException("Slot rental not found with ID: " + rentalId));
 
@@ -850,7 +858,7 @@ public class BookingServiceImpl implements BookingService {
         paymentTransactionRepository.save(pendingTxn);
 
         String orderInfo = "GreenSlot - Thanh toan don thue vuon #" + rentalId;
-        String paymentUrl = vnPayUtils.buildPaymentUrl(newTxnRef, pendingTxn.getAmount(), ipAddress, orderInfo, isMobile);
+        String paymentUrl = vnPayUtils.buildPaymentUrl(newTxnRef, pendingTxn.getAmount(), ipAddress, orderInfo, isMobile, customMobileRedirectUrl);
 
         return new BookingResponseDTO(rentalId, paymentUrl, newTxnRef);
     }
@@ -973,5 +981,46 @@ public class BookingServiceImpl implements BookingService {
         }
 
         return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Map<String, Object> getPaymentStatus(Long rentalId, String username) {
+        java.util.Map<String, Object> status = new java.util.HashMap<>();
+        
+        SlotRental rental = slotRentalRepository.findById(rentalId).orElse(null);
+        if (rental == null) {
+            status.put("error", "Rental not found");
+            return status;
+        }
+        
+        // Verify ownership
+        if (!rental.getUser().getUsername().equals(username)) {
+            status.put("error", "Unauthorized access to rental information");
+            return status;
+        }
+        
+        // Get the latest payment transaction for this rental
+        List<PaymentTransaction> transactions = paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(rentalId);
+        PaymentTransaction latestTransaction = transactions.isEmpty() ? null : transactions.get(0);
+        
+        status.put("rentalId", rental.getId());
+        status.put("rentalStatus", rental.getStatus().name());
+        status.put("startTime", rental.getStartTime());
+        status.put("endTime", rental.getEndTime());
+        
+        if (latestTransaction != null) {
+            status.put("paymentStatus", latestTransaction.getStatus().name());
+            status.put("amount", latestTransaction.getAmount());
+            status.put("vnpTxnRef", latestTransaction.getVnpTxnRef());
+            status.put("transactionDate", latestTransaction.getPaymentDate());
+        } else {
+            status.put("paymentStatus", "NO_TRANSACTION");
+            status.put("amount", null);
+            status.put("vnpTxnRef", null);
+            status.put("transactionDate", null);
+        }
+        
+        return status;
     }
 }

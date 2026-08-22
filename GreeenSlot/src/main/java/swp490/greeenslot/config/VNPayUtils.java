@@ -44,6 +44,10 @@ public class VNPayUtils {
     }
 
     public String buildPaymentUrl(String txnRef, BigDecimal amount, String ipAddress, String orderInfo, boolean isMobile) {
+        return buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile, null);
+    }
+
+    public String buildPaymentUrl(String txnRef, BigDecimal amount, String ipAddress, String orderInfo, boolean isMobile, String customMobileRedirectUrl) {
         String vnp_Version = "2.1.0";
         String vnp_Command = "pay";
         String vnp_TxnRef = txnRef;
@@ -68,9 +72,16 @@ public class VNPayUtils {
         String vnp_CreateDate = now.format(formatter);
         String vnp_ExpireDate = now.plusMinutes(15).format(formatter);
 
-        String effectiveReturnUrl = returnUrl;
+        // Use mobile return URL for mobile requests, web return URL for web requests
+        // Use custom mobile redirect URL if provided, otherwise use default mobile return URL
+        String effectiveReturnUrl;
         if (isMobile) {
+            effectiveReturnUrl = (customMobileRedirectUrl != null && !customMobileRedirectUrl.isEmpty()) 
+                                  ? customMobileRedirectUrl 
+                                  : mobileReturnUrl;
             effectiveReturnUrl += (effectiveReturnUrl.contains("?") ? "&" : "?") + "client=mobile";
+        } else {
+            effectiveReturnUrl = returnUrl;
         }
 
         Map<String, String> vnp_Params = new HashMap<>();
