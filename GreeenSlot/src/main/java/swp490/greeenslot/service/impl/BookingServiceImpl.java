@@ -857,6 +857,63 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     @Transactional
+    public void confirmPayment(Long rentalId, String username) {
+        SlotRental rental = slotRentalRepository.findByIdWithPessimisticLock(rentalId)
+                .orElseThrow(() -> new IllegalArgumentException("Slot rental not found with ID: " + rentalId));
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdminOrManager = auth != null && auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(role -> role.equals("ROLE_ADMIN") || role.equals("ROLE_MANAGER"));
+
+        if (!isAdminOrManager && (rental.getUser() == null || !rental.getUser().getUsername().equals(username))) {
+            throw new IllegalArgumentException("Unauthorized: Only the contract owner can confirm this booking");
+        }
+
+        if (rental.getStatus() == ERentalStatus.ACTIVE) {
+            logger.info("Rental ID {} is already ACTIVE", rentalId);
+            return;
+        }
+
+        List<PaymentTransaction> txns = paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(rentalId);
+        PaymentTransaction pendingTxn = txns.stream()
+                .filter(t -> t.getStatus() == EPaymentStatus.PENDING || t.getStatus() == EPaymentStatus.SUCCESS)
+                .findFirst()
+                .orElse(null);
+
+        if (pendingTxn != null) {
+            pendingTxn.setStatus(EPaymentStatus.SUCCESS);
+            pendingTxn.setPaymentDate(LocalDateTime.now());
+            paymentTransactionRepository.save(pendingTxn);
+        }
+
+        rental.setStatus(ERentalStatus.ACTIVE);
+        slotRentalRepository.save(rental);
+
+        if (rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()) {
+            for (Pillar p : rental.getRentedPillars()) {
+                p.setStatus(EPillarStatus.RENTED);
+                pillarRepository.save(p);
+            }
+        }
+
+        GardenSlot slot = rental.getGardenSlot();
+        if (slot != null) {
+            List<Pillar> allSlotPillars = slot.getPillars();
+            boolean allRented = allSlotPillars != null && !allSlotPillars.isEmpty() &&
+                    allSlotPillars.stream().allMatch(p -> p.getStatus() == EPillarStatus.RENTED);
+            if (allRented) {
+                slot.setStatus(ESlotStatus.RENTED);
+            } else {
+                slot.setStatus(ESlotStatus.AVAILABLE);
+            }
+            gardenSlotRepository.save(slot);
+        }
+        logger.info("Booking rental ID {} successfully confirmed and activated", rentalId);
+    }
+
+    @Override
+    @Transactional
     public void recordHarvestDecision(Long rentalId, String decision, String username) {
         if (!"SELF".equals(decision) && !"STAFF".equals(decision)) {
             throw new IllegalArgumentException("Decision must be either SELF or STAFF");
