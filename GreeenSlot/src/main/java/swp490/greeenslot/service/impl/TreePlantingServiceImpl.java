@@ -136,10 +136,30 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             throw new IllegalArgumentException("Cannot request planting: Slot rental has already expired.");
         }
 
-        // 3b. Chỉ cho trồng khi ô đất đang trống — không cho gửi yêu cầu thay thế cây đang trồng
-        if (rental.getTree() != null) {
-            throw new IllegalArgumentException("Cannot request planting: This slot already has a tree planted. " +
-                    "You cannot replace it with another tree until the current one is harvested.");
+        // 3b. Kiểm tra cây đang trồng và yêu cầu theo trụ
+        List<TreePlantingRequest> existingReqs = treePlantingRequestRepository.findByRental(rental);
+        
+        if (dto.getTargetPillarId() != null && dto.getTargetPillarId() > 0) {
+            // Nếu chọn cụ thể 1 trụ: kiểm tra xem trụ đó đã có yêu cầu PENDING chưa
+            boolean isPillarPending = existingReqs.stream().anyMatch(r -> 
+                r.getStatus() == EPlantingRequestStatus.PENDING && 
+                r.getTargetPillar() != null && 
+                r.getTargetPillar().getId().equals(dto.getTargetPillarId())
+            );
+            if (isPillarPending) {
+                throw new IllegalArgumentException("Trụ này hiện đã có yêu cầu trồng cây đang chờ duyệt.");
+            }
+        } else {
+            // Yêu cầu áp dụng cho toàn bộ các trụ trong ô:
+            // Chỉ cho phép khi hợp đồng chưa có cây đang canh tác
+            if (rental.getTree() != null) {
+                throw new IllegalArgumentException("Cannot request planting for all pillars: This slot already has an active tree planted. " +
+                        "Please select a specific empty pillar or wait until current crop is harvested.");
+            }
+            boolean hasPending = existingReqs.stream().anyMatch(r -> r.getStatus() == EPlantingRequestStatus.PENDING);
+            if (hasPending) {
+                throw new IllegalArgumentException("Hợp đồng này hiện đã có yêu cầu trồng cây đang chờ xử lý.");
+            }
         }
 
         // 4. Check tree exists and is active
