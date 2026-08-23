@@ -16,6 +16,7 @@ import swp490.greeenslot.service.RentalExpirationService;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -38,12 +39,24 @@ public class RentalExpirationServiceImpl implements RentalExpirationService {
     @Autowired(required = false)
     private FirebaseMessagingService firebaseMessagingService;
 
+    // DTO nội bộ để truyền thông tin push notification ra ngoài transaction
+    private record PushPayload(Long userId, String title, String body) {}
+
     @Override
     @Scheduled(cron = "0 0 9 * * ?") // Run daily at 9 AM
-    @Transactional
     public void checkAndNotifyExpiringRentals() {
+        // Bước 1: Thực hiện tất cả thao tác DB trong transaction, thu thập push payload
+        List<PushPayload> pushPayloads = processExpiringRentalsInTransaction();
+
+        // Bước 2: Gửi Firebase Push NGOÀI transaction để không giữ DB connection
+        sendFirebasePushNotifications(pushPayloads);
+    }
+
+    @Transactional
+    protected List<PushPayload> processExpiringRentalsInTransaction() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime warningThreshold = now.plusDays(7); // Notify 7 days before expiration
+        List<PushPayload> pushPayloads = new ArrayList<>();
 
         List<SlotRental> activeRentals = slotRentalRepository.findAll().stream()
                 .filter(r -> r.getStatus() == ERentalStatus.ACTIVE)
@@ -94,26 +107,36 @@ public class RentalExpirationServiceImpl implements RentalExpirationService {
                     );
                 }
 
-                if (firebaseMessagingService != null) {
-                    firebaseMessagingService.sendPushNotification(
-                            rental.getUser().getId(),
-                            title,
-                            String.format("Ô %s sắp hết hạn vào %s", slotNumber, rental.getEndTime())
-                    );
-                }
+                // Thu thập push payload, KHÔNG gửi Firebase trong transaction
+                pushPayloads.add(new PushPayload(
+                        rental.getUser().getId(),
+                        title,
+                        String.format("Ô %s sắp hết hạn vào %s", slotNumber, rental.getEndTime())
+                ));
 
                 logger.info("Sent expiration warning ({}) for rental ID {}", notifType, rental.getId());
             } catch (Exception e) {
                 logger.error("Failed to send expiration warning for rental ID {}: {}", rental.getId(), e.getMessage());
             }
         }
+
+        return pushPayloads;
     }
 
     @Override
     @Scheduled(cron = "0 0 10 * * ?") // Run daily at 10 AM
-    @Transactional
     public void checkAndNotifyExpiredRentals() {
+        // Bước 1: Thực hiện tất cả thao tác DB trong transaction, thu thập push payload
+        List<PushPayload> pushPayloads = processExpiredRentalsInTransaction();
+
+        // Bước 2: Gửi Firebase Push NGOÀI transaction để không giữ DB connection
+        sendFirebasePushNotifications(pushPayloads);
+    }
+
+    @Transactional
+    protected List<PushPayload> processExpiredRentalsInTransaction() {
         LocalDateTime now = LocalDateTime.now();
+        List<PushPayload> pushPayloads = new ArrayList<>();
 
         List<SlotRental> expiredRentals = slotRentalRepository.findAll().stream()
                 .filter(r -> r.getStatus() == ERentalStatus.ACTIVE)
@@ -157,17 +180,37 @@ public class RentalExpirationServiceImpl implements RentalExpirationService {
                     );
                 }
 
-                if (rental.getUser() != null && firebaseMessagingService != null) {
-                    firebaseMessagingService.sendPushNotification(
+                // Thu thập push payload, KHÔNG gửi Firebase trong transaction
+                if (rental.getUser() != null) {
+                    pushPayloads.add(new PushPayload(
                             rental.getUser().getId(),
                             title,
                             String.format("Ô %s đã hết hạn. Vui lòng đặt thuê mới nếu cần.", slotNumber)
-                    );
+                    ));
                 }
 
                 logger.info("Processed expired rental ID {}", rental.getId());
             } catch (Exception e) {
                 logger.error("Failed to process expired rental ID {}: {}", rental.getId(), e.getMessage());
+            }
+        }
+
+        return pushPayloads;
+    }
+
+    /**
+     * Gửi Firebase Push Notification NGOÀI transaction.
+     * Tránh giữ DB connection trong suốt quá trình chờ Firebase phản hồi qua mạng.
+     */
+    private void sendFirebasePushNotifications(List<PushPayload> payloads) {
+        if (firebaseMessagingService == null || payloads.isEmpty()) {
+            return;
+        }
+        for (PushPayload payload : payloads) {
+            try {
+                firebaseMessagingService.sendPushNotification(payload.userId(), payload.title(), payload.body());
+            } catch (Exception e) {
+                logger.error("Failed to send Firebase push to user {}: {}", payload.userId(), e.getMessage());
             }
         }
     }
