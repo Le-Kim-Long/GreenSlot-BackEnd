@@ -178,6 +178,12 @@ public class VNPayUtils {
             return true;
         }
 
+        // Also check percent-encoded spaces (%20) instead of '+'
+        String calculatedHashPercent = hmacSHA512(hashSecret, hashData.toString().replace("+", "%20"));
+        if (calculatedHashPercent.equalsIgnoreCase(vnp_SecureHash)) {
+            return true;
+        }
+
         logger.error("VNPay signature verification failed. Calculated: {}, Received: {}", calculatedHash, vnp_SecureHash);
         logger.debug("Raw hash data string used: {}", hashData.toString());
 

@@ -76,11 +76,20 @@ spring:
       idle-timeout: 30000
       max-lifetime: 600000
       connection-timeout: 20000
+      leak-detection-threshold: 5000
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+
+greeenslot:
+  app:
+    frontendResetUrl: ${FRONTEND_RESET_URL:https://greenslot-taupe.vercel.app/reset-password}
+  vnpay:
+    returnUrl: ${VNP_RETURN_URL:https://greenslot-backend.onrender.com/api/payments/vnpay-return}
+    frontendReturnUrl: ${FRONTEND_RETURN_URL:https://greenslot-taupe.vercel.app/payment-result}
+    mobileReturnUrl: ${MOBILE_RETURN_URL:greenslot://payment-result}
 
 
 
