@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,4 +27,24 @@ public class PillarDTO {
     private Long locationId;
 
     private String imageUrl;
+
+    private String pillarType; // SMALL, MEDIUM, LARGE
+    private String pillarTypeName;
+    private Integer capacityHoles;
+    private BigDecimal price;
+    private Double requiredArea;
+    private Long defaultTreeId;
+    private String defaultTreeName;
+    private BigDecimal defaultTreePrice;
+
+    private Long slotId;
+    private String slotNumber;
+
+    public PillarDTO(Long id, String pillarCode, String status, Long locationId, String imageUrl) {
+        this.id = id;
+        this.pillarCode = pillarCode;
+        this.status = status;
+        this.locationId = locationId;
+        this.imageUrl = imageUrl;
+    }
 }

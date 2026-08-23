@@ -30,6 +30,10 @@ public class TreePlantingRequest {
     private Tree newTree;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "target_pillar_id")
+    private Pillar targetPillar;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "requested_by")
     private User requestedBy;
 
@@ -54,6 +58,12 @@ public class TreePlantingRequest {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "processed_by")
     private User processedBy;
+
+    @Column(name = "amount", precision = 18, scale = 2)
+    private java.math.BigDecimal amount;
+
+    @Column(name = "payment_url", length = 1000)
+    private String paymentUrl;
 
     @PrePersist
     protected void onCreate() {

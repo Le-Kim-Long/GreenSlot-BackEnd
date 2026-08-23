@@ -45,4 +45,7 @@ public class Location {
 
     @Column(name = "closed_days", length = 100)
     private String closedDays; // e.g., "SUNDAY,MONDAY"
+
+    @OneToMany(mappedBy = "location", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private java.util.List<GardenSlot> gardenSlots = new java.util.ArrayList<>();
 }

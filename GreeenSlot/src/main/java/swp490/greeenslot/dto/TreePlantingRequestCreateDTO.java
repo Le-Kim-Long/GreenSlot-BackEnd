@@ -23,4 +23,8 @@ public class TreePlantingRequestCreateDTO {
     
     @Nationalized
     private String notes;
+
+    private Boolean isMobile;
+    
+    private Long targetPillarId;
 }

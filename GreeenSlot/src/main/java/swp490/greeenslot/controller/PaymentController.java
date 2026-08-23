@@ -3,7 +3,11 @@ package swp490.greeenslot.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,21 +15,20 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import swp490.greeenslot.service.BookingService;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Value;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
-@CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
+@CrossOrigin(origins = {"https://green-slot-front-end.vercel.app", "https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
 @RequestMapping("/api/payments")
 @Tag(name = "Payments", description = "Endpoints for handling online payment callbacks")
 public class PaymentController {
+
+    private static final Logger logger = LoggerFactory.getLogger(PaymentController.class);
 
     @Autowired
     private BookingService bookingService;
@@ -49,6 +52,7 @@ public class PaymentController {
         }
 
         Map<String, String> result = bookingService.processIpn(fields);
+        logger.info("vnpayIpn processed result: {}", result);
         return ResponseEntity.ok(result);
     }
 
@@ -63,19 +67,28 @@ public class PaymentController {
                 fields.put(name, values[0]);
             }
         }
-        try {
-            bookingService.processIpn(fields);
-        } catch (Exception ignored) {}
-
-        String responseCode = fields.getOrDefault("vnp_ResponseCode", "");
+        logger.info("vnpayReturn called with fields: {}", fields);
         String txnRef = fields.getOrDefault("vnp_TxnRef", "");
+        Map<String, String> ipnResult;
+        try {
+            ipnResult = bookingService.processIpn(fields);
+            logger.info("vnpayReturn processed IPN result for txnRef={}: {}", txnRef, ipnResult);
+        } catch (Exception e) {
+            logger.error("Error processing VNPay return callback for txnRef={}", txnRef, e);
+            ipnResult = new HashMap<>();
+        }
+
+        String txnStatus = ipnResult.getOrDefault("TxnStatus", "");
+        String responseCode = fields.getOrDefault("vnp_ResponseCode", "");
         String transactionStatus = fields.getOrDefault("vnp_TransactionStatus", "");
         String amount = fields.getOrDefault("vnp_Amount", "");
         String orderInfo = fields.getOrDefault("vnp_OrderInfo", "");
         String payDate = fields.getOrDefault("vnp_PayDate", "");
-        String status = "00".equals(responseCode) ? "success" : "failed";
 
-        // Determine whether target is Mobile App or Web Frontend
+        // Old logic fallback: Check if DB returned SUCCESS OR if VNPay response code is "00"
+        String status = ("SUCCESS".equals(txnStatus) || "00".equals(responseCode)) ? "success" : "failed";
+
+        // Determine target URL (Frontend SPA or Mobile App)
         String targetUrl = defaultReturnUrl;
         String clientParam = fields.getOrDefault("client", fields.getOrDefault("source", ""));
         String isMobileParam = fields.get("isMobile");
@@ -99,6 +112,7 @@ public class PaymentController {
                 + "&vnp_Amount=" + urlEncode(amount)
                 + "&vnp_OrderInfo=" + urlEncode(orderInfo)
                 + "&vnp_PayDate=" + urlEncode(payDate);
+
         response.sendRedirect(redirectUrl);
     }
 

@@ -64,4 +64,12 @@ public class SlotRental {
     // legacy stale-CHECK-constraint issue hit earlier with task_type/status.
     @Column(name = "harvest_decision", length = 20)
     private String harvestDecision;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "rental_pillars",
+            joinColumns = @JoinColumn(name = "rental_id"),
+            inverseJoinColumns = @JoinColumn(name = "pillar_id")
+    )
+    private java.util.List<Pillar> rentedPillars = new java.util.ArrayList<>();
 }

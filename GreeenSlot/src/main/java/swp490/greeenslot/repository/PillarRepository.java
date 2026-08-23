@@ -12,4 +12,8 @@ public interface PillarRepository extends JpaRepository<Pillar, Long> {
     java.util.Optional<Pillar> findByPillarCode(String pillarCode);
 
     java.util.List<Pillar> findByDefaultTree(Tree tree);
+
+    java.util.List<Pillar> findByGardenSlotId(Long slotId);
+
+    java.util.List<Pillar> findByLocationId(Long locationId);
 }

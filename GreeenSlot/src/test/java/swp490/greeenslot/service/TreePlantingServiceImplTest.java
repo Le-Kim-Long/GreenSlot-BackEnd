@@ -49,6 +49,9 @@ class TreePlantingServiceImplTest {
     @Mock
     private TreeRepository treeRepository;
 
+    @Mock
+    private swp490.greeenslot.repository.PillarRepository pillarRepository;
+
     @InjectMocks
     private TreePlantingServiceImpl treePlantingService;
 

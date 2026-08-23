@@ -43,8 +43,13 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
     private swp490.greeenslot.service.HarvestHistoryService harvestHistoryService;
 
     private Long getSlotLocationId(GardenSlot slot) {
-        if (slot != null && slot.getPillar() != null && slot.getPillar().getLocation() != null) {
-            return slot.getPillar().getLocation().getId();
+        if (slot != null) {
+            if (slot.getLocation() != null) {
+                return slot.getLocation().getId();
+            }
+            if (slot.getPillar() != null && slot.getPillar().getLocation() != null) {
+                return slot.getPillar().getLocation().getId();
+            }
         }
         return null;
     }
@@ -310,8 +315,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             return all;
         }
         return all.stream().filter(t -> {
-            if (t.getTargetSlot() != null && t.getTargetSlot().getPillar() != null && t.getTargetSlot().getPillar().getLocation() != null) {
-                return targetLocationId.equals(t.getTargetSlot().getPillar().getLocation().getId());
+            Long slotLocId = getSlotLocationId(t.getTargetSlot());
+            if (slotLocId != null) {
+                return targetLocationId.equals(slotLocId);
             }
             if (t.getAssignedStaff() != null && t.getAssignedStaff().getLocation() != null) {
                 return targetLocationId.equals(t.getAssignedStaff().getLocation().getId());

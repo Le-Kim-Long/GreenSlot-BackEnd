@@ -51,34 +51,38 @@ public class BookingScheduler {
         }
 
         for (SlotRental rental : staleRentals) {
-            logger.info("Cleaning up stale pending rental with ID: " + rental.getId());
-            rental.setStatus(ERentalStatus.CANCELLED);
-            slotRentalRepository.save(rental);
+            try {
+                logger.info("Cleaning up stale pending rental with ID: " + rental.getId());
+                rental.setStatus(ERentalStatus.CANCELLED);
+                slotRentalRepository.save(rental);
 
-            // Update associated PENDING transactions to EXPIRED
-            List<PaymentTransaction> txns = paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(rental.getId());
-            for (PaymentTransaction txn : txns) {
-                if (txn.getStatus() == EPaymentStatus.PENDING) {
-                    txn.setStatus(EPaymentStatus.EXPIRED);
-                    paymentTransactionRepository.save(txn);
+                // Update associated PENDING transactions to EXPIRED
+                List<PaymentTransaction> txns = paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(rental.getId());
+                for (PaymentTransaction txn : txns) {
+                    if (txn.getStatus() == EPaymentStatus.PENDING) {
+                        txn.setStatus(EPaymentStatus.EXPIRED);
+                        paymentTransactionRepository.save(txn);
+                    }
                 }
-            }
 
-            List<GardeningTask> pendingTasks = gardeningTaskRepository.findPendingTasksBySlotId(rental.getGardenSlot().getId());
-            for (GardeningTask task : pendingTasks) {
-                task.setStatus(ETaskStatus.CANCELLED);
-                gardeningTaskRepository.save(task);
-            }
+                List<GardeningTask> pendingTasks = gardeningTaskRepository.findPendingTasksBySlotId(rental.getGardenSlot().getId());
+                for (GardeningTask task : pendingTasks) {
+                    task.setStatus(ETaskStatus.CANCELLED);
+                    gardeningTaskRepository.save(task);
+                }
 
-            // Release slot only if no other active or pending rentals exist
-            GardenSlot slot = rental.getGardenSlot();
-            long otherCount = slotRentalRepository.countOtherActiveOrPending(slot.getId(), rental.getId());
-            if (otherCount == 0) {
-                slot.setStatus(ESlotStatus.AVAILABLE);
-                gardenSlotRepository.save(slot);
-                logger.info("Released slot " + slot.getId() + " back to AVAILABLE.");
-            } else {
-                logger.info("Slot " + slot.getId() + " remains reserved due to other active or pending rentals.");
+                // Release slot only if no other active or pending rentals exist
+                GardenSlot slot = rental.getGardenSlot();
+                long otherCount = slotRentalRepository.countOtherActiveOrPending(slot.getId(), rental.getId());
+                if (otherCount == 0) {
+                    slot.setStatus(ESlotStatus.AVAILABLE);
+                    gardenSlotRepository.save(slot);
+                    logger.info("Released slot " + slot.getId() + " back to AVAILABLE.");
+                } else {
+                    logger.info("Slot " + slot.getId() + " remains reserved due to other active or pending rentals.");
+                }
+            } catch (Exception e) {
+                logger.warning("Failed to clean up stale rental ID " + rental.getId() + ": " + e.getMessage());
             }
         }
     }
@@ -102,37 +106,41 @@ public class BookingScheduler {
         }
 
         for (SlotRental rental : expiredRentals) {
-            logger.info("Expiring rental with ID: " + rental.getId());
-            rental.setStatus(ERentalStatus.EXPIRED);
-            slotRentalRepository.save(rental);
+            try {
+                logger.info("Expiring rental with ID: " + rental.getId());
+                rental.setStatus(ERentalStatus.EXPIRED);
+                slotRentalRepository.save(rental);
 
-            // Send notification to customer
-            if (rental.getUser() != null && notificationService != null) {
-                String slotNumber = rental.getGardenSlot() != null ? rental.getGardenSlot().getSlotNumber() : "N/A";
-                String title = "Hợp đồng thuê đã hết hạn";
-                String message = String.format("Hợp đồng thuê ô đất %s đã hết hạn vào %s. Ô đất đã được hệ thống tự động thu hồi.",
-                        slotNumber, rental.getEndTime());
-                notificationService.createNotification(
-                        rental.getUser().getId(),
-                        title,
-                        message,
-                        "RENTAL_EXPIRED",
-                        rental.getId(),
-                        "/dashboard/customer/rentals"
-                );
-            }
-
-            // Release slot only if no other active or pending rentals exist
-            GardenSlot slot = rental.getGardenSlot();
-            if (slot != null) {
-                long otherCount = slotRentalRepository.countOtherActiveOrPending(slot.getId(), rental.getId());
-                if (otherCount == 0) {
-                    slot.setStatus(ESlotStatus.AVAILABLE);
-                    gardenSlotRepository.save(slot);
-                    logger.info("Released slot " + slot.getId() + " back to AVAILABLE.");
-                } else {
-                    logger.info("Slot " + slot.getId() + " remains reserved due to other active or pending rentals.");
+                // Send notification to customer
+                if (rental.getUser() != null && notificationService != null) {
+                    String slotNumber = rental.getGardenSlot() != null ? rental.getGardenSlot().getSlotNumber() : "N/A";
+                    String title = "Hợp đồng thuê đã hết hạn";
+                    String message = String.format("Hợp đồng thuê ô đất %s đã hết hạn vào %s. Ô đất đã được hệ thống tự động thu hồi.",
+                            slotNumber, rental.getEndTime());
+                    notificationService.createNotification(
+                            rental.getUser().getId(),
+                            title,
+                            message,
+                            "RENTAL_EXPIRED",
+                            rental.getId(),
+                            "/dashboard/customer/rentals"
+                    );
                 }
+
+                // Release slot only if no other active or pending rentals exist
+                GardenSlot slot = rental.getGardenSlot();
+                if (slot != null) {
+                    long otherCount = slotRentalRepository.countOtherActiveOrPending(slot.getId(), rental.getId());
+                    if (otherCount == 0) {
+                        slot.setStatus(ESlotStatus.AVAILABLE);
+                        gardenSlotRepository.save(slot);
+                        logger.info("Released slot " + slot.getId() + " back to AVAILABLE.");
+                    } else {
+                        logger.info("Slot " + slot.getId() + " remains reserved due to other active or pending rentals.");
+                    }
+                }
+            } catch (Exception e) {
+                logger.warning("Failed to expire rental ID " + rental.getId() + ": " + e.getMessage());
             }
         }
     }

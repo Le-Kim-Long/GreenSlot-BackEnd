@@ -7,6 +7,8 @@ import swp490.greeenslot.dto.TreePlantingRequestCreateDTO;
 import swp490.greeenslot.dto.TreePlantingRequestDTO;
 import swp490.greeenslot.entity.*;
 import swp490.greeenslot.repository.GardeningTaskRepository;
+import swp490.greeenslot.repository.PaymentTransactionRepository;
+import swp490.greeenslot.repository.PillarRepository;
 import swp490.greeenslot.repository.SensorThresholdRepository;
 import swp490.greeenslot.repository.SlotRentalRepository;
 import swp490.greeenslot.repository.TreePlantingRequestRepository;
@@ -42,6 +44,15 @@ public class TreePlantingServiceImpl implements TreePlantingService {
     @Autowired
     private GardeningTaskRepository gardeningTaskRepository;
 
+    @Autowired
+    private PaymentTransactionRepository paymentTransactionRepository;
+
+    @Autowired
+    private PillarRepository pillarRepository;
+
+    @Autowired(required = false)
+    private swp490.greeenslot.config.VNPayUtils vnPayUtils;
+
     @Autowired(required = false)
     private NotificationService notificationService;
 
@@ -49,19 +60,27 @@ public class TreePlantingServiceImpl implements TreePlantingService {
     private swp490.greeenslot.service.LocationContextService locationContextService;
 
     private Long getRequestLocationId(TreePlantingRequest request) {
-        if (request != null && request.getRental() != null && request.getRental().getGardenSlot() != null
-                && request.getRental().getGardenSlot().getPillar() != null
-                && request.getRental().getGardenSlot().getPillar().getLocation() != null) {
-            return request.getRental().getGardenSlot().getPillar().getLocation().getId();
+        if (request != null && request.getRental() != null && request.getRental().getGardenSlot() != null) {
+            GardenSlot slot = request.getRental().getGardenSlot();
+            if (slot.getLocation() != null) {
+                return slot.getLocation().getId();
+            }
+            if (slot.getPillar() != null && slot.getPillar().getLocation() != null) {
+                return slot.getPillar().getLocation().getId();
+            }
         }
         return null;
     }
 
     private String getRequestLocationName(TreePlantingRequest request) {
-        if (request != null && request.getRental() != null && request.getRental().getGardenSlot() != null
-                && request.getRental().getGardenSlot().getPillar() != null
-                && request.getRental().getGardenSlot().getPillar().getLocation() != null) {
-            return request.getRental().getGardenSlot().getPillar().getLocation().getName();
+        if (request != null && request.getRental() != null && request.getRental().getGardenSlot() != null) {
+            GardenSlot slot = request.getRental().getGardenSlot();
+            if (slot.getLocation() != null) {
+                return slot.getLocation().getName();
+            }
+            if (slot.getPillar() != null && slot.getPillar().getLocation() != null) {
+                return slot.getPillar().getLocation().getName();
+            }
         }
         return null;
     }
@@ -117,10 +136,30 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             throw new IllegalArgumentException("Cannot request planting: Slot rental has already expired.");
         }
 
-        // 3b. Chỉ cho trồng khi ô đất đang trống — không cho gửi yêu cầu thay thế cây đang trồng
-        if (rental.getTree() != null) {
-            throw new IllegalArgumentException("Cannot request planting: This slot already has a tree planted. " +
-                    "You cannot replace it with another tree until the current one is harvested.");
+        // 3b. Kiểm tra cây đang trồng và yêu cầu theo trụ
+        List<TreePlantingRequest> existingReqs = treePlantingRequestRepository.findByRental(rental);
+        
+        if (dto.getTargetPillarId() != null && dto.getTargetPillarId() > 0) {
+            // Nếu chọn cụ thể 1 trụ: kiểm tra xem trụ đó đã có yêu cầu PENDING chưa
+            boolean isPillarPending = existingReqs.stream().anyMatch(r -> 
+                r.getStatus() == EPlantingRequestStatus.PENDING && 
+                r.getTargetPillar() != null && 
+                r.getTargetPillar().getId().equals(dto.getTargetPillarId())
+            );
+            if (isPillarPending) {
+                throw new IllegalArgumentException("Trụ này hiện đã có yêu cầu trồng cây đang chờ duyệt.");
+            }
+        } else {
+            // Yêu cầu áp dụng cho toàn bộ các trụ trong ô:
+            // Chỉ cho phép khi hợp đồng chưa có cây đang canh tác
+            if (rental.getTree() != null) {
+                throw new IllegalArgumentException("Cannot request planting for all pillars: This slot already has an active tree planted. " +
+                        "Please select a specific empty pillar or wait until current crop is harvested.");
+            }
+            boolean hasPending = existingReqs.stream().anyMatch(r -> r.getStatus() == EPlantingRequestStatus.PENDING);
+            if (hasPending) {
+                throw new IllegalArgumentException("Hợp đồng này hiện đã có yêu cầu trồng cây đang chờ xử lý.");
+            }
         }
 
         // 4. Check tree exists and is active
@@ -154,15 +193,82 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             ));
         }
         
+        List<Pillar> rentedPillars = rental.getRentedPillars();
+        if (rentedPillars == null || rentedPillars.isEmpty()) {
+            if (rental.getGardenSlot() != null && rental.getGardenSlot().getPillars() != null) {
+                rentedPillars = rental.getGardenSlot().getPillars();
+            } else if (rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null) {
+                rentedPillars = List.of(rental.getGardenSlot().getPillar());
+            } else {
+                rentedPillars = java.util.Collections.emptyList();
+            }
+        }
+
+        Pillar targetPillar = null;
+        if (dto.getTargetPillarId() != null && dto.getTargetPillarId() > 0) {
+            targetPillar = pillarRepository.findById(dto.getTargetPillarId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy trụ canh tác với ID: " + dto.getTargetPillarId()));
+            
+            final Long targetId = targetPillar.getId();
+            boolean belongsToRental = false;
+            if (!rentedPillars.isEmpty()) {
+                belongsToRental = rentedPillars.stream().anyMatch(p -> p.getId().equals(targetId));
+            }
+            if (!belongsToRental && rental.getGardenSlot() != null && rental.getGardenSlot().getPillars() != null) {
+                belongsToRental = rental.getGardenSlot().getPillars().stream().anyMatch(p -> p.getId().equals(targetId));
+            }
+
+            if (!belongsToRental) {
+                throw new IllegalArgumentException("Trụ " + targetPillar.getPillarCode() + " không thuộc hợp đồng thuê này.");
+            }
+        }
+
+        java.math.BigDecimal totalTreeCost = java.math.BigDecimal.ZERO;
+        if (newTree.getPrice() != null && newTree.getPrice().compareTo(java.math.BigDecimal.ZERO) > 0) {
+            if (targetPillar != null) {
+                double scale = (double) targetPillar.getEffectiveHoles() / 24.0;
+                totalTreeCost = newTree.getPrice().multiply(java.math.BigDecimal.valueOf(scale));
+            } else if (!rentedPillars.isEmpty()) {
+                for (Pillar p : rentedPillars) {
+                    double scale = (double) p.getEffectiveHoles() / 24.0;
+                    java.math.BigDecimal scaledPrice = newTree.getPrice().multiply(java.math.BigDecimal.valueOf(scale));
+                    totalTreeCost = totalTreeCost.add(scaledPrice);
+                }
+            } else {
+                totalTreeCost = newTree.getPrice();
+            }
+        }
+
         TreePlantingRequest request = new TreePlantingRequest();
         request.setRental(rental);
         request.setNewTree(newTree);
+        request.setTargetPillar(targetPillar);
         request.setRequestedBy(user);
         request.setStatus(EPlantingRequestStatus.PENDING);
         request.setReason(dto.getReason());
         request.setNotes(dto.getNotes());
+        request.setAmount(totalTreeCost);
         
         TreePlantingRequest savedRequest = treePlantingRequestRepository.save(request);
+
+        if (vnPayUtils != null && totalTreeCost.compareTo(java.math.BigDecimal.ZERO) > 0) {
+            String uuid = java.util.UUID.randomUUID().toString().substring(0, 8);
+            String txnRef = "PLANT_" + savedRequest.getId() + "_" + uuid;
+            PaymentTransaction txn = new PaymentTransaction();
+            txn.setRental(rental);
+            txn.setAmount(totalTreeCost);
+            txn.setVnpTxnRef(txnRef);
+            txn.setPaymentDate(LocalDateTime.now());
+            txn.setStatus(EPaymentStatus.PENDING);
+            paymentTransactionRepository.save(txn);
+
+            String pillarDesc = targetPillar != null ? ("Trụ " + targetPillar.getPillarCode()) : (rentedPillars.size() + " tru");
+            String orderInfo = "GreenSlot - Mua giong cay " + newTree.getTreeName() + " (" + pillarDesc + ")";
+            boolean isMobile = Boolean.TRUE.equals(dto.getIsMobile());
+            String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, totalTreeCost, "127.0.0.1", orderInfo, isMobile);
+            savedRequest.setPaymentUrl(paymentUrl);
+            savedRequest = treePlantingRequestRepository.save(savedRequest);
+        }
 
         // Notify location managers about planting request
         if (notificationService != null) {
@@ -223,11 +329,20 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         slotRentalRepository.save(rental);
 
         // Đồng bộ ngưỡng của cây trồng sang cấu hình cảm biến IoT của Trụ (Pillar) thuộc ô đất này
-        if (newTree != null && rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null) {
-            Pillar pillar = rental.getGardenSlot().getPillar();
-            String deviceId = pillar.getPillarCode();
-            if (deviceId != null && !deviceId.isBlank()) {
-                syncTreeThresholdsToDevice(deviceId, newTree);
+        if (newTree != null) {
+            if (request.getTargetPillar() != null && request.getTargetPillar().getPillarCode() != null) {
+                syncTreeThresholdsToDevice(request.getTargetPillar().getPillarCode(), newTree);
+            } else if (rental.getGardenSlot() != null && rental.getGardenSlot().getPillars() != null) {
+                for (Pillar p : rental.getGardenSlot().getPillars()) {
+                    if (p.getPillarCode() != null && !p.getPillarCode().isBlank()) {
+                        syncTreeThresholdsToDevice(p.getPillarCode(), newTree);
+                    }
+                }
+            } else if (rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null) {
+                Pillar pillar = rental.getGardenSlot().getPillar();
+                if (pillar.getPillarCode() != null && !pillar.getPillarCode().isBlank()) {
+                    syncTreeThresholdsToDevice(pillar.getPillarCode(), newTree);
+                }
             }
         }
 
@@ -418,7 +533,11 @@ public class TreePlantingServiceImpl implements TreePlantingService {
                 request.getRequestedAt(),
                 request.getProcessedAt(),
                 request.getProcessedBy() != null ? request.getProcessedBy().getId() : null,
-                request.getProcessedBy() != null ? request.getProcessedBy().getFullName() : null
+                request.getProcessedBy() != null ? request.getProcessedBy().getFullName() : null,
+                request.getAmount(),
+                request.getPaymentUrl(),
+                request.getTargetPillar() != null ? request.getTargetPillar().getId() : null,
+                request.getTargetPillar() != null ? request.getTargetPillar().getPillarCode() : null
         );
     }
 

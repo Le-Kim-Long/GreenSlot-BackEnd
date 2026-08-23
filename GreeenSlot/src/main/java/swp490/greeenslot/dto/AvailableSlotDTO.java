@@ -17,6 +17,8 @@ public class AvailableSlotDTO {
     private String slotNumber;
     private String status;
     private BigDecimal price;
+    private Double area;
+    private Integer maxPillars;
     private String imageUrl;
     private Long pillarId;
     private String pillarCode;
@@ -32,4 +34,8 @@ public class AvailableSlotDTO {
     private Double currentPh;
     private Double currentLightIntensity;
     private String deviceStatus;
+    private java.util.List<PillarDetailDTO> pillars;
+    private Integer totalHoles;
+    private BigDecimal calculatedPillarsPrice;
+    private BigDecimal calculatedTreesPrice;
 }

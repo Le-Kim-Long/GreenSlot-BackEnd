@@ -20,6 +20,64 @@ public class BookingRequestDTO {
 
     private Boolean isMobile;
 
+    private Long treeId;
+
+    private java.util.List<Long> pillarIds = new java.util.ArrayList<>();
+
+    private Integer smallPillarsCount;
+    private Integer mediumPillarsCount;
+    private Integer largePillarsCount;
+
+    public Integer getSmallPillarsCount() {
+        return smallPillarsCount;
+    }
+
+    public void setSmallPillarsCount(Integer smallPillarsCount) {
+        this.smallPillarsCount = smallPillarsCount;
+    }
+
+    public Integer getMediumPillarsCount() {
+        return mediumPillarsCount;
+    }
+
+    public void setMediumPillarsCount(Integer mediumPillarsCount) {
+        this.mediumPillarsCount = mediumPillarsCount;
+    }
+
+    public Integer getLargePillarsCount() {
+        return largePillarsCount;
+    }
+
+    public void setLargePillarsCount(Integer largePillarsCount) {
+        this.largePillarsCount = largePillarsCount;
+    }
+
+    public java.util.List<Long> getPillarIds() {
+        return pillarIds;
+    }
+
+    public void setPillarIds(java.util.List<Long> pillarIds) {
+        this.pillarIds = pillarIds;
+    }
+
+    private java.util.List<Long> treeIds = new java.util.ArrayList<>();
+
+    public Long getTreeId() {
+        return treeId;
+    }
+
+    public void setTreeId(Long treeId) {
+        this.treeId = treeId;
+    }
+
+    public java.util.List<Long> getTreeIds() {
+        return treeIds;
+    }
+
+    public void setTreeIds(java.util.List<Long> treeIds) {
+        this.treeIds = treeIds;
+    }
+
     public Long getSlotId() {
         return slotId;
     }

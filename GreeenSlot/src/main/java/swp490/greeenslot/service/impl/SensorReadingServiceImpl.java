@@ -171,7 +171,10 @@ public class SensorReadingServiceImpl implements SensorReadingService {
             }
         }
 
-        List<GardenSlot> slots = pillar != null ? gardenSlotRepository.findByPillarId(pillar.getId()) : List.of();
+        List<GardenSlot> slots = new java.util.ArrayList<>();
+        if (pillar != null && pillar.getGardenSlot() != null) {
+            slots.add(pillar.getGardenSlot());
+        }
         boolean hasActiveRentals = false;
         boolean autoSprayTriggered = false;
 
@@ -378,26 +381,49 @@ public class SensorReadingServiceImpl implements SensorReadingService {
     @Override
     @Transactional(readOnly = true)
     public List<SensorReadingResponseDTO> getLatestReadings(String deviceId) {
-        return Arrays.stream(ESensorType.values())
+        String targetDevice = (deviceId != null && !deviceId.isBlank()) ? deviceId.trim() : "arduino-greenhouse-01";
+        List<SensorReadingResponseDTO> result = Arrays.stream(ESensorType.values())
                 .map(type -> sensorReadingRepository
-                        .findFirstByDeviceIdAndSensorTypeOrderByRecordedAtDesc(deviceId.trim(), type))
+                        .findFirstByDeviceIdAndSensorTypeOrderByRecordedAtDesc(targetDevice, type))
                 .filter(Optional::isPresent)
                 .map(latest -> SensorReadingResponseDTO.fromEntity(latest.get()))
                 .toList();
+
+        if (result.isEmpty() && !targetDevice.equalsIgnoreCase("arduino-greenhouse-01")) {
+            result = Arrays.stream(ESensorType.values())
+                    .map(type -> sensorReadingRepository
+                            .findFirstByDeviceIdAndSensorTypeOrderByRecordedAtDesc("arduino-greenhouse-01", type))
+                    .filter(Optional::isPresent)
+                    .map(latest -> SensorReadingResponseDTO.fromEntity(latest.get()))
+                    .toList();
+        }
+
+        return result;
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<SensorReadingResponseDTO> getHistory(String deviceId, ESensorType sensorType, int limit) {
         int safeLimit = Math.min(Math.max(limit, 1), 200);
+        String targetDevice = (deviceId != null && !deviceId.isBlank()) ? deviceId.trim() : "arduino-greenhouse-01";
         List<SensorReading> readings;
 
         if (sensorType != null) {
             readings = sensorReadingRepository.findByDeviceIdAndSensorTypeOrderByRecordedAtDesc(
-                    deviceId.trim(), sensorType, PageRequest.of(0, safeLimit));
+                    targetDevice, sensorType, PageRequest.of(0, safeLimit));
         } else {
             readings = sensorReadingRepository.findByDeviceIdOrderByRecordedAtDesc(
-                    deviceId.trim(), PageRequest.of(0, safeLimit));
+                    targetDevice, PageRequest.of(0, safeLimit));
+        }
+
+        if (readings.isEmpty() && !targetDevice.equalsIgnoreCase("arduino-greenhouse-01")) {
+            if (sensorType != null) {
+                readings = sensorReadingRepository.findByDeviceIdAndSensorTypeOrderByRecordedAtDesc(
+                        "arduino-greenhouse-01", sensorType, PageRequest.of(0, safeLimit));
+            } else {
+                readings = sensorReadingRepository.findByDeviceIdOrderByRecordedAtDesc(
+                        "arduino-greenhouse-01", PageRequest.of(0, safeLimit));
+            }
         }
 
         return readings.stream()

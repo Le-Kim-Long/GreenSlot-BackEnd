@@ -98,6 +98,33 @@ public class IoTSensorController {
         return ResponseEntity.ok(sensorReadingService.getHistory(deviceId, sensorType, limit));
     }
 
+    @GetMapping("/slot/{slotId}/pillars")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get all pillars and cameras in a garden slot", description = "Returns all pillars situated within the given garden slot")
+    public ResponseEntity<List<Map<String, Object>>> getSlotPillars(@PathVariable Long slotId) {
+        GardenSlot slot = gardenSlotRepository.findById(slotId)
+                .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID: " + slotId));
+        List<Pillar> pillars = slot.getPillars();
+        if (pillars == null || pillars.isEmpty()) {
+            if (slot.getPillar() != null) {
+                pillars = List.of(slot.getPillar());
+            } else {
+                pillars = java.util.Collections.emptyList();
+            }
+        }
+        List<Map<String, Object>> result = pillars.stream().map(p -> {
+            Map<String, Object> map = new java.util.HashMap<>();
+            map.put("pillarId", p.getId());
+            map.put("pillarCode", p.getPillarCode());
+            map.put("status", p.getStatus() != null ? p.getStatus().name() : "ACTIVE");
+            map.put("deviceStatus", p.getDeviceStatus() != null ? p.getDeviceStatus() : "UNKNOWN");
+            map.put("cameraStatus", p.getCameraStatus() != null ? p.getCameraStatus() : "UNKNOWN");
+            map.put("cameraStreamUrl", p.getCameraStreamUrl() != null ? p.getCameraStreamUrl() : "");
+            return map;
+        }).toList();
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/device/slot/{slotId}")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_CUSTOMER')")
     @Operation(summary = "Lay thong tin thiet bi IoT theo slot")

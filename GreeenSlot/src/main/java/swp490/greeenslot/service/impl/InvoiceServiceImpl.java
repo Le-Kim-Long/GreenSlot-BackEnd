@@ -99,9 +99,10 @@ public class InvoiceServiceImpl implements InvoiceService {
                 contentStream.newLineAtOffset(0, -20);
                 contentStream.showText("Slot Number: " + (rental.getGardenSlot() != null ? rental.getGardenSlot().getSlotNumber() : "N/A"));
                 contentStream.newLineAtOffset(0, -20);
-                contentStream.showText("Location: " + (rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null 
-                        && rental.getGardenSlot().getPillar().getLocation() != null 
-                        ? rental.getGardenSlot().getPillar().getLocation().getName() : "N/A"));
+                contentStream.showText("Location: " + (rental.getGardenSlot() != null && rental.getGardenSlot().getLocation() != null
+                        ? rental.getGardenSlot().getLocation().getName()
+                        : (rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null && rental.getGardenSlot().getPillar().getLocation() != null
+                            ? rental.getGardenSlot().getPillar().getLocation().getName() : "N/A")));
                 contentStream.newLineAtOffset(0, -20);
                 contentStream.showText("Start Date: " + rental.getStartTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
                 contentStream.newLineAtOffset(0, -20);

@@ -26,8 +26,22 @@ public class Pillar {
     private EPillarStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "slot_id")
+    private GardenSlot gardenSlot;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "location_id")
     private Location location;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pillar_type", length = 30)
+    private EPillarType pillarType = EPillarType.MEDIUM;
+
+    @Column(name = "capacity_holes")
+    private Integer capacityHoles = 36;
+
+    @Column(precision = 12, scale = 2)
+    private java.math.BigDecimal price = java.math.BigDecimal.valueOf(200000);
 
     @Column(name = "camera_stream_url")
     private String cameraStreamUrl;
@@ -50,4 +64,26 @@ public class Pillar {
 
     @Column(name = "image_url")
     private String imageUrl;
+
+    public EPillarType getEffectivePillarType() {
+        return this.pillarType != null ? this.pillarType : EPillarType.MEDIUM;
+    }
+
+    public Integer getEffectiveHoles() {
+        if (this.capacityHoles != null && this.capacityHoles > 0) {
+            return this.capacityHoles;
+        }
+        return getEffectivePillarType().getDefaultHoles();
+    }
+
+    public java.math.BigDecimal getEffectivePrice() {
+        if (this.price != null && this.price.compareTo(java.math.BigDecimal.ZERO) > 0) {
+            return this.price;
+        }
+        return getEffectivePillarType().getDefaultPrice();
+    }
+
+    public double getEffectiveArea() {
+        return getEffectivePillarType().getMinRequiredArea();
+    }
 }
