@@ -548,16 +548,16 @@ public class BookingServiceImpl implements BookingService {
                 
                 notificationService.createNotification(
                         customer.getId(),
-                        "Payment Successful",
-                        String.format("Your payment for slot %s at %s was successful. Your rental is now active until %s.",
-                                slotNumber, locationName, rental.getEndTime()),
+                        "Thanh toán thành công",
+                        String.format("Thanh toán cho ô vườn %s tại %s thành công. Hợp đồng thuê của bạn đã được kích hoạt đến ngày %s.",
+                                slotNumber, locationName, rental.getEndTime().toLocalDate()),
                         "PAYMENT_SUCCESS"
                 );
                 
                 firebaseMessagingService.sendPushNotification(
                         customer.getId(),
-                        "Payment Successful",
-                        String.format("Slot %s rental activated until %s", slotNumber, rental.getEndTime())
+                        "Thanh toán thành công",
+                        String.format("Hợp đồng thuê ô vườn %s đã kích hoạt đến %s", slotNumber, rental.getEndTime().toLocalDate())
                 );
 
             } else if (txnRef.startsWith("EXT_")) {
@@ -585,16 +585,16 @@ public class BookingServiceImpl implements BookingService {
                 
                 notificationService.createNotification(
                         customer.getId(),
-                        "Extension Successful",
-                        String.format("Your rental for slot %s has been extended by %d months until %s.",
-                                slotNumber, durationMonths, newEnd),
+                        "Gia hạn hợp đồng thành công",
+                        String.format("Hợp đồng thuê ô vườn %s đã được gia hạn thêm %d tháng đến ngày %s.",
+                                slotNumber, durationMonths, newEnd.toLocalDate()),
                         "PAYMENT_SUCCESS"
                 );
                 
                 firebaseMessagingService.sendPushNotification(
                         customer.getId(),
-                        "Extension Successful",
-                        String.format("Slot %s extended until %s", slotNumber, newEnd)
+                        "Gia hạn hợp đồng thành công",
+                        String.format("Ô vườn %s đã gia hạn đến %s", slotNumber, newEnd.toLocalDate())
                 );
             } else if (txnRef.startsWith("PLANT_")) {
                 String[] parts = txnRef.split("_");
@@ -609,8 +609,8 @@ public class BookingServiceImpl implements BookingService {
                     if (req.getRequestedBy() != null && notificationService != null) {
                         notificationService.createNotification(
                                 req.getRequestedBy().getId(),
-                                "Thanh toan giong rau thanh cong",
-                                "Thanh toan tien giong rau " + (req.getNewTree() != null ? req.getNewTree().getTreeName() : "") + " thanh cong. Yeu cau trong da duoc tiep nhan va giao nhan vien xu ly.",
+                                "Thanh toán giống rau thành công",
+                                "Thanh toán tiền giống rau " + (req.getNewTree() != null ? req.getNewTree().getTreeName() : "") + " thành công. Yêu cầu gieo trồng đã được tiếp nhận và phân công nhân viên xử lý.",
                                 "PAYMENT_SUCCESS"
                         );
                     }
@@ -643,16 +643,16 @@ public class BookingServiceImpl implements BookingService {
                 
                 notificationService.createNotification(
                         customer.getId(),
-                        "Payment Failed",
-                        String.format("Your payment for slot %s failed. Please try again or contact support.",
+                        "Thanh toán không thành công",
+                        String.format("Giao dịch thanh toán thuê ô vườn %s không thành công. Vui lòng thử lại hoặc liên hệ hỗ trợ.",
                                 slotNumber),
                         "PAYMENT_FAILED"
                 );
                 
                 firebaseMessagingService.sendPushNotification(
                         customer.getId(),
-                        "Payment Failed",
-                        String.format("Slot %s payment unsuccessful. Please try again.", slotNumber)
+                        "Thanh toán không thành công",
+                        String.format("Thanh toán cho ô vườn %s chưa thành công. Vui lòng kiểm tra lại.", slotNumber)
                 );
             }
         }
@@ -904,15 +904,15 @@ public class BookingServiceImpl implements BookingService {
 
             notificationService.createNotification(
                     task.getAssignedStaff().getId(),
-                    "Khach da tu thu hoach",
-                    "Khach hang o " + slotNumber + " da chon tu thu hoach, ban khong can xu ly cong viec nay nua.",
+                    "Khách đã tự thu hoạch",
+                    "Khách hàng ở ô " + slotNumber + " đã chọn tự thu hoạch, bạn không cần xử lý công việc này nữa.",
                     "HARVEST_SELF"
             );
         } else {
             notificationService.createNotification(
                     task.getAssignedStaff().getId(),
-                    "Khach nho ho tro thu hoach",
-                    "Khach hang o " + slotNumber + " nho ban thu hoach giup. Tien hanh xu ly cong viec nhe.",
+                    "Khách nhờ hỗ trợ thu hoạch",
+                    "Khách hàng ở ô " + slotNumber + " nhờ hỗ trợ thu hoạch giúp. Tiến hành xử lý công việc nhé.",
                     "HARVEST_STAFF_CONFIRMED"
             );
         }
