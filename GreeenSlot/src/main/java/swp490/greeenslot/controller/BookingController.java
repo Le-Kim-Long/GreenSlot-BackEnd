@@ -170,4 +170,17 @@ public class BookingController {
         BookingResponseDTO response = bookingService.getOrRegeneratePaymentUrl(rentalId, principal.getName(), ipAddress, isMobile, customMobileRedirectUrl);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/{rentalId}/confirm-payment")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Confirm payment and activate rental",
+               description = "Allows contract owner to confirm payment callback success and immediately activate pending rental.")
+    public ResponseEntity<java.util.Map<String, String>> confirmPayment(
+            @PathVariable Long rentalId,
+            Principal principal) {
+        bookingService.confirmPayment(rentalId, principal.getName());
+        java.util.Map<String, String> response = new java.util.HashMap<>();
+        response.put("message", "Payment confirmed and rental activated successfully");
+        return ResponseEntity.ok(response);
+    }
 }

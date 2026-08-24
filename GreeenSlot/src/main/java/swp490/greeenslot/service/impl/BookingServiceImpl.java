@@ -754,6 +754,7 @@ public class BookingServiceImpl implements BookingService {
             );
             dto.setPillars(pillarInfos);
             dto.setPillarCodes(pillarCodes);
+            dto.setMonthlyPrice(slot.getPrice());
             history.add(dto);
         }
 
@@ -862,6 +863,63 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     @Transactional
+    public void confirmPayment(Long rentalId, String username) {
+        SlotRental rental = slotRentalRepository.findByIdWithPessimisticLock(rentalId)
+                .orElseThrow(() -> new IllegalArgumentException("Slot rental not found with ID: " + rentalId));
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdminOrManager = auth != null && auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(role -> role.equals("ROLE_ADMIN") || role.equals("ROLE_MANAGER"));
+
+        if (!isAdminOrManager && (rental.getUser() == null || !rental.getUser().getUsername().equals(username))) {
+            throw new IllegalArgumentException("Unauthorized: Only the contract owner can confirm this booking");
+        }
+
+        if (rental.getStatus() == ERentalStatus.ACTIVE) {
+            logger.info("Rental ID {} is already ACTIVE", rentalId);
+            return;
+        }
+
+        List<PaymentTransaction> txns = paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(rentalId);
+        PaymentTransaction pendingTxn = txns.stream()
+                .filter(t -> t.getStatus() == EPaymentStatus.PENDING || t.getStatus() == EPaymentStatus.SUCCESS)
+                .findFirst()
+                .orElse(null);
+
+        if (pendingTxn != null) {
+            pendingTxn.setStatus(EPaymentStatus.SUCCESS);
+            pendingTxn.setPaymentDate(LocalDateTime.now());
+            paymentTransactionRepository.save(pendingTxn);
+        }
+
+        rental.setStatus(ERentalStatus.ACTIVE);
+        slotRentalRepository.save(rental);
+
+        if (rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()) {
+            for (Pillar p : rental.getRentedPillars()) {
+                p.setStatus(EPillarStatus.RENTED);
+                pillarRepository.save(p);
+            }
+        }
+
+        GardenSlot slot = rental.getGardenSlot();
+        if (slot != null) {
+            List<Pillar> allSlotPillars = slot.getPillars();
+            boolean allRented = allSlotPillars != null && !allSlotPillars.isEmpty() &&
+                    allSlotPillars.stream().allMatch(p -> p.getStatus() == EPillarStatus.RENTED);
+            if (allRented) {
+                slot.setStatus(ESlotStatus.RENTED);
+            } else {
+                slot.setStatus(ESlotStatus.AVAILABLE);
+            }
+            gardenSlotRepository.save(slot);
+        }
+        logger.info("Booking rental ID {} successfully confirmed and activated", rentalId);
+    }
+
+    @Override
+    @Transactional
     public void recordHarvestDecision(Long rentalId, String decision, String username) {
         if (!"SELF".equals(decision) && !"STAFF".equals(decision)) {
             throw new IllegalArgumentException("Decision must be either SELF or STAFF");
@@ -946,35 +1004,77 @@ public class BookingServiceImpl implements BookingService {
         PillarAllocationResult result = new PillarAllocationResult();
         if (count <= 0) return result;
 
-        List<Pillar> existing = (slot.getLocation() != null)
-                ? pillarRepository.findByLocationId(slot.getLocation().getId())
+        // 1. Try finding existing pillars belonging to this slot first
+        List<Pillar> slotExisting = (slot.getId() != null)
+                ? pillarRepository.findByGardenSlotId(slot.getId())
                 : Collections.emptyList();
 
-        for (Pillar p : existing) {
+        for (Pillar p : slotExisting) {
             if (result.allPillars.size() >= count) break;
             if (p.getEffectivePillarType() == type 
-                    && p.getStatus() == EPillarStatus.ACTIVE 
                     && !currentlyRentedSet.contains(p.getId()) 
                     && !result.allPillars.contains(p)) {
+                if (p.getStatus() != EPillarStatus.ACTIVE) {
+                    p.setStatus(EPillarStatus.ACTIVE);
+                    p = pillarRepository.save(p);
+                }
                 result.allPillars.add(p);
             }
         }
 
-        int needed = count - result.allPillars.size();
-        for (int i = 1; i <= needed; i++) {
-            Pillar p = new Pillar();
-            String suffix = type == EPillarType.SMALL ? "S" : type == EPillarType.LARGE ? "L" : "M";
-            String code = "P-" + slot.getSlotNumber() + "-" + suffix + (result.allPillars.size() + i);
-            p.setPillarCode(code);
-            p.setPillarType(type);
-            p.setCapacityHoles(type.getDefaultHoles());
-            p.setPrice(type.getDefaultPrice());
-            p.setStatus(EPillarStatus.ACTIVE);
-            p.setGardenSlot(slot);
-            p.setLocation(slot.getLocation());
-            Pillar saved = pillarRepository.save(p);
-            result.allPillars.add(saved);
-            result.newlyCreatedPillars.add(saved);
+        // 2. Try finding unassigned/available pillars in the same location
+        if (result.allPillars.size() < count && slot.getLocation() != null) {
+            List<Pillar> locationExisting = pillarRepository.findByLocationId(slot.getLocation().getId());
+            for (Pillar p : locationExisting) {
+                if (result.allPillars.size() >= count) break;
+                if (p.getEffectivePillarType() == type 
+                        && !currentlyRentedSet.contains(p.getId()) 
+                        && !result.allPillars.contains(p)) {
+                    if (p.getStatus() != EPillarStatus.ACTIVE || p.getGardenSlot() == null || !p.getGardenSlot().getId().equals(slot.getId())) {
+                        p.setStatus(EPillarStatus.ACTIVE);
+                        p.setGardenSlot(slot);
+                        p = pillarRepository.save(p);
+                    }
+                    result.allPillars.add(p);
+                }
+            }
+        }
+
+        // 3. If still needed, provision new or find unused pillar codes without collision
+        String suffix = type == EPillarType.SMALL ? "S" : type == EPillarType.LARGE ? "L" : "M";
+        int seq = 1;
+
+        while (result.allPillars.size() < count) {
+            String candidateCode = "P-" + slot.getSlotNumber() + "-" + suffix + seq;
+            seq++;
+
+            Optional<Pillar> existingOpt = pillarRepository.findByPillarCode(candidateCode);
+            if (existingOpt.isPresent()) {
+                Pillar existingPillar = existingOpt.get();
+                if (!currentlyRentedSet.contains(existingPillar.getId()) && !result.allPillars.contains(existingPillar)) {
+                    existingPillar.setStatus(EPillarStatus.ACTIVE);
+                    existingPillar.setGardenSlot(slot);
+                    existingPillar.setLocation(slot.getLocation());
+                    existingPillar.setPillarType(type);
+                    existingPillar.setCapacityHoles(type.getDefaultHoles());
+                    existingPillar.setPrice(type.getDefaultPrice());
+                    Pillar saved = pillarRepository.save(existingPillar);
+                    result.allPillars.add(saved);
+                }
+                // If this existing pillar is rented or already in result, loop continues to next seq
+            } else {
+                Pillar p = new Pillar();
+                p.setPillarCode(candidateCode);
+                p.setPillarType(type);
+                p.setCapacityHoles(type.getDefaultHoles());
+                p.setPrice(type.getDefaultPrice());
+                p.setStatus(EPillarStatus.ACTIVE);
+                p.setGardenSlot(slot);
+                p.setLocation(slot.getLocation());
+                Pillar saved = pillarRepository.save(p);
+                result.allPillars.add(saved);
+                result.newlyCreatedPillars.add(saved);
+            }
         }
 
         return result;
