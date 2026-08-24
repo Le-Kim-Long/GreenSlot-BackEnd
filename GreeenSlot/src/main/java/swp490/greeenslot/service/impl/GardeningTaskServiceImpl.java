@@ -114,7 +114,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                         message,
                         "SERVICE_REQUEST_CREATED",
                         savedTask.getId(),
-                        "/dashboard/manager/tasks"
+                        "/dashboard/staff/tasks"
                 );
             }
         }
@@ -201,7 +201,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                             task.getTaskName(), slotNumber),
                     "TASK_ASSIGNMENT",
                     task.getId(),
-                    "/dashboard/staff/tasks"
+                    "/dashboard/garden-staff/schedules"
             );
         }
 
@@ -386,7 +386,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                             message,
                             "TASK_SUBMITTED",
                             task.getId(),
-                            "/dashboard/manager/tasks"
+                            "/dashboard/staff/tasks"
                     );
                 }
             }
@@ -439,7 +439,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                         message,
                         "TASK_ISSUE",
                         savedIssue.getId(),
-                        "/dashboard/manager/tasks"
+                        "/dashboard/staff/tasks"
                 );
             }
         }
@@ -471,7 +471,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                         String.format("Nhiệm vụ '%s' tại ô %s đã được quản lý phê duyệt.", task.getTaskName(), slotNumber),
                         "TASK_APPROVED",
                         task.getId(),
-                        "/dashboard/staff/tasks"
+                        "/dashboard/garden-staff/schedules"
                 );
             }
 
@@ -506,7 +506,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                         String.format("Nhiệm vụ '%s' tại ô %s bị từ chối duyệt. Lý do: %s", task.getTaskName(), slotNumber, request.getRejectionReason()),
                         "TASK_REJECTED",
                         task.getId(),
-                        "/dashboard/staff/tasks"
+                        "/dashboard/garden-staff/schedules"
                 );
             }
         } else {
@@ -539,7 +539,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                     message,
                     "HARVEST_DONE",
                     rental.getId(),
-                    "/dashboard/customer/rentals"
+                    "/dashboard/customer/harvest-history"
             );
         }
 

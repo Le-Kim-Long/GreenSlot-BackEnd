@@ -345,13 +345,15 @@ public class CustomerServiceImpl implements CustomerService {
                 }
 
                 for (User recipient : recipients) {
+                    boolean isStaff = recipient.getRoles().stream().anyMatch(r -> r.getName() == ERole.ROLE_GARDEN_STAFF);
+                    String actionUrl = isStaff ? "/dashboard/garden-staff/schedules" : "/dashboard/staff/harvest-history";
                     notificationService.createNotification(
                             recipient.getId(),
                             title,
                             message,
                             "HARVEST_DECISION_RECEIVED",
                             rental.getId(),
-                            "/dashboard/manager/tasks"
+                            actionUrl
                     );
                 }
             }

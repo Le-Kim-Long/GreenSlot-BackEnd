@@ -18,8 +18,10 @@ import swp490.greeenslot.repository.TreePlantingRequestRepository;
 import swp490.greeenslot.repository.TreeRepository;
 import swp490.greeenslot.service.TreeService;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
+
 
 @Service
 public class TreeServiceImpl implements TreeService {
@@ -62,6 +64,7 @@ public class TreeServiceImpl implements TreeService {
     @Override
     @Transactional
     public TreeDTO createTree(TreeDTO dto) {
+        validateTreeData(dto);
         Tree tree = mapToEntity(dto);
         tree.setIsActive(true);
         Tree savedTree = treeRepository.save(tree);
@@ -71,6 +74,7 @@ public class TreeServiceImpl implements TreeService {
     @Override
     @Transactional
     public TreeDTO updateTree(Long id, TreeDTO dto) {
+        validateTreeData(dto);
         Tree existingTree = treeRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Tree not found with id: " + id));
         
@@ -78,6 +82,80 @@ public class TreeServiceImpl implements TreeService {
         Tree updatedTree = treeRepository.save(existingTree);
         return mapToDTO(updatedTree);
     }
+
+    private void validateTreeData(TreeDTO dto) {
+        if (dto == null) {
+            throw new IllegalArgumentException("Dữ liệu giống cây trồng không được để trống.");
+        }
+        if (dto.getTreeName() == null || dto.getTreeName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Tên giống cây trồng không được để trống.");
+        }
+        if (dto.getHarvestDays() == null || dto.getHarvestDays() <= 0) {
+            throw new IllegalArgumentException("Thời gian thu hoạch phải lớn hơn 0 ngày.");
+        }
+        if (dto.getMinRentalDays() == null || dto.getMinRentalDays() < dto.getHarvestDays()) {
+            throw new IllegalArgumentException(String.format(
+                "Số ngày thuê tối thiểu (%d ngày) không được nhỏ hơn thời gian thu hoạch (%d ngày).",
+                dto.getMinRentalDays() != null ? dto.getMinRentalDays() : 0, dto.getHarvestDays()
+            ));
+        }
+        if (dto.getPriceSmall() != null && dto.getPriceSmall().compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Đơn giá phôi giống Trụ Nhỏ không được là số âm.");
+        }
+        if (dto.getPriceMedium() != null && dto.getPriceMedium().compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Đơn giá phôi giống Trụ Vừa không được là số âm.");
+        }
+        if (dto.getPriceLarge() != null && dto.getPriceLarge().compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Đơn giá phôi giống Trụ Lớn không được là số âm.");
+        }
+        if (dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Đơn giá phôi giống không được là số âm.");
+        }
+        if (dto.getSoilMoistureMin() != null && (dto.getSoilMoistureMin() < 0 || dto.getSoilMoistureMin() > 100)) {
+            throw new IllegalArgumentException("Độ ẩm đất tối thiểu phải nằm trong khoảng từ 0% đến 100%.");
+        }
+        if (dto.getSoilMoistureMax() != null && (dto.getSoilMoistureMax() < 0 || dto.getSoilMoistureMax() > 100)) {
+            throw new IllegalArgumentException("Độ ẩm đất tối đa phải nằm trong khoảng từ 0% đến 100%.");
+        }
+        if (dto.getSoilMoistureMin() != null && dto.getSoilMoistureMax() != null) {
+            if (dto.getSoilMoistureMax() <= dto.getSoilMoistureMin()) {
+                throw new IllegalArgumentException(String.format(
+                    "Độ ẩm đất tối đa (%.1f%%) phải lớn hơn độ ẩm đất tối thiểu (%.1f%%).",
+                    dto.getSoilMoistureMax(), dto.getSoilMoistureMin()
+                ));
+            }
+        }
+        if (dto.getLightMin() != null && (dto.getLightMin() < 0 || dto.getLightMin() > 24)) {
+            throw new IllegalArgumentException("Thời gian chiếu sáng tối thiểu phải nằm trong khoảng từ 0 đến 24 giờ.");
+        }
+        if (dto.getLightMax() != null && (dto.getLightMax() < 0 || dto.getLightMax() > 24)) {
+            throw new IllegalArgumentException("Thời gian chiếu sáng tối đa phải nằm trong khoảng từ 0 đến 24 giờ.");
+        }
+        if (dto.getLightMin() != null && dto.getLightMax() != null) {
+            if (dto.getLightMax() <= dto.getLightMin()) {
+                throw new IllegalArgumentException(String.format(
+                    "Thời gian chiếu sáng tối đa (%.1f giờ) phải lớn hơn thời gian chiếu sáng tối thiểu (%.1f giờ).",
+                    dto.getLightMax(), dto.getLightMin()
+                ));
+            }
+        }
+        if (dto.getPhMin() != null && (dto.getPhMin() < 0 || dto.getPhMin() > 14)) {
+            throw new IllegalArgumentException("Độ pH tối thiểu phải nằm trong khoảng từ 0 đến 14.");
+        }
+        if (dto.getPhMax() != null && (dto.getPhMax() < 0 || dto.getPhMax() > 14)) {
+            throw new IllegalArgumentException("Độ pH tối đa phải nằm trong khoảng từ 0 đến 14.");
+        }
+        if (dto.getPhMin() != null && dto.getPhMax() != null) {
+            if (dto.getPhMax() <= dto.getPhMin()) {
+                throw new IllegalArgumentException(String.format(
+                    "Độ pH tối đa (%.1f) phải lớn hơn độ pH tối thiểu (%.1f).",
+                    dto.getPhMax(), dto.getPhMin()
+                ));
+            }
+        }
+    }
+
+
 
     @Override
     @Transactional
@@ -126,25 +204,28 @@ public class TreeServiceImpl implements TreeService {
     }
 
     private TreeDTO mapToDTO(Tree tree) {
-        return new TreeDTO(
-                tree.getId(),
-                tree.getTreeName(),
-                tree.getScientificName(),
-                tree.getDescription(),
-                tree.getHarvestDays(),
-                tree.getMinRentalDays(),
-                tree.getPrice(),
-                tree.getImageUrl(),
-                tree.getSoilMoistureMin(),
-                tree.getSoilMoistureMax(),
-                tree.getLightMin(),
-                tree.getLightMax(),
-                tree.getPhMin(),
-                tree.getPhMax(),
-                tree.getCompensationPercentage(),
-                tree.getCareInstructions(),
-                tree.getIsActive()
-        );
+        TreeDTO dto = new TreeDTO();
+        dto.setId(tree.getId());
+        dto.setTreeName(tree.getTreeName());
+        dto.setScientificName(tree.getScientificName());
+        dto.setDescription(tree.getDescription());
+        dto.setHarvestDays(tree.getHarvestDays());
+        dto.setMinRentalDays(tree.getMinRentalDays());
+        dto.setPrice(tree.getEffectivePriceSmall());
+        dto.setPriceSmall(tree.getEffectivePriceSmall());
+        dto.setPriceMedium(tree.getEffectivePriceMedium());
+        dto.setPriceLarge(tree.getEffectivePriceLarge());
+        dto.setImageUrl(tree.getImageUrl());
+        dto.setSoilMoistureMin(tree.getSoilMoistureMin());
+        dto.setSoilMoistureMax(tree.getSoilMoistureMax());
+        dto.setLightMin(tree.getLightMin());
+        dto.setLightMax(tree.getLightMax());
+        dto.setPhMin(tree.getPhMin());
+        dto.setPhMax(tree.getPhMax());
+        dto.setCompensationPercentage(tree.getCompensationPercentage());
+        dto.setCareInstructions(tree.getCareInstructions());
+        dto.setIsActive(tree.getIsActive());
+        return dto;
     }
 
     private Tree mapToEntity(TreeDTO dto) {
@@ -154,7 +235,11 @@ public class TreeServiceImpl implements TreeService {
         tree.setDescription(dto.getDescription());
         tree.setHarvestDays(dto.getHarvestDays());
         tree.setMinRentalDays(dto.getMinRentalDays());
-        tree.setPrice(dto.getPrice());
+        BigDecimal priceSmall = dto.getPriceSmall() != null ? dto.getPriceSmall() : dto.getPrice();
+        tree.setPrice(priceSmall);
+        tree.setPriceSmall(priceSmall);
+        tree.setPriceMedium(dto.getPriceMedium() != null ? dto.getPriceMedium() : (priceSmall != null ? priceSmall.multiply(BigDecimal.valueOf(1.5)) : null));
+        tree.setPriceLarge(dto.getPriceLarge() != null ? dto.getPriceLarge() : (priceSmall != null ? priceSmall.multiply(BigDecimal.valueOf(2.0)) : null));
         tree.setImageUrl(dto.getImageUrl());
         tree.setSoilMoistureMin(dto.getSoilMoistureMin());
         tree.setSoilMoistureMax(dto.getSoilMoistureMax());
@@ -173,7 +258,15 @@ public class TreeServiceImpl implements TreeService {
         if (dto.getDescription() != null) tree.setDescription(dto.getDescription());
         if (dto.getHarvestDays() != null) tree.setHarvestDays(dto.getHarvestDays());
         if (dto.getMinRentalDays() != null) tree.setMinRentalDays(dto.getMinRentalDays());
-        if (dto.getPrice() != null) tree.setPrice(dto.getPrice());
+        if (dto.getPriceSmall() != null) {
+            tree.setPriceSmall(dto.getPriceSmall());
+            tree.setPrice(dto.getPriceSmall());
+        } else if (dto.getPrice() != null) {
+            tree.setPrice(dto.getPrice());
+            tree.setPriceSmall(dto.getPrice());
+        }
+        if (dto.getPriceMedium() != null) tree.setPriceMedium(dto.getPriceMedium());
+        if (dto.getPriceLarge() != null) tree.setPriceLarge(dto.getPriceLarge());
         if (dto.getImageUrl() != null) tree.setImageUrl(dto.getImageUrl());
         if (dto.getSoilMoistureMin() != null) tree.setSoilMoistureMin(dto.getSoilMoistureMin());
         if (dto.getSoilMoistureMax() != null) tree.setSoilMoistureMax(dto.getSoilMoistureMax());
@@ -185,4 +278,5 @@ public class TreeServiceImpl implements TreeService {
         if (dto.getCareInstructions() != null) tree.setCareInstructions(dto.getCareInstructions());
         if (dto.getIsActive() != null) tree.setIsActive(dto.getIsActive());
     }
+
 }
