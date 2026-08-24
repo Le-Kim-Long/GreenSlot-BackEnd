@@ -38,6 +38,10 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:sqlserver://db:1433;databaseName=GreenSlotDB;encrypt=true;trustServerCertificate=true
       - SPRING_DATASOURCE_USERNAME=sa
       - SPRING_DATASOURCE_PASSWORD=GreenSlotPassword123!
+      # Android Emulator reaches the host machine through 10.0.2.2.
+      # VNPay returns to the local backend, then the backend opens the app deep link.
+      - VNP_RETURN_URL=http://10.0.2.2:8080/api/payments/vnpay-return
+      - MOBILE_RETURN_URL=greenslot://payment-result
 
 volumes:
   mssql_data:

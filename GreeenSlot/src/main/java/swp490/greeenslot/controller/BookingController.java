@@ -160,13 +160,14 @@ public class BookingController {
     public ResponseEntity<BookingResponseDTO> repayBooking(
             @PathVariable Long rentalId,
             @RequestParam(required = false, defaultValue = "false") boolean isMobile,
+            @RequestParam(required = false) String customMobileRedirectUrl,
             Principal principal,
             HttpServletRequest httpServletRequest) {
         String ipAddress = httpServletRequest.getHeader("X-FORWARDED-FOR");
         if (ipAddress == null || ipAddress.isEmpty()) {
             ipAddress = httpServletRequest.getRemoteAddr();
         }
-        BookingResponseDTO response = bookingService.getOrRegeneratePaymentUrl(rentalId, principal.getName(), ipAddress, isMobile);
+        BookingResponseDTO response = bookingService.getOrRegeneratePaymentUrl(rentalId, principal.getName(), ipAddress, isMobile, customMobileRedirectUrl);
         return ResponseEntity.ok(response);
     }
 
