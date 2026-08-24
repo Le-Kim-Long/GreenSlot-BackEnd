@@ -15,6 +15,7 @@ import swp490.greeenslot.service.BusinessManagementService;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 @CrossOrigin(origins = {"https://greenslot-taupe.vercel.app", "*"}, maxAge = 3600)
 @RestController
@@ -60,7 +61,7 @@ public class DashboardController {
         
         List<ActiveRentalDTO> activeRentals = businessManagementService.getActiveRentals();
         List<ActiveRentalDTO> locationRentals = activeRentals.stream()
-                .filter(r -> r.getLocationName().equals(locationName))
+                .filter(r -> locationName != null && locationName.equalsIgnoreCase(r.getLocationName()))
                 .toList();
         
         List<AlertDTO> pendingAlerts = alertService.getPendingAlerts();

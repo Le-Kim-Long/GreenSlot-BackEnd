@@ -98,7 +98,7 @@ public class HarvestReminderServiceImpl implements HarvestReminderService {
                                 message,
                                 "HARVEST_READY",
                                 savedTask.getId(),
-                                "/dashboard/staff/tasks"
+                                "/dashboard/garden-staff/schedules"
                         );
                     }
                 }

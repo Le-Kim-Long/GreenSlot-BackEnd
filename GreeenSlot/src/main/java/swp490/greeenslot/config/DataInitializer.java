@@ -278,7 +278,6 @@ public class DataInitializer {
                 }
             }
 
-            // 4. Khởi tạo dữ liệu mẫu cho Tree (Rau ăn lá & Cây ăn quả khí canh)
             if (treeRepository.findByTreeName("Xà lách xoăn Lollo").isEmpty()) {
                 Tree veg1 = new Tree();
                 veg1.setTreeName("Xà lách xoăn Lollo");
@@ -287,6 +286,9 @@ public class DataInitializer {
                 veg1.setHarvestDays(35);
                 veg1.setMinRentalDays(30);
                 veg1.setPrice(BigDecimal.valueOf(20000));
+                veg1.setPriceSmall(BigDecimal.valueOf(20000));
+                veg1.setPriceMedium(BigDecimal.valueOf(30000));
+                veg1.setPriceLarge(BigDecimal.valueOf(40000));
                 veg1.setSoilMoistureMin(60.0);
                 veg1.setSoilMoistureMax(85.0);
                 veg1.setLightMin(6.0);
@@ -306,6 +308,9 @@ public class DataInitializer {
                 veg2.setHarvestDays(45);
                 veg2.setMinRentalDays(30);
                 veg2.setPrice(BigDecimal.valueOf(35000));
+                veg2.setPriceSmall(BigDecimal.valueOf(35000));
+                veg2.setPriceMedium(BigDecimal.valueOf(50000));
+                veg2.setPriceLarge(BigDecimal.valueOf(70000));
                 veg2.setSoilMoistureMin(60.0);
                 veg2.setSoilMoistureMax(80.0);
                 veg2.setLightMin(7.0);
@@ -325,6 +330,9 @@ public class DataInitializer {
                 veg3.setHarvestDays(75);
                 veg3.setMinRentalDays(60);
                 veg3.setPrice(BigDecimal.valueOf(50000));
+                veg3.setPriceSmall(BigDecimal.valueOf(50000));
+                veg3.setPriceMedium(BigDecimal.valueOf(75000));
+                veg3.setPriceLarge(BigDecimal.valueOf(100000));
                 veg3.setSoilMoistureMin(55.0);
                 veg3.setSoilMoistureMax(75.0);
                 veg3.setLightMin(8.0);
@@ -344,6 +352,9 @@ public class DataInitializer {
                 veg4.setHarvestDays(90);
                 veg4.setMinRentalDays(90);
                 veg4.setPrice(BigDecimal.valueOf(80000));
+                veg4.setPriceSmall(BigDecimal.valueOf(80000));
+                veg4.setPriceMedium(BigDecimal.valueOf(120000));
+                veg4.setPriceLarge(BigDecimal.valueOf(160000));
                 veg4.setSoilMoistureMin(65.0);
                 veg4.setSoilMoistureMax(85.0);
                 veg4.setLightMin(6.0);
@@ -355,6 +366,7 @@ public class DataInitializer {
                 veg4.setIsActive(true);
                 treeRepository.save(veg4);
             }
+
 
             if (treeRepository.count() == 0) {
                 Tree tree1 = new Tree();
