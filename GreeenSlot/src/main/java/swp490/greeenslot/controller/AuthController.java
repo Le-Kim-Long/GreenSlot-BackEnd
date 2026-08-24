@@ -41,6 +41,7 @@ public class AuthController {
                     .body(new MessageResponseDTO("Too many requests. Please try again later."));
         }
         try {
+            // Auto-registration enabled: New Google/Firebase users will be created automatically
             JwtResponseDTO jwtResponse = authService.authenticateWithGoogle(googleRequest);
             return ResponseEntity.ok(jwtResponse);
         } catch (IllegalArgumentException e) {

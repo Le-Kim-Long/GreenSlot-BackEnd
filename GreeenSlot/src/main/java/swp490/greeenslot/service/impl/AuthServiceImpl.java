@@ -124,18 +124,14 @@ public class AuthServiceImpl implements AuthService {
         String picture = (String) googlePayload.get("picture");
         String sub = (String) googlePayload.getOrDefault("sub", (String) googlePayload.get("user_id"));
 
-        boolean isRegisterMode = "register".equalsIgnoreCase(googleRequest.getMode());
-
+        // Auto-register mode: Always register users if they don't exist, regardless of mode parameter
         java.util.Optional<User> userOptional = userRepository.findByEmail(email);
         User user;
 
         if (userOptional.isPresent()) {
             user = userOptional.get();
         } else {
-            if (!isRegisterMode) {
-                throw new IllegalArgumentException("Tài khoản Google này chưa được đăng ký trong hệ thống. Vui lòng chuyển sang trang Đăng ký trước!");
-            }
-
+            // Auto-register the user - create account automatically
             User newUser = new User();
             String baseUsername = email.split("@")[0].replaceAll("[^a-zA-Z0-9_]", "");
             if (baseUsername.length() < 3) {
