@@ -85,10 +85,10 @@ spring:
 
 greeenslot:
   app:
-    frontendResetUrl: ${FRONTEND_RESET_URL:https://greenslot-taupe.vercel.app/reset-password}
+    frontendResetUrl: ${FRONTEND_RESET_URL:https://green-slot-front-end.vercel.app/reset-password}
   vnpay:
     returnUrl: ${VNP_RETURN_URL:https://greenslot-backend.onrender.com/api/payments/vnpay-return}
-    frontendReturnUrl: ${FRONTEND_RETURN_URL:https://greenslot-taupe.vercel.app/payment-result}
+    frontendReturnUrl: ${FRONTEND_RETURN_URL:https://green-slot-front-end.vercel.app/payment-result}
     mobileReturnUrl: ${MOBILE_RETURN_URL:greenslot://payment-result}
 
 
