@@ -49,4 +49,15 @@ public class ExtensionRequestDTO {
     public void setMobileRedirectUrl(String mobileRedirectUrl) {
         this.mobileRedirectUrl = mobileRedirectUrl;
     }
+
+    private String redirectUrl;
+
+    public String getRedirectUrl() {
+        return redirectUrl != null ? redirectUrl : mobileRedirectUrl;
+    }
+
+    public void setRedirectUrl(String redirectUrl) {
+        this.redirectUrl = redirectUrl;
+    }
 }
+

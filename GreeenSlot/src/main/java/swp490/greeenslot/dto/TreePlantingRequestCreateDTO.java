@@ -27,4 +27,13 @@ public class TreePlantingRequestCreateDTO {
     private Boolean isMobile;
     
     private Long targetPillarId;
+
+    private String redirectUrl;
+
+    private String mobileRedirectUrl;
+
+    public String getEffectiveRedirectUrl() {
+        return redirectUrl != null ? redirectUrl : mobileRedirectUrl;
+    }
 }
+

@@ -265,9 +265,10 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             String pillarDesc = targetPillar != null ? ("Trụ " + targetPillar.getPillarCode()) : (rentedPillars.size() + " tru");
             String orderInfo = "GreenSlot - Mua giong cay " + newTree.getTreeName() + " (" + pillarDesc + ")";
             boolean isMobile = Boolean.TRUE.equals(dto.getIsMobile());
-            String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, totalTreeCost, "127.0.0.1", orderInfo, isMobile);
+            String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, totalTreeCost, "127.0.0.1", orderInfo, isMobile, dto.getEffectiveRedirectUrl());
             savedRequest.setPaymentUrl(paymentUrl);
             savedRequest = treePlantingRequestRepository.save(savedRequest);
+
         }
 
         // Notify location managers about planting request
