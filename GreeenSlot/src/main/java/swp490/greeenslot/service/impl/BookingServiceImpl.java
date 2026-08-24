@@ -754,6 +754,7 @@ public class BookingServiceImpl implements BookingService {
             );
             dto.setPillars(pillarInfos);
             dto.setPillarCodes(pillarCodes);
+            dto.setMonthlyPrice(slot.getPrice());
             history.add(dto);
         }
 

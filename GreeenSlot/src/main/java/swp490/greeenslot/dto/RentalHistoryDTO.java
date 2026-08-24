@@ -22,6 +22,7 @@ public class RentalHistoryDTO {
     private String harvestDecision;
     private LocalDateTime plantedAt;
     private LocalDateTime expectedHarvestAt;
+    private BigDecimal monthlyPrice;
 
     public static class PillarInfo {
         private Long id;
@@ -269,5 +270,13 @@ public class RentalHistoryDTO {
 
     public void setExpectedHarvestAt(LocalDateTime expectedHarvestAt) {
         this.expectedHarvestAt = expectedHarvestAt;
+    }
+
+    public BigDecimal getMonthlyPrice() {
+        return monthlyPrice;
+    }
+
+    public void setMonthlyPrice(BigDecimal monthlyPrice) {
+        this.monthlyPrice = monthlyPrice;
     }
 }
