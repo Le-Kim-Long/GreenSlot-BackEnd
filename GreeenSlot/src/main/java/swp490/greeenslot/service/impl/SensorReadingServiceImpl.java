@@ -243,7 +243,7 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                                         managerBody,
                                         "IOT_ALERT",
                                         savedAlert != null ? savedAlert.getId() : null,
-                                        "/dashboard/manager/alerts"
+                                        "/dashboard/staff/alert-processing"
                                 );
                             }
                         }
@@ -259,7 +259,7 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                                             sensorType.getDescription(), slot.getSlotNumber(), treeName, value, unit, effectiveMin, effectiveMax),
                                     "IOT_ALERT",
                                     slot.getId(),
-                                    "/dashboard/customer/iot"
+                                    "/dashboard/customer/monitoring"
                             );
                         }
                         firebaseMessagingService.sendPushNotification(
@@ -281,7 +281,7 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                                             sensorType.getDescription(), slot.getSlotNumber(), treeName, value, unit, effectiveMin, effectiveMax),
                                     "IOT_ALERT",
                                     slot.getId(),
-                                    "/dashboard/staff/tasks"
+                                    "/dashboard/garden-staff/alerts"
                             );
                         }
                         firebaseMessagingService.sendPushNotification(
@@ -364,7 +364,7 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                                     pillarCode, sensorType.getDescription(), value, unit, defaultMin, defaultMax),
                             "IOT_ALERT",
                             savedAlert != null ? savedAlert.getId() : null,
-                            "/dashboard/manager/alerts"
+                            "/dashboard/staff/alert-processing"
                     );
                 }
             }

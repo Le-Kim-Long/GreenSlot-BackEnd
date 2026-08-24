@@ -286,11 +286,15 @@ public class BookingServiceImpl implements BookingService {
         BigDecimal totalTreeCost = BigDecimal.ZERO;
         for (int i = 0; i < selectedPillars.size(); i++) {
             Pillar p = selectedPillars.get(i);
-            Tree treeForPillar = (i < resolvedTrees.size() && resolvedTrees.get(i) != null) ? resolvedTrees.get(i) : selectedTree;
-            if (treeForPillar != null && treeForPillar.getPrice() != null && treeForPillar.getPrice().compareTo(BigDecimal.ZERO) > 0) {
-                double scale = (double) p.getEffectiveHoles() / 24.0;
-                BigDecimal scaledPrice = treeForPillar.getPrice().multiply(BigDecimal.valueOf(scale));
-                totalTreeCost = totalTreeCost.add(scaledPrice);
+            Tree treeForPillar = i < resolvedTrees.size() ? resolvedTrees.get(i) : null;
+            if (treeForPillar == null) {
+                treeForPillar = selectedTree;
+            }
+            if (treeForPillar != null) {
+                BigDecimal pillarTreePrice = treeForPillar.getEffectivePriceForPillar(p);
+                if (pillarTreePrice != null && pillarTreePrice.compareTo(BigDecimal.ZERO) > 0) {
+                    totalTreeCost = totalTreeCost.add(pillarTreePrice);
+                }
             }
         }
 
@@ -377,7 +381,7 @@ public class BookingServiceImpl implements BookingService {
                     ),
                     "PILLAR_SETUP_REQUIRED",
                     rental.getId(),
-                    "/dashboard/manager/tasks"
+                    "/dashboard/staff/tasks"
                 );
             }
 
@@ -389,7 +393,7 @@ public class BookingServiceImpl implements BookingService {
                         pillarSummary, slot.getSlotNumber(), start.toLocalDate()),
                     "TASK_ASSIGNED",
                     setupTask.getId(),
-                    "/dashboard/staff/tasks"
+                    "/dashboard/garden-staff/schedules"
                 );
             }
         }

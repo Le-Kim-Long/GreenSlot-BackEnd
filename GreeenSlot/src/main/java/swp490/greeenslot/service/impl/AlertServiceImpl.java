@@ -244,7 +244,7 @@ public class AlertServiceImpl implements AlertService {
                     message,
                     "ALERT_ESCALATED",
                     savedAlert.getId(),
-                    "/dashboard/manager/alerts"
+                    "/dashboard/staff/alert-processing"
             );
         }
 

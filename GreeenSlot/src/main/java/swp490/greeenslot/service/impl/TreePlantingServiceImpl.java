@@ -224,20 +224,16 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         }
 
         java.math.BigDecimal totalTreeCost = java.math.BigDecimal.ZERO;
-        if (newTree.getPrice() != null && newTree.getPrice().compareTo(java.math.BigDecimal.ZERO) > 0) {
-            if (targetPillar != null) {
-                double scale = (double) targetPillar.getEffectiveHoles() / 24.0;
-                totalTreeCost = newTree.getPrice().multiply(java.math.BigDecimal.valueOf(scale));
-            } else if (!rentedPillars.isEmpty()) {
-                for (Pillar p : rentedPillars) {
-                    double scale = (double) p.getEffectiveHoles() / 24.0;
-                    java.math.BigDecimal scaledPrice = newTree.getPrice().multiply(java.math.BigDecimal.valueOf(scale));
-                    totalTreeCost = totalTreeCost.add(scaledPrice);
-                }
-            } else {
-                totalTreeCost = newTree.getPrice();
+        if (targetPillar != null) {
+            totalTreeCost = newTree.getEffectivePriceForPillar(targetPillar);
+        } else if (!rentedPillars.isEmpty()) {
+            for (Pillar p : rentedPillars) {
+                totalTreeCost = totalTreeCost.add(newTree.getEffectivePriceForPillar(p));
             }
+        } else {
+            totalTreeCost = newTree.getEffectivePriceSmall();
         }
+
 
         TreePlantingRequest request = new TreePlantingRequest();
         request.setRental(rental);
@@ -294,7 +290,7 @@ public class TreePlantingServiceImpl implements TreePlantingService {
                         message,
                         "PLANTING_REQUEST_CREATED",
                         savedRequest.getId(),
-                        "/dashboard/manager/tree-requests"
+                        "/dashboard/staff/tree-planting"
                 );
             }
         }
@@ -362,7 +358,7 @@ public class TreePlantingServiceImpl implements TreePlantingService {
                     message,
                     "PLANTING_REQUEST_APPROVED",
                     updatedRequest.getId(),
-                    "/dashboard/customer/rentals"
+                    "/dashboard/customer/tree-planting"
             );
         }
 
@@ -401,7 +397,7 @@ public class TreePlantingServiceImpl implements TreePlantingService {
                             staffMessage,
                             "NEW_CARE_TASK_AVAILABLE",
                             savedCareTask.getId(),
-                            "/dashboard/staff/tasks"
+                            "/dashboard/garden-staff"
                     );
                 }
             }
@@ -447,7 +443,7 @@ public class TreePlantingServiceImpl implements TreePlantingService {
                     message,
                     "PLANTING_REQUEST_REJECTED",
                     updatedRequest.getId(),
-                    "/dashboard/customer/rentals"
+                    "/dashboard/customer/tree-planting"
             );
         }
 
@@ -491,7 +487,7 @@ public class TreePlantingServiceImpl implements TreePlantingService {
                     message,
                     "PLANTING_REQUEST_COMPLETED",
                     updatedRequest.getId(),
-                    "/dashboard/customer/rentals"
+                    "/dashboard/customer/tree-planting"
             );
         }
 
