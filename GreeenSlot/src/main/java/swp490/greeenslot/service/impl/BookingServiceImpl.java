@@ -232,7 +232,9 @@ public class BookingServiceImpl implements BookingService {
         if (request.getTreeIds() != null && !request.getTreeIds().isEmpty()) {
             for (Long tId : request.getTreeIds()) {
                 if (tId != null && tId > 0) {
-                    treeRepository.findById(tId).ifPresent(resolvedTrees::add);
+                    resolvedTrees.add(treeRepository.findById(tId).orElse(null));
+                } else {
+                    resolvedTrees.add(null);
                 }
             }
         }
@@ -241,8 +243,13 @@ public class BookingServiceImpl implements BookingService {
         if (request.getTreeId() != null && request.getTreeId() > 0) {
             selectedTree = treeRepository.findById(request.getTreeId()).orElse(null);
         }
-        if (selectedTree == null && !resolvedTrees.isEmpty()) {
-            selectedTree = resolvedTrees.get(0);
+        if (selectedTree == null) {
+            for (Tree t : resolvedTrees) {
+                if (t != null) {
+                    selectedTree = t;
+                    break;
+                }
+            }
         }
         if (selectedTree == null) {
             selectedTree = selectedPillars.stream()
@@ -251,6 +258,7 @@ public class BookingServiceImpl implements BookingService {
                     .findFirst()
                     .orElse(null);
         }
+
 
         // Validate tree growth time vs rental duration for all chosen trees
         int maxRentalDays = months * 30;
@@ -278,13 +286,14 @@ public class BookingServiceImpl implements BookingService {
         BigDecimal totalTreeCost = BigDecimal.ZERO;
         for (int i = 0; i < selectedPillars.size(); i++) {
             Pillar p = selectedPillars.get(i);
-            Tree treeForPillar = (i < resolvedTrees.size()) ? resolvedTrees.get(i) : selectedTree;
+            Tree treeForPillar = (i < resolvedTrees.size() && resolvedTrees.get(i) != null) ? resolvedTrees.get(i) : selectedTree;
             if (treeForPillar != null && treeForPillar.getPrice() != null && treeForPillar.getPrice().compareTo(BigDecimal.ZERO) > 0) {
                 double scale = (double) p.getEffectiveHoles() / 24.0;
                 BigDecimal scaledPrice = treeForPillar.getPrice().multiply(BigDecimal.valueOf(scale));
                 totalTreeCost = totalTreeCost.add(scaledPrice);
             }
         }
+
 
         BigDecimal amount = monthlySlotPrice.multiply(new BigDecimal(months)).add(totalTreeCost);
 
@@ -401,7 +410,7 @@ public class BookingServiceImpl implements BookingService {
         int pillarCount = selectedPillars.size();
         String orderInfo = "GreenSlot - Thue vuon " + slot.getSlotNumber() + " (" + pillarCount + " tru) trong " + months + " thang";
         boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
-        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile, request.getMobileRedirectUrl());
+        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile, request.getRedirectUrl());
 
         return new BookingResponseDTO(rental.getId(), paymentUrl, txnRef);
     }
@@ -449,7 +458,8 @@ public class BookingServiceImpl implements BookingService {
 
         String orderInfo = "GreenSlot - Gia han vuon #" + rental.getId() + " them " + months + " thang";
         boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
-        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile, request.getMobileRedirectUrl());
+        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile, request.getRedirectUrl());
+
 
         return new BookingResponseDTO(rental.getId(), paymentUrl, txnRef);
     }
