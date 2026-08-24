@@ -754,6 +754,7 @@ public class BookingServiceImpl implements BookingService {
             );
             dto.setPillars(pillarInfos);
             dto.setPillarCodes(pillarCodes);
+            dto.setMonthlyPrice(slot.getPrice());
             history.add(dto);
         }
 
@@ -998,35 +999,77 @@ public class BookingServiceImpl implements BookingService {
         PillarAllocationResult result = new PillarAllocationResult();
         if (count <= 0) return result;
 
-        List<Pillar> existing = (slot.getLocation() != null)
-                ? pillarRepository.findByLocationId(slot.getLocation().getId())
+        // 1. Try finding existing pillars belonging to this slot first
+        List<Pillar> slotExisting = (slot.getId() != null)
+                ? pillarRepository.findByGardenSlotId(slot.getId())
                 : Collections.emptyList();
 
-        for (Pillar p : existing) {
+        for (Pillar p : slotExisting) {
             if (result.allPillars.size() >= count) break;
             if (p.getEffectivePillarType() == type 
-                    && p.getStatus() == EPillarStatus.ACTIVE 
                     && !currentlyRentedSet.contains(p.getId()) 
                     && !result.allPillars.contains(p)) {
+                if (p.getStatus() != EPillarStatus.ACTIVE) {
+                    p.setStatus(EPillarStatus.ACTIVE);
+                    p = pillarRepository.save(p);
+                }
                 result.allPillars.add(p);
             }
         }
 
-        int needed = count - result.allPillars.size();
-        for (int i = 1; i <= needed; i++) {
-            Pillar p = new Pillar();
-            String suffix = type == EPillarType.SMALL ? "S" : type == EPillarType.LARGE ? "L" : "M";
-            String code = "P-" + slot.getSlotNumber() + "-" + suffix + (result.allPillars.size() + i);
-            p.setPillarCode(code);
-            p.setPillarType(type);
-            p.setCapacityHoles(type.getDefaultHoles());
-            p.setPrice(type.getDefaultPrice());
-            p.setStatus(EPillarStatus.ACTIVE);
-            p.setGardenSlot(slot);
-            p.setLocation(slot.getLocation());
-            Pillar saved = pillarRepository.save(p);
-            result.allPillars.add(saved);
-            result.newlyCreatedPillars.add(saved);
+        // 2. Try finding unassigned/available pillars in the same location
+        if (result.allPillars.size() < count && slot.getLocation() != null) {
+            List<Pillar> locationExisting = pillarRepository.findByLocationId(slot.getLocation().getId());
+            for (Pillar p : locationExisting) {
+                if (result.allPillars.size() >= count) break;
+                if (p.getEffectivePillarType() == type 
+                        && !currentlyRentedSet.contains(p.getId()) 
+                        && !result.allPillars.contains(p)) {
+                    if (p.getStatus() != EPillarStatus.ACTIVE || p.getGardenSlot() == null || !p.getGardenSlot().getId().equals(slot.getId())) {
+                        p.setStatus(EPillarStatus.ACTIVE);
+                        p.setGardenSlot(slot);
+                        p = pillarRepository.save(p);
+                    }
+                    result.allPillars.add(p);
+                }
+            }
+        }
+
+        // 3. If still needed, provision new or find unused pillar codes without collision
+        String suffix = type == EPillarType.SMALL ? "S" : type == EPillarType.LARGE ? "L" : "M";
+        int seq = 1;
+
+        while (result.allPillars.size() < count) {
+            String candidateCode = "P-" + slot.getSlotNumber() + "-" + suffix + seq;
+            seq++;
+
+            Optional<Pillar> existingOpt = pillarRepository.findByPillarCode(candidateCode);
+            if (existingOpt.isPresent()) {
+                Pillar existingPillar = existingOpt.get();
+                if (!currentlyRentedSet.contains(existingPillar.getId()) && !result.allPillars.contains(existingPillar)) {
+                    existingPillar.setStatus(EPillarStatus.ACTIVE);
+                    existingPillar.setGardenSlot(slot);
+                    existingPillar.setLocation(slot.getLocation());
+                    existingPillar.setPillarType(type);
+                    existingPillar.setCapacityHoles(type.getDefaultHoles());
+                    existingPillar.setPrice(type.getDefaultPrice());
+                    Pillar saved = pillarRepository.save(existingPillar);
+                    result.allPillars.add(saved);
+                }
+                // If this existing pillar is rented or already in result, loop continues to next seq
+            } else {
+                Pillar p = new Pillar();
+                p.setPillarCode(candidateCode);
+                p.setPillarType(type);
+                p.setCapacityHoles(type.getDefaultHoles());
+                p.setPrice(type.getDefaultPrice());
+                p.setStatus(EPillarStatus.ACTIVE);
+                p.setGardenSlot(slot);
+                p.setLocation(slot.getLocation());
+                Pillar saved = pillarRepository.save(p);
+                result.allPillars.add(saved);
+                result.newlyCreatedPillars.add(saved);
+            }
         }
 
         return result;
