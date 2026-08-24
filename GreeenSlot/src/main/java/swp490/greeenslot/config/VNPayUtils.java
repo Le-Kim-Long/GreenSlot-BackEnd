@@ -70,7 +70,7 @@ public class VNPayUtils {
 
         String effectiveReturnUrl = returnUrl;
         if (isMobile) {
-            effectiveReturnUrl = "https://greenslot-taupe.vercel.app/payment-result?client=mobile";
+            effectiveReturnUrl = "https://green-slot-front-end.vercel.app/payment-result?client=mobile";
         }
 
         Map<String, String> vnp_Params = new HashMap<>();
