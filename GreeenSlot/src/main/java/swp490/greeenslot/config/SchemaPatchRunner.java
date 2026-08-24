@@ -30,6 +30,10 @@ public class SchemaPatchRunner implements CommandLineRunner {
     @Override
     public void run(String... args) {
         dropAllCheckConstraints("dbo.gardening_tasks");
+        // Pillar status is persisted from EPillarStatus (ACTIVE, RENTED, MAINTENANCE).
+        // Remove legacy constraints created from an older enum so payment activation
+        // cannot be rolled back by SQL Server when a pillar becomes RENTED.
+        dropAllCheckConstraints("dbo.pillars");
         patchNationalizedColumns();
     }
 

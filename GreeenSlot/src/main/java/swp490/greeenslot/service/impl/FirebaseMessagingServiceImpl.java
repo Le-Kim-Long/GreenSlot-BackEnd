@@ -44,6 +44,10 @@ public class FirebaseMessagingServiceImpl implements FirebaseMessagingService {
             logger.info("Push notification sent successfully to user {}: {}", userId, response);
         } catch (FirebaseMessagingException e) {
             logger.error("Failed to send push notification to user {}: {}", userId, e.getMessage());
+        } catch (IllegalStateException e) {
+            // Firebase is optional in local development. A missing service-account
+            // must not roll back an otherwise successful payment transaction.
+            logger.warn("Skipping push notification for user {} because Firebase is not initialized: {}", userId, e.getMessage());
         }
     }
 
