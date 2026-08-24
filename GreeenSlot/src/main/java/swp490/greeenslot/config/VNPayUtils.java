@@ -69,11 +69,8 @@ public class VNPayUtils {
         String vnp_ExpireDate = now.plusMinutes(15).format(formatter);
 
         String effectiveReturnUrl = returnUrl;
-        if (isMobile && (effectiveReturnUrl == null || effectiveReturnUrl.contains("localhost") || effectiveReturnUrl.contains("127.0.0.1"))) {
-            effectiveReturnUrl = "https://greenslot-backend.onrender.com/api/payments/vnpay-return";
-        }
         if (isMobile) {
-            effectiveReturnUrl += (effectiveReturnUrl.contains("?") ? "&" : "?") + "client=mobile";
+            effectiveReturnUrl = "https://greenslot-taupe.vercel.app/payment-result?client=mobile";
         }
 
         Map<String, String> vnp_Params = new HashMap<>();
