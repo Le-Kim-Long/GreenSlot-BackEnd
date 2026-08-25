@@ -243,27 +243,23 @@ public class CustomerServiceImpl implements CustomerService {
         Location location = (slot != null && slot.getLocation() != null) ? slot.getLocation() : (slot != null && slot.getPillar() != null ? slot.getPillar().getLocation() : null);
 
         List<Pillar> slotPillars = slot != null ? slot.getPillars() : null;
+        List<Pillar> rentedPillars = rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()
+                ? rental.getRentedPillars()
+                : (slotPillars != null && !slotPillars.isEmpty() ? slotPillars : (slot != null && slot.getPillar() != null ? List.of(slot.getPillar()) : List.of()));
+
         List<String> pillarCodes = new ArrayList<>();
         List<RentalHistoryDTO.PillarInfo> pillarInfos = new ArrayList<>();
-        if (slotPillars != null && !slotPillars.isEmpty()) {
-            for (Pillar p : slotPillars) {
-                pillarCodes.add(p.getPillarCode());
-                pillarInfos.add(new RentalHistoryDTO.PillarInfo(
-                        p.getId(),
-                        p.getPillarCode(),
-                        p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
-                        p.getCameraStreamUrl(),
-                        p.getCameraStatus()
-                ));
-            }
-        } else if (slot != null && slot.getPillar() != null) {
-            pillarCodes.add(slot.getPillar().getPillarCode());
+        for (Pillar p : rentedPillars) {
+            pillarCodes.add(p.getPillarCode());
+            Tree pTree = p.getDefaultTree() != null ? p.getDefaultTree() : rental.getTree();
             pillarInfos.add(new RentalHistoryDTO.PillarInfo(
-                    slot.getPillar().getId(),
-                    slot.getPillar().getPillarCode(),
-                    slot.getPillar().getStatus() != null ? slot.getPillar().getStatus().name() : "ACTIVE",
-                    slot.getPillar().getCameraStreamUrl(),
-                    slot.getPillar().getCameraStatus()
+                    p.getId(),
+                    p.getPillarCode(),
+                    p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
+                    p.getCameraStreamUrl(),
+                    p.getCameraStatus(),
+                    pTree != null ? pTree.getId() : null,
+                    pTree != null ? pTree.getTreeName() : null
             ));
         }
         String primaryPillarCode = !pillarCodes.isEmpty() ? String.join(", ", pillarCodes) : (slot != null && slot.getPillar() != null ? slot.getPillar().getPillarCode() : "N/A");
