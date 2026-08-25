@@ -78,7 +78,7 @@ class StaffScheduleValidationTest {
         validDTO.setLocationId(10L);
         validDTO.setScheduleDate(LocalDate.now().plusDays(2));
         validDTO.setStartTime(LocalTime.of(8, 0));
-        validDTO.setEndTime(LocalTime.of(17, 0));
+        validDTO.setEndTime(LocalTime.of(16, 0));
         validDTO.setNotes("Regular morning shift");
         validDTO.setIsActive(true);
     }
@@ -156,6 +156,20 @@ class StaffScheduleValidationTest {
         );
 
         assertEquals("Start time must be before end time", ex.getMessage());
+        verify(staffScheduleRepository, never()).save(any(StaffSchedule.class));
+    }
+
+    @Test
+    @DisplayName("Service Validation: createSchedule with duration > 8 hours throws IllegalArgumentException")
+    void testService_CreateSchedule_Exceeds8Hours_ThrowsException() {
+        validDTO.setStartTime(LocalTime.of(8, 0));
+        validDTO.setEndTime(LocalTime.of(17, 0)); // 9 hours
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                staffScheduleService.createSchedule(validDTO)
+        );
+
+        assertTrue(ex.getMessage().contains("không được vượt quá 8 tiếng"));
         verify(staffScheduleRepository, never()).save(any(StaffSchedule.class));
     }
 
