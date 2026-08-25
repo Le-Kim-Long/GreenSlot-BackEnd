@@ -556,9 +556,10 @@ public class BookingServiceImpl implements BookingService {
 
                 // Notify customer of successful payment and rental activation
                 User customer = rental.getUser();
-                String slotNumber = slot.getSlotNumber();
-                String locationName = slot.getPillar() != null && slot.getPillar().getLocation() != null 
-                        ? slot.getPillar().getLocation().getName() : "N/A";
+                String slotNumber = slot != null ? slot.getSlotNumber() : "N/A";
+                String locationName = slot != null && slot.getLocation() != null ? slot.getLocation().getName() :
+                        (slot != null && slot.getPillar() != null && slot.getPillar().getLocation() != null 
+                        ? slot.getPillar().getLocation().getName() : "N/A");
                 
                 notificationService.createNotification(
                         customer.getId(),
@@ -573,6 +574,58 @@ public class BookingServiceImpl implements BookingService {
                         "Thanh toán thành công",
                         String.format("Hợp đồng thuê ô vườn %s đã kích hoạt đến %s", slotNumber, rental.getEndTime().toLocalDate())
                 );
+
+                // Option B: Tạo nhiệm vụ chuẩn bị ô đất & gieo trồng ở trạng thái chưa gán nhân viên
+                if (slot != null) {
+                    String pillarCodes = rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()
+                            ? rental.getRentedPillars().stream().map(Pillar::getPillarCode).filter(Objects::nonNull).collect(Collectors.joining(", "))
+                            : null;
+                    String treeName = rental.getTree() != null ? rental.getTree().getTreeName() : "Chưa chọn giống cây";
+
+                    GardeningTask prepTask = new GardeningTask();
+                    prepTask.setTaskName("Chuẩn bị ô đất & Gieo giống: Ô " + slotNumber + (pillarCodes != null ? " (" + pillarCodes + ")" : ""));
+                    prepTask.setDescription(String.format(
+                        "Khách hàng %s vừa hoàn tất thanh toán thuê ô vườn %s (Trụ: %s, Giống: %s). Quản lý vui lòng phân công nhân viên kiểm tra đất và chuẩn bị gieo giống.",
+                        customer.getFullName() != null ? customer.getFullName() : customer.getUsername(),
+                        slotNumber,
+                        pillarCodes != null ? pillarCodes : "Toàn bộ trụ",
+                        treeName
+                    ));
+                    prepTask.setTaskType(ETaskType.MAINTENANCE);
+                    prepTask.setStatus(ETaskStatus.PENDING);
+                    prepTask.setTargetSlot(slot);
+                    prepTask.setRequestedBy(customer);
+                    prepTask.setAssignedStaff(null); // Option B: Chờ Location Manager phân công đích danh
+                    prepTask.setPillarCodes(pillarCodes);
+                    prepTask.setTreeName(rental.getTree() != null ? rental.getTree().getTreeName() : null);
+                    prepTask.setCreatedAt(LocalDateTime.now());
+                    gardeningTaskRepository.save(prepTask);
+
+                    // Báo cho Location Manager của cơ sở để điều phối phân công nhân viên
+                    Long locId = slot.getLocation() != null ? slot.getLocation().getId() : 
+                                 (slot.getPillar() != null && slot.getPillar().getLocation() != null ? slot.getPillar().getLocation().getId() : null);
+                    List<User> managers = locId != null
+                            ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId)
+                            : List.of();
+                    if (managers.isEmpty()) {
+                        managers = userRepository.findByRoleName(ERole.ROLE_LOCATION_MANAGER);
+                    }
+                    if (managers.isEmpty()) {
+                        managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
+                    }
+                    for (User mgr : managers) {
+                        notificationService.createNotification(
+                                mgr.getId(),
+                                "Hợp đồng mới cần phân công nhân viên: Ô " + slotNumber,
+                                String.format("Khách hàng %s đã thanh toán thuê ô %s. Vui lòng vào phân công nhân viên phụ trách chuẩn bị đất và gieo giống.",
+                                        customer.getFullName() != null ? customer.getFullName() : customer.getUsername(),
+                                        slotNumber),
+                                "NEW_BOOKING_TASK_ASSIGNMENT",
+                                prepTask.getId(),
+                                "/dashboard/staff/tasks"
+                        );
+                    }
+                }
 
             } else if (txnRef.startsWith("EXT_")) {
                 SlotRental rental = txn.getRental();
@@ -623,18 +676,25 @@ public class BookingServiceImpl implements BookingService {
                     SlotRental rental = req.getRental();
                     String slotNumber = (rental != null && rental.getGardenSlot() != null) ? rental.getGardenSlot().getSlotNumber() : "N/A";
                     String treeName = req.getNewTree() != null ? req.getNewTree().getTreeName() : "cây trồng";
+                    String pillarDesc = req.getTargetPillar() != null ? ("Trụ " + req.getTargetPillar().getPillarCode()) : "Toàn bộ các trụ";
+                    String costDesc = req.getAmount() != null ? String.format(" (Số tiền: %,d đ)", req.getAmount().longValue()) : "";
+                    String locName = (rental != null && rental.getGardenSlot() != null && rental.getGardenSlot().getLocation() != null)
+                            ? rental.getGardenSlot().getLocation().getName()
+                            : (rental != null && rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null && rental.getGardenSlot().getPillar().getLocation() != null
+                            ? rental.getGardenSlot().getPillar().getLocation().getName() : "N/A");
 
                     if (req.getRequestedBy() != null && notificationService != null) {
                         notificationService.createNotification(
                                 req.getRequestedBy().getId(),
-                                "Thanh toán giống rau thành công",
-                                "Thanh toán tiền giống rau " + treeName + " tại ô " + slotNumber + " thành công. Yêu cầu đang chờ Quản lý cơ sở phê duyệt.",
+                                "Thanh toán giống rau thành công: Ô " + slotNumber,
+                                "Thanh toán tiền giống rau " + treeName + " tại ô " + slotNumber + " (" + pillarDesc + ", Cơ sở: " + locName + ")" + costDesc + " thành công. Yêu cầu đang chờ Quản lý cơ sở phê duyệt.",
                                 "PAYMENT_SUCCESS"
                         );
                     }
 
                     if (notificationService != null && rental != null && rental.getGardenSlot() != null) {
-                        Long locId = rental.getGardenSlot().getLocation() != null ? rental.getGardenSlot().getLocation().getId() : null;
+                        Long locId = rental.getGardenSlot().getLocation() != null ? rental.getGardenSlot().getLocation().getId() : 
+                                     (rental.getGardenSlot().getPillar() != null && rental.getGardenSlot().getPillar().getLocation() != null ? rental.getGardenSlot().getPillar().getLocation().getId() : null);
                         List<User> managers = locId != null
                                 ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId)
                                 : List.of();
@@ -644,11 +704,14 @@ public class BookingServiceImpl implements BookingService {
                         for (User manager : managers) {
                             notificationService.createNotification(
                                     manager.getId(),
-                                    "Yêu cầu trồng cây mới (Đã thanh toán)",
-                                    String.format("Khách hàng %s đã thanh toán phí giống rau %s tại ô %s. Vui lòng duyệt yêu cầu.",
+                                    "Yêu cầu trồng cây đã thanh toán: Ô " + slotNumber,
+                                    String.format("Khách hàng %s đã thanh toán phí giống rau %s tại ô %s (%s, Cơ sở: %s)%s. Vui lòng kiểm tra và phê duyệt.",
                                             req.getRequestedBy() != null ? req.getRequestedBy().getFullName() : "Khách hàng",
                                             treeName,
-                                            slotNumber),
+                                            slotNumber,
+                                            pillarDesc,
+                                            locName,
+                                            costDesc),
                                     "PLANTING_REQUEST_CREATED",
                                     req.getId(),
                                     "/dashboard/staff/tree-planting"
@@ -781,12 +844,49 @@ public class BookingServiceImpl implements BookingService {
             List<PaymentTransaction> txns = txnsByRentalId.getOrDefault(rental.getId(), Collections.emptyList());
             List<RentalHistoryDTO.PaymentTransactionInfo> txnInfos = new ArrayList<>();
             for (PaymentTransaction txn : txns) {
+                String targetPillarCode = null;
+                Integer targetPillarHoles = null;
+                String txnTreeName = null;
+                Integer txnPillarsCount = null;
+
+                if (txn.getVnpTxnRef() != null && txn.getVnpTxnRef().startsWith("PLANT_")) {
+                    try {
+                        String[] parts = txn.getVnpTxnRef().split("_");
+                        if (parts.length >= 2) {
+                            Long reqId = Long.parseLong(parts[1]);
+                            Optional<TreePlantingRequest> reqOpt = treePlantingRequestRepository.findById(reqId);
+                            if (reqOpt.isPresent()) {
+                                TreePlantingRequest req = reqOpt.get();
+                                if (req.getTargetPillar() != null) {
+                                    targetPillarCode = req.getTargetPillar().getPillarCode();
+                                    targetPillarHoles = req.getTargetPillar().getEffectiveHoles();
+                                    txnPillarsCount = 1;
+                                } else {
+                                    targetPillarCode = "Toàn bộ các trụ";
+                                    txnPillarsCount = rentedPillars != null ? rentedPillars.size() : 1;
+                                    targetPillarHoles = rentedPillars != null 
+                                            ? rentedPillars.stream().mapToInt(Pillar::getEffectiveHoles).sum()
+                                            : 24;
+                                }
+                                if (req.getNewTree() != null) {
+                                    txnTreeName = req.getNewTree().getTreeName();
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+
                 txnInfos.add(new RentalHistoryDTO.PaymentTransactionInfo(
                         txn.getId(),
                         txn.getAmount(),
                         txn.getVnpTxnRef(),
                         txn.getPaymentDate(),
-                        txn.getStatus().name()
+                        txn.getStatus().name(),
+                        targetPillarCode,
+                        targetPillarHoles,
+                        txnTreeName,
+                        txnPillarsCount
                 ));
             }
 

@@ -33,4 +33,6 @@ public interface GardeningTaskService {
     List<EligibleHarvestRentalDTO> getEligibleEarlyHarvestRentals(String username);
 
     GardeningTask notifyEarlyHarvest(Long rentalId, String username);
+
+    GardeningTask notifyEarlyHarvest(Long rentalId, Long pillarId, String pillarCode, String username);
 }
