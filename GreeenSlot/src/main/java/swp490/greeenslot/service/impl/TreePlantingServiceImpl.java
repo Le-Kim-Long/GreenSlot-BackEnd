@@ -333,7 +333,34 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         // Duyệt xong thì cây yêu cầu mới thực sự được trồng vào ô đất của rental này
         SlotRental rental = request.getRental();
         Tree newTree = request.getNewTree();
-        rental.setTree(newTree);
+        
+        if (request.getTargetPillar() != null) {
+            // Gán giống cây đích danh cho Trụ mục tiêu
+            request.getTargetPillar().setDefaultTree(newTree);
+            pillarRepository.save(request.getTargetPillar());
+            if (rental.getRentedPillars() == null) {
+                rental.setRentedPillars(new java.util.ArrayList<>());
+            }
+            if (!rental.getRentedPillars().contains(request.getTargetPillar())) {
+                rental.getRentedPillars().add(request.getTargetPillar());
+            }
+            if (rental.getTree() == null) {
+                rental.setTree(newTree);
+            }
+        } else {
+            // Áp dụng cho toàn bộ các trụ trong ô đất
+            rental.setTree(newTree);
+            if (rental.getGardenSlot() != null && rental.getGardenSlot().getPillars() != null) {
+                for (Pillar p : rental.getGardenSlot().getPillars()) {
+                    p.setDefaultTree(newTree);
+                    pillarRepository.save(p);
+                }
+            } else if (rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null) {
+                Pillar p = rental.getGardenSlot().getPillar();
+                p.setDefaultTree(newTree);
+                pillarRepository.save(p);
+            }
+        }
         rental.setTreeStatus(swp490.greeenslot.entity.ETreeStatus.HEALTHY);
         rental.setPlantedAt(now);
         rental.setHarvestReminderSent(false);

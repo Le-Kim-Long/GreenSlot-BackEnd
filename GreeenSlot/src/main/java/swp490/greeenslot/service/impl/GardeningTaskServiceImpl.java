@@ -8,8 +8,11 @@ import swp490.greeenslot.entity.*;
 import swp490.greeenslot.repository.*;
 import swp490.greeenslot.service.GardeningTaskService;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,6 +38,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
     @Autowired
     private TreePlantingRequestRepository treePlantingRequestRepository;
+
+    @Autowired
+    private StaffScheduleRepository staffScheduleRepository;
 
     @Autowired
     private swp490.greeenslot.service.NotificationService notificationService;
@@ -234,7 +240,47 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         if (staff.getLocation() == null) {
             return List.of();
         }
-        return gardeningTaskRepository.findUnassignedByLocationId(staff.getLocation().getId());
+
+        List<GardeningTask> allUnassigned = gardeningTaskRepository.findUnassignedByLocationId(staff.getLocation().getId());
+        if (allUnassigned.isEmpty()) {
+            return List.of();
+        }
+
+        // Check active shifts of this staff for today
+        LocalDate today = LocalDate.now();
+        List<StaffSchedule> todaySchedules = staffScheduleRepository.findByStaffAndDateRange(staff.getId(), today, today)
+                .stream().filter(s -> Boolean.TRUE.equals(s.getIsActive()))
+                .toList();
+
+        if (todaySchedules.isEmpty()) {
+            // Check if there are any schedules configured in this location today
+            List<StaffSchedule> locationSchedulesToday = staffScheduleRepository.findByLocationAndDate(staff.getLocation().getId(), today)
+                    .stream().filter(s -> Boolean.TRUE.equals(s.getIsActive()))
+                    .toList();
+            if (!locationSchedulesToday.isEmpty()) {
+                // Location uses shift scheduling and this staff is not scheduled today -> return empty
+                return List.of();
+            }
+            // Fallback for locations without active shift setup
+            return allUnassigned;
+        }
+
+        // Check if staff has any whole-location shift (slot == null)
+        boolean hasLocationWideShift = todaySchedules.stream().anyMatch(s -> s.getGardenSlot() == null);
+        if (hasLocationWideShift) {
+            return allUnassigned;
+        }
+
+        // Staff is assigned to specific slot(s)
+        Set<Long> assignedSlotIds = todaySchedules.stream()
+                .map(StaffSchedule::getGardenSlot)
+                .filter(Objects::nonNull)
+                .map(GardenSlot::getId)
+                .collect(Collectors.toSet());
+
+        return allUnassigned.stream()
+                .filter(t -> t.getTargetSlot() == null || assignedSlotIds.contains(t.getTargetSlot().getId()))
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -249,6 +295,39 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
         User staff = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
+
+        // Verify task belongs to staff location
+        Long taskLocId = getSlotLocationId(task.getTargetSlot());
+        if (taskLocId == null && task.getAssignedStaff() != null && task.getAssignedStaff().getLocation() != null) {
+            taskLocId = task.getAssignedStaff().getLocation().getId();
+        }
+        if (staff.getLocation() != null && taskLocId != null && !staff.getLocation().getId().equals(taskLocId)) {
+            throw new IllegalArgumentException("You can only claim tasks at your own location");
+        }
+
+        // If staff has schedules assigned to specific slots today, ensure task matches assigned slot
+        LocalDate today = LocalDate.now();
+        List<StaffSchedule> todaySchedules = staffScheduleRepository.findByStaffAndDateRange(staff.getId(), today, today)
+                .stream().filter(s -> Boolean.TRUE.equals(s.getIsActive()))
+                .toList();
+
+        if (!todaySchedules.isEmpty()) {
+            boolean hasLocationWideShift = todaySchedules.stream().anyMatch(s -> s.getGardenSlot() == null);
+            if (!hasLocationWideShift && task.getTargetSlot() != null) {
+                Set<Long> assignedSlotIds = todaySchedules.stream()
+                        .map(StaffSchedule::getGardenSlot)
+                        .filter(Objects::nonNull)
+                        .map(GardenSlot::getId)
+                        .collect(Collectors.toSet());
+                if (!assignedSlotIds.contains(task.getTargetSlot().getId())) {
+                    String assignedNames = todaySchedules.stream()
+                            .filter(s -> s.getGardenSlot() != null)
+                            .map(s -> "Ô " + s.getGardenSlot().getSlotNumber())
+                            .collect(Collectors.joining(", "));
+                    throw new IllegalArgumentException("Bạn chỉ có thể nhận công việc tại ô vườn đã được phân công trực (" + assignedNames + ")");
+                }
+            }
+        }
 
         task.setAssignedStaff(staff);
         return gardeningTaskRepository.save(task);
@@ -289,35 +368,42 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             staffName = staffName.substring(10).trim();
         }
         String slotNumber = task.getTargetSlot().getSlotNumber();
-        String treeName = rental.getTree() != null ? rental.getTree().getTreeName() : "cây trồng";
 
-        String pillarDesc = "";
-        if (rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()) {
-            pillarDesc = rental.getRentedPillars().stream()
-                    .map(swp490.greeenslot.entity.Pillar::getPillarCode)
-                    .filter(java.util.Objects::nonNull)
-                    .collect(Collectors.joining(", "));
+        String effectivePillarCodes = (task.getPillarCodes() != null && !task.getPillarCodes().isBlank())
+                ? task.getPillarCodes()
+                : "";
+        if (effectivePillarCodes.isBlank()) {
+            if (rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()) {
+                effectivePillarCodes = rental.getRentedPillars().stream()
+                        .map(swp490.greeenslot.entity.Pillar::getPillarCode)
+                        .filter(java.util.Objects::nonNull)
+                        .collect(Collectors.joining(", "));
+            } else if (task.getTargetSlot().getPillars() != null) {
+                effectivePillarCodes = task.getTargetSlot().getPillars().stream()
+                        .map(swp490.greeenslot.entity.Pillar::getPillarCode)
+                        .filter(java.util.Objects::nonNull)
+                        .collect(Collectors.joining(", "));
+            }
         }
-        if (pillarDesc.isBlank() && task.getTargetSlot().getPillars() != null) {
-            pillarDesc = task.getTargetSlot().getPillars().stream()
-                    .map(swp490.greeenslot.entity.Pillar::getPillarCode)
-                    .filter(java.util.Objects::nonNull)
-                    .collect(Collectors.joining(", "));
-        }
-        String pillarText = pillarDesc.isBlank() ? "Toàn bộ trụ" : ("Trụ " + pillarDesc);
+        String effectiveTreeName = (task.getTreeName() != null && !task.getTreeName().isBlank())
+                ? task.getTreeName()
+                : (rental.getTree() != null ? rental.getTree().getTreeName() : "cây trồng");
 
-        task.setPillarCodes(pillarDesc.isBlank() ? null : pillarDesc);
-        task.setTreeName(treeName);
+        String pillarText = effectivePillarCodes.isBlank() ? "Toàn bộ trụ" : ("Trụ " + effectivePillarCodes);
+        task.setPillarCodes(effectivePillarCodes.isBlank() ? null : effectivePillarCodes);
+        task.setTreeName(effectiveTreeName);
         gardeningTaskRepository.save(task);
 
         String message = String.format(
                 "Nhân viên %s báo: cây %s tại ô đất %s (%s) đã sẵn sàng thu hoạch. Bạn muốn tự thu hoạch hay nhờ nhân viên thu hoạch giúp?",
-                staffName, treeName, slotNumber, pillarText);
+                staffName, effectiveTreeName, slotNumber, pillarText);
+
+        String notifTitle = "Sẵn sàng thu hoạch: Ô " + slotNumber + (!effectivePillarCodes.isBlank() ? " (" + pillarText + ")" : "");
 
         if (notificationService != null) {
             notificationService.createNotification(
                     rental.getUser().getId(),
-                    "Sẵn sàng thu hoạch: Ô " + slotNumber,
+                    notifTitle,
                     message,
                     "HARVEST_CHOICE",
                     rental.getId(),
@@ -328,8 +414,8 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         if (firebaseMessagingService != null) {
             firebaseMessagingService.sendPushNotification(
                     rental.getUser().getId(),
-                    "Sẵn sàng thu hoạch: Ô " + slotNumber,
-                    String.format("%s báo cây %s tại ô %s (%s) đã sẵn sàng thu hoạch", staffName, treeName, slotNumber, pillarText)
+                    notifTitle,
+                    String.format("%s báo cây %s tại ô %s (%s) đã sẵn sàng thu hoạch", staffName, effectiveTreeName, slotNumber, pillarText)
             );
         }
 
@@ -609,20 +695,29 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         }
         List<GardeningTask> tasks = gardeningTaskRepository.findByTargetSlotIdAndTaskTypeOrderByCreatedAtDesc(
                 rental.getGardenSlot().getId(), ETaskType.HARVEST);
-        return tasks.stream().anyMatch(t -> t.getStatus() != ETaskStatus.COMPLETED && t.getStatus() != ETaskStatus.CANCELLED);
+        LocalDateTime cutoff = rental.getPlantedAt() != null ? rental.getPlantedAt() : rental.getStartTime();
+        return tasks.stream()
+                .filter(t -> t.getStatus() != ETaskStatus.COMPLETED && t.getStatus() != ETaskStatus.CANCELLED)
+                .filter(t -> cutoff == null || t.getCreatedAt() == null || !t.getCreatedAt().isBefore(cutoff.minusMinutes(5)))
+                .findAny()
+                .isPresent();
     }
 
-    private boolean hasActiveHarvestTaskForPillar(SlotRental rental, String pillarCode) {
-        if (rental.getGardenSlot() == null) {
+    private boolean hasActiveHarvestTaskForPillar(SlotRental rental, String pillarCode, LocalDateTime plantedDate) {
+        if (rental.getGardenSlot() == null || pillarCode == null || pillarCode.isBlank()) {
             return false;
         }
         List<GardeningTask> tasks = gardeningTaskRepository.findByTargetSlotIdAndTaskTypeOrderByCreatedAtDesc(
                 rental.getGardenSlot().getId(), ETaskType.HARVEST);
+        LocalDateTime cutoff = plantedDate != null ? plantedDate : (rental.getPlantedAt() != null ? rental.getPlantedAt() : rental.getStartTime());
         return tasks.stream()
                 .filter(t -> t.getStatus() != ETaskStatus.COMPLETED && t.getStatus() != ETaskStatus.CANCELLED)
+                .filter(t -> cutoff == null || t.getCreatedAt() == null || !t.getCreatedAt().isBefore(cutoff.minusMinutes(5)))
                 .anyMatch(t -> {
-                    if (pillarCode == null || t.getPillarCodes() == null) return true;
-                    return t.getPillarCodes().contains(pillarCode);
+                    if (t.getPillarCodes() == null || t.getPillarCodes().isBlank()) {
+                        return false;
+                    }
+                    return t.getPillarCodes().equals(pillarCode) || t.getPillarCodes().contains(pillarCode);
                 });
     }
 
@@ -633,93 +728,88 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         if (staff.getLocation() == null) {
             return List.of();
         }
-        List<SlotRental> rentals = slotRentalRepository.findActiveWithTreeByLocationId(staff.getLocation().getId());
+        List<SlotRental> rentals = slotRentalRepository.findActiveRentalsByLocationId(staff.getLocation().getId());
         List<EligibleHarvestRentalDTO> result = new java.util.ArrayList<>();
 
         for (SlotRental r : rentals) {
             String slotNumber = r.getGardenSlot() != null ? r.getGardenSlot().getSlotNumber() : "N/A";
 
-            // 1. Kiểm tra các yêu cầu trồng cây đã duyệt theo từng trụ
             List<TreePlantingRequest> requests = treePlantingRequestRepository.findByRental(r).stream()
                     .filter(req -> req.getStatus() == EPlantingRequestStatus.APPROVED && req.getNewTree() != null)
                     .toList();
 
-            java.util.Set<Long> processedPillarIds = new java.util.HashSet<>();
+            // Tập hợp toàn diện tất cả các trụ của ô thuê (từ rentedPillars, gardenSlot.pillars, và approved requests)
+            java.util.Map<Long, Pillar> pillarMap = new java.util.LinkedHashMap<>();
 
+            if (r.getRentedPillars() != null) {
+                for (Pillar p : r.getRentedPillars()) {
+                    if (p != null && p.getId() != null) {
+                        pillarMap.put(p.getId(), p);
+                    }
+                }
+            }
+            if (r.getGardenSlot() != null && r.getGardenSlot().getPillars() != null) {
+                for (Pillar p : r.getGardenSlot().getPillars()) {
+                    if (p != null && p.getId() != null) {
+                        pillarMap.putIfAbsent(p.getId(), p);
+                    }
+                }
+            }
+            if (r.getGardenSlot() != null && r.getGardenSlot().getPillar() != null) {
+                Pillar p = r.getGardenSlot().getPillar();
+                if (p.getId() != null) {
+                    pillarMap.putIfAbsent(p.getId(), p);
+                }
+            }
             for (TreePlantingRequest req : requests) {
-                Pillar p = req.getTargetPillar();
-                Tree tree = req.getNewTree();
-                if (tree == null) continue;
-
-                Long pId = p != null ? p.getId() : null;
-                String pCode = p != null ? p.getPillarCode() : (p != null ? "Trụ " + p.getId() : "Toàn bộ trụ");
-                if (pId != null) processedPillarIds.add(pId);
-
-                if (hasActiveHarvestTaskForPillar(r, pCode)) {
-                    continue;
+                if (req.getTargetPillar() != null && req.getTargetPillar().getId() != null) {
+                    pillarMap.putIfAbsent(req.getTargetPillar().getId(), req.getTargetPillar());
                 }
-
-                LocalDateTime plantedDate = req.getProcessedAt() != null ? req.getProcessedAt() : req.getRequestedAt();
-                if (plantedDate == null) plantedDate = r.getPlantedAt() != null ? r.getPlantedAt() : r.getStartTime();
-
-                Integer harvestDays = tree.getHarvestDays();
-                Integer daysGrown = plantedDate != null
-                        ? (int) java.time.temporal.ChronoUnit.DAYS.between(plantedDate.toLocalDate(), java.time.LocalDate.now())
-                        : 0;
-
-                result.add(new EligibleHarvestRentalDTO(
-                        r.getId(),
-                        pId,
-                        pCode,
-                        slotNumber,
-                        tree.getTreeName(),
-                        plantedDate,
-                        pCode,
-                        harvestDays,
-                        Math.max(0, daysGrown)
-                ));
             }
 
-            // 2. Kiểm tra các trụ đã thuê nếu chưa có trong approved requests nhưng có defaultTree hoặc cây ban đầu
-            List<Pillar> rentedPillars = r.getRentedPillars() != null && !r.getRentedPillars().isEmpty()
-                    ? r.getRentedPillars()
-                    : (r.getGardenSlot() != null && r.getGardenSlot().getPillars() != null ? r.getGardenSlot().getPillars() : List.of());
+            if (!pillarMap.isEmpty()) {
+                for (Pillar p : pillarMap.values()) {
+                    final Long targetPillarId = p.getId();
+                    String pCode = p.getPillarCode() != null ? p.getPillarCode() : ("Trụ " + p.getId());
 
-            for (Pillar p : rentedPillars) {
-                if (processedPillarIds.contains(p.getId())) {
-                    continue;
+                    // Tìm giống cây trên trụ này (Ưu tiên: approved request mới nhất -> p.defaultTree -> r.tree)
+                    TreePlantingRequest latestReq = requests.stream()
+                            .filter(req -> req.getTargetPillar() != null && req.getTargetPillar().getId().equals(targetPillarId))
+                            .reduce((first, second) -> second)
+                            .orElse(null);
+
+                    Tree tree = latestReq != null ? latestReq.getNewTree() : (p.getDefaultTree() != null ? p.getDefaultTree() : r.getTree());
+                    if (tree == null) {
+                        continue; // Trụ này chưa có cây
+                    }
+
+                    LocalDateTime plantedDate = latestReq != null && latestReq.getProcessedAt() != null
+                            ? latestReq.getProcessedAt()
+                            : (r.getPlantedAt() != null ? r.getPlantedAt() : r.getStartTime());
+
+                    // Check if this pillar already has an active harvest task for the current planting cycle
+                    if (hasActiveHarvestTaskForPillar(r, pCode, plantedDate)) {
+                        continue; // Trụ này đang được thu hoạch -> ẩn khỏi dropdown
+                    }
+
+                    Integer harvestDays = tree.getHarvestDays();
+                    Integer daysGrown = plantedDate != null
+                            ? (int) java.time.temporal.ChronoUnit.DAYS.between(plantedDate.toLocalDate(), java.time.LocalDate.now())
+                            : 0;
+
+                    result.add(new EligibleHarvestRentalDTO(
+                            r.getId(),
+                            p.getId(),
+                            pCode,
+                            slotNumber,
+                            tree.getTreeName(),
+                            plantedDate,
+                            pCode,
+                            harvestDays,
+                            Math.max(0, daysGrown)
+                    ));
                 }
-                Tree pTree = p.getDefaultTree() != null ? p.getDefaultTree() : r.getTree();
-                if (pTree == null) {
-                    continue; // Trụ này chưa trồng cây nào
-                }
-
-                String pCode = p.getPillarCode();
-                if (hasActiveHarvestTaskForPillar(r, pCode)) {
-                    continue;
-                }
-
-                LocalDateTime plantedDate = r.getPlantedAt() != null ? r.getPlantedAt() : r.getStartTime();
-                Integer harvestDays = pTree.getHarvestDays();
-                Integer daysGrown = plantedDate != null
-                        ? (int) java.time.temporal.ChronoUnit.DAYS.between(plantedDate.toLocalDate(), java.time.LocalDate.now())
-                        : 0;
-
-                result.add(new EligibleHarvestRentalDTO(
-                        r.getId(),
-                        p.getId(),
-                        pCode,
-                        slotNumber,
-                        pTree.getTreeName(),
-                        plantedDate,
-                        pCode,
-                        harvestDays,
-                        Math.max(0, daysGrown)
-                ));
-            }
-
-            // 3. Nếu không có thông tin trụ nhưng rental có cây
-            if (rentedPillars.isEmpty() && processedPillarIds.isEmpty() && r.getTree() != null) {
+            } else if (r.getTree() != null) {
                 if (!hasActiveHarvestTask(r)) {
                     LocalDateTime plantedDate = r.getPlantedAt() != null ? r.getPlantedAt() : r.getStartTime();
                     Integer harvestDays = r.getTree().getHarvestDays();
@@ -778,7 +868,8 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         }
 
         String effectivePillarCode = targetPillar != null ? targetPillar.getPillarCode() : pillarCode;
-        if (hasActiveHarvestTaskForPillar(rental, effectivePillarCode)) {
+        LocalDateTime plantedDateCutoff = rental.getPlantedAt() != null ? rental.getPlantedAt() : rental.getStartTime();
+        if (hasActiveHarvestTaskForPillar(rental, effectivePillarCode, plantedDateCutoff)) {
             throw new IllegalArgumentException("This pillar already has an active harvest task in progress");
         }
 
