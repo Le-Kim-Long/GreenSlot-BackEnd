@@ -615,18 +615,45 @@ public class BookingServiceImpl implements BookingService {
                 Long requestId = Long.parseLong(parts[1]);
                 TreePlantingRequest req = treePlantingRequestRepository.findById(requestId).orElse(null);
                 if (req != null) {
-                    req.setStatus(EPlantingRequestStatus.APPROVED);
-                    req.setProcessedAt(LocalDateTime.now());
+                    req.setStatus(EPlantingRequestStatus.PENDING);
+                    req.setProcessedAt(null);
                     treePlantingRequestRepository.save(req);
-                    logger.info("Tree planting request ID {} approved and paid via VNPay", req.getId());
+                    logger.info("Tree planting request ID {} paid via VNPay, status is PENDING manager approval", req.getId());
+
+                    SlotRental rental = req.getRental();
+                    String slotNumber = (rental != null && rental.getGardenSlot() != null) ? rental.getGardenSlot().getSlotNumber() : "N/A";
+                    String treeName = req.getNewTree() != null ? req.getNewTree().getTreeName() : "cây trồng";
 
                     if (req.getRequestedBy() != null && notificationService != null) {
                         notificationService.createNotification(
                                 req.getRequestedBy().getId(),
                                 "Thanh toán giống rau thành công",
-                                "Thanh toán tiền giống rau " + (req.getNewTree() != null ? req.getNewTree().getTreeName() : "") + " thành công. Yêu cầu gieo trồng đã được tiếp nhận và phân công nhân viên xử lý.",
+                                "Thanh toán tiền giống rau " + treeName + " tại ô " + slotNumber + " thành công. Yêu cầu đang chờ Quản lý cơ sở phê duyệt.",
                                 "PAYMENT_SUCCESS"
                         );
+                    }
+
+                    if (notificationService != null && rental != null && rental.getGardenSlot() != null) {
+                        Long locId = rental.getGardenSlot().getLocation() != null ? rental.getGardenSlot().getLocation().getId() : null;
+                        List<User> managers = locId != null
+                                ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId)
+                                : List.of();
+                        if (managers.isEmpty()) {
+                            managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
+                        }
+                        for (User manager : managers) {
+                            notificationService.createNotification(
+                                    manager.getId(),
+                                    "Yêu cầu trồng cây mới (Đã thanh toán)",
+                                    String.format("Khách hàng %s đã thanh toán phí giống rau %s tại ô %s. Vui lòng duyệt yêu cầu.",
+                                            req.getRequestedBy() != null ? req.getRequestedBy().getFullName() : "Khách hàng",
+                                            treeName,
+                                            slotNumber),
+                                    "PLANTING_REQUEST_CREATED",
+                                    req.getId(),
+                                    "/dashboard/staff/tree-planting"
+                            );
+                        }
                     }
                 }
             }
@@ -668,6 +695,25 @@ public class BookingServiceImpl implements BookingService {
                         "Thanh toán không thành công",
                         String.format("Thanh toán cho ô vườn %s chưa thành công. Vui lòng kiểm tra lại.", slotNumber)
                 );
+            } else if (txnRef.startsWith("PLANT_")) {
+                String[] parts = txnRef.split("_");
+                Long requestId = Long.parseLong(parts[1]);
+                TreePlantingRequest req = treePlantingRequestRepository.findById(requestId).orElse(null);
+                if (req != null) {
+                    req.setStatus(EPlantingRequestStatus.REJECTED);
+                    req.setNotes("Thanh toán không thành công hoặc bị hủy");
+                    treePlantingRequestRepository.save(req);
+                    logger.info("Tree planting request ID {} marked as REJECTED due to failed VNPay payment", req.getId());
+
+                    if (req.getRequestedBy() != null && notificationService != null) {
+                        notificationService.createNotification(
+                                req.getRequestedBy().getId(),
+                                "Thanh toán giống cây không thành công",
+                                "Giao dịch thanh toán tiền giống rau không thành công hoặc đã bị hủy. Vui lòng thử lại.",
+                                "PAYMENT_FAILED"
+                        );
+                    }
+                }
             }
         }
 

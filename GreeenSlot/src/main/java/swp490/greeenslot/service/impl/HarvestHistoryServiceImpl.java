@@ -30,6 +30,11 @@ public class HarvestHistoryServiceImpl implements HarvestHistoryService {
 
     @Override
     public void recordHarvest(SlotRental rental, String method, User staff) {
+        recordHarvest(rental, method, staff, null);
+    }
+
+    @Override
+    public void recordHarvest(SlotRental rental, String method, User staff, String pillarCodes) {
         if (rental == null || rental.getTree() == null) {
             return;
         }
@@ -37,6 +42,32 @@ public class HarvestHistoryServiceImpl implements HarvestHistoryService {
         GardenSlot slot = rental.getGardenSlot();
         Pillar pillar = slot != null ? slot.getPillar() : null;
         Location location = pillar != null ? pillar.getLocation() : null;
+        if (location == null && slot != null && slot.getLocation() != null) {
+            location = slot.getLocation();
+        }
+
+        // Determine pillar codes if not provided
+        String finalPillarCodes = pillarCodes;
+        if (finalPillarCodes == null || finalPillarCodes.isBlank()) {
+            if (rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()) {
+                finalPillarCodes = rental.getRentedPillars().stream()
+                        .map(Pillar::getPillarCode)
+                        .filter(code -> code != null && !code.isBlank())
+                        .collect(java.util.stream.Collectors.joining(", "));
+            } else if (pillar != null && pillar.getPillarCode() != null) {
+                finalPillarCodes = pillar.getPillarCode();
+            }
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime plantedAt = rental.getPlantedAt() != null ? rental.getPlantedAt() : rental.getStartTime();
+        
+        Integer harvestDays = rental.getTree().getHarvestDays() != null ? rental.getTree().getHarvestDays() : 30;
+        int daysGrown = 0;
+        if (plantedAt != null) {
+            daysGrown = (int) Math.max(0, java.time.temporal.ChronoUnit.DAYS.between(plantedAt, now));
+        }
+        boolean isEarly = daysGrown < harvestDays;
 
         HarvestHistory history = new HarvestHistory();
         history.setRentalId(rental.getId());
@@ -51,8 +82,12 @@ public class HarvestHistoryServiceImpl implements HarvestHistoryService {
         history.setHarvestMethod(method);
         history.setStaffId(staff != null ? staff.getId() : null);
         history.setStaffName(staff != null ? staff.getFullName() : null);
-        history.setPlantedAt(rental.getPlantedAt());
-        history.setHarvestedAt(LocalDateTime.now());
+        history.setPlantedAt(plantedAt);
+        history.setHarvestedAt(now);
+        history.setPillarCodes(finalPillarCodes);
+        history.setHarvestDays(harvestDays);
+        history.setDaysGrown(daysGrown);
+        history.setIsEarlyHarvest(isEarly);
 
         harvestHistoryRepository.save(history);
     }
