@@ -58,6 +58,9 @@ public class IoTSensorController {
     @Autowired
     private swp490.greeenslot.service.FirebaseStorageService firebaseStorageService;
 
+    @Autowired
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
     // --- TASK 3: TELEMETRY INGESTION ---
 
     @PostMapping("/sensors/data")
@@ -210,6 +213,40 @@ public class IoTSensorController {
             return dto;
         }).toList();
         
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/monitored-pillars")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_MANAGER') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN')")
+    @Operation(summary = "Get all active pillars with slot and crop info for staff/manager monitoring")
+    public ResponseEntity<List<Map<String, Object>>> getMonitoredPillars() {
+        Long targetLocationId = locationContextService.resolveTargetLocationId(null);
+        List<Pillar> pillars;
+        if (targetLocationId != null) {
+            pillars = pillarRepository.findByLocationId(targetLocationId);
+        } else {
+            pillars = pillarRepository.findAll();
+        }
+
+        List<Map<String, Object>> result = pillars.stream()
+                .filter(p -> p.getPillarCode() != null && !p.getPillarCode().isBlank())
+                .map(p -> {
+                    Map<String, Object> map = new java.util.HashMap<>();
+                    map.put("pillarId", p.getId());
+                    map.put("pillarCode", p.getPillarCode());
+                    map.put("pillarType", p.getEffectivePillarType() != null ? p.getEffectivePillarType().name() : "MEDIUM");
+                    map.put("capacityHoles", p.getEffectiveHoles());
+                    map.put("slotId", p.getGardenSlot() != null ? p.getGardenSlot().getId() : null);
+                    map.put("slotNumber", p.getGardenSlot() != null ? p.getGardenSlot().getSlotNumber() : "N/A");
+
+                    Tree pTree = p.getDefaultTree();
+                    map.put("treeId", pTree != null ? pTree.getId() : null);
+                    map.put("treeName", pTree != null ? pTree.getTreeName() : "Đang canh tác");
+                    map.put("status", p.getStatus() != null ? p.getStatus().name() : "ACTIVE");
+                    map.put("locationName", p.getLocation() != null ? p.getLocation().getName() : "");
+                    return map;
+                })
+                .toList();
         return ResponseEntity.ok(result);
     }
 
