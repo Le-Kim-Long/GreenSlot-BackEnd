@@ -852,12 +852,15 @@ public class BookingServiceImpl implements BookingService {
                     if (p != null && p.getPillarCode() != null && !seenCodes.contains(p.getPillarCode())) {
                         seenCodes.add(p.getPillarCode());
                         pillarCodes.add(p.getPillarCode());
+                        Tree pTree = p.getDefaultTree() != null ? p.getDefaultTree() : rental.getTree();
                         pillarInfos.add(new RentalHistoryDTO.PillarInfo(
                                 p.getId(),
                                 p.getPillarCode(),
                                 p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
                                 p.getCameraStreamUrl(),
-                                p.getCameraStatus()
+                                p.getCameraStatus(),
+                                pTree != null ? pTree.getId() : null,
+                                pTree != null ? pTree.getTreeName() : null
                         ));
                     }
                 }
@@ -865,12 +868,15 @@ public class BookingServiceImpl implements BookingService {
                 Pillar p = slot.getPillar();
                 seenCodes.add(p.getPillarCode());
                 pillarCodes.add(p.getPillarCode());
+                Tree pTree = p.getDefaultTree() != null ? p.getDefaultTree() : rental.getTree();
                 pillarInfos.add(new RentalHistoryDTO.PillarInfo(
                         p.getId(),
                         p.getPillarCode(),
                         p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
                         p.getCameraStreamUrl(),
-                        p.getCameraStatus()
+                        p.getCameraStatus(),
+                        pTree != null ? pTree.getId() : null,
+                        pTree != null ? pTree.getTreeName() : null
                 ));
             }
             String primaryPillarCode = !pillarCodes.isEmpty() ? String.join(", ", pillarCodes) : "N/A";
@@ -1145,6 +1151,15 @@ public class BookingServiceImpl implements BookingService {
             return;
         }
 
+        String slotNumber = rental.getGardenSlot().getSlotNumber();
+        List<Pillar> rentedPillars = rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()
+                ? rental.getRentedPillars()
+                : (rental.getGardenSlot().getPillars() != null ? rental.getGardenSlot().getPillars() : (rental.getGardenSlot().getPillar() != null ? List.of(rental.getGardenSlot().getPillar()) : List.of()));
+        String pillarCodes = rentedPillars.stream()
+                .map(p -> p.getPillarCode() != null ? p.getPillarCode() : ("Trụ " + p.getId()))
+                .collect(java.util.stream.Collectors.joining(", "));
+        String treeName = rental.getTree() != null ? rental.getTree().getTreeName() : "cây trồng";
+
         List<GardeningTask> harvestTasks = gardeningTaskRepository
                 .findByTargetSlotIdAndTaskTypeOrderByCreatedAtDesc(rental.getGardenSlot().getId(), ETaskType.HARVEST);
         GardeningTask task = harvestTasks.stream()
@@ -1152,28 +1167,71 @@ public class BookingServiceImpl implements BookingService {
                 .findFirst()
                 .orElse(null);
 
-        if (task == null || task.getAssignedStaff() == null) {
-            return;
-        }
-
-        String slotNumber = rental.getGardenSlot().getSlotNumber();
         if ("SELF".equals(decision)) {
-            task.setStatus(ETaskStatus.CANCELLED);
-            gardeningTaskRepository.save(task);
+            if (task != null) {
+                task.setStatus(ETaskStatus.CANCELLED);
+                gardeningTaskRepository.save(task);
 
-            notificationService.createNotification(
-                    task.getAssignedStaff().getId(),
-                    "Khách đã tự thu hoạch",
-                    "Khách hàng ở ô " + slotNumber + " đã chọn tự thu hoạch, bạn không cần xử lý công việc này nữa.",
-                    "HARVEST_SELF"
-            );
+                if (task.getAssignedStaff() != null && notificationService != null) {
+                    notificationService.createNotification(
+                            task.getAssignedStaff().getId(),
+                            "Khách đã tự thu hoạch",
+                            "Khách hàng ở ô " + slotNumber + " đã chọn tự thu hoạch, bạn không cần xử lý công việc này nữa.",
+                            "HARVEST_SELF",
+                            task.getId(),
+                            "/dashboard/garden-staff"
+                    );
+                }
+            }
         } else {
-            notificationService.createNotification(
-                    task.getAssignedStaff().getId(),
-                    "Khách nhờ hỗ trợ thu hoạch",
-                    "Khách hàng ở ô " + slotNumber + " nhờ hỗ trợ thu hoạch giúp. Tiến hành xử lý công việc nhé.",
-                    "HARVEST_STAFF_CONFIRMED"
-            );
+            // STAFF choice: create or update task to PENDING for execution
+            if (task != null) {
+                task.setTaskName("Thu hoạch: " + treeName + " - Ô " + slotNumber + (pillarCodes != null ? " (" + (pillarCodes.startsWith("Trụ") ? pillarCodes : ("Trụ " + pillarCodes)) + ")" : ""));
+                task.setDescription("Khách hàng đã yêu cầu nhân viên hỗ trợ thu hoạch cây " + treeName + " tại ô " + slotNumber + ". Tiến hành thu hoạch và nộp ảnh bằng chứng để Quản lý duyệt.");
+                task.setStatus(ETaskStatus.PENDING);
+                gardeningTaskRepository.save(task);
+
+                if (task.getAssignedStaff() != null && notificationService != null) {
+                    notificationService.createNotification(
+                            task.getAssignedStaff().getId(),
+                            "Khách nhờ hỗ trợ thu hoạch",
+                            "Khách hàng ở ô " + slotNumber + " nhờ hỗ trợ thu hoạch cây " + treeName + ". Tiến hành xử lý công việc nhé.",
+                            "HARVEST_STAFF_CONFIRMED",
+                            task.getId(),
+                            "/dashboard/garden-staff"
+                    );
+                }
+            } else {
+                GardeningTask execTask = new GardeningTask();
+                execTask.setTaskName("Thu hoạch: " + treeName + " - Ô " + slotNumber + (pillarCodes != null ? " (" + (pillarCodes.startsWith("Trụ") ? pillarCodes : ("Trụ " + pillarCodes)) + ")" : ""));
+                execTask.setDescription("Khách hàng đã yêu cầu nhân viên hỗ trợ thu hoạch cây " + treeName + " tại ô " + slotNumber + ". Tiến hành thu hoạch và nộp ảnh bằng chứng để Quản lý duyệt.");
+                execTask.setStatus(ETaskStatus.PENDING);
+                execTask.setTaskType(ETaskType.HARVEST);
+                execTask.setTargetSlot(rental.getGardenSlot());
+                execTask.setRequestedBy(rental.getUser());
+                execTask.setAssignedStaff(null);
+                execTask.setPillarCodes(pillarCodes);
+                execTask.setTreeName(treeName);
+                execTask.setCreatedAt(LocalDateTime.now());
+                GardeningTask saved = gardeningTaskRepository.save(execTask);
+
+                if (notificationService != null) {
+                    Long locationId = rental.getGardenSlot().getLocation() != null ? rental.getGardenSlot().getLocation().getId() : null;
+                    List<User> staffList = locationId != null 
+                            ? userRepository.findByRoleNameAndLocation(ERole.ROLE_GARDEN_STAFF, locationId) 
+                            : userRepository.findByRoleName(ERole.ROLE_GARDEN_STAFF);
+                    for (User s : staffList) {
+                        notificationService.createNotification(
+                                s.getId(),
+                                "Khách nhờ hỗ trợ thu hoạch",
+                                "Khách hàng ở ô " + slotNumber + " nhờ hỗ trợ thu hoạch cây " + treeName + ". Vui lòng nhận việc.",
+                                "HARVEST_STAFF_CONFIRMED",
+                                saved.getId(),
+                                "/dashboard/garden-staff"
+                        );
+                    }
+                }
+            }
         }
     }
 
