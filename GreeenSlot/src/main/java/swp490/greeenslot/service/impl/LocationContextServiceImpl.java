@@ -45,6 +45,17 @@ public class LocationContextServiceImpl implements LocationContextService {
 
     @Override
     @Transactional(readOnly = true)
+    public boolean isGardenStaff() {
+        User user = getCurrentUser();
+        if (user == null || user.getRoles() == null) {
+            return false;
+        }
+        return user.getRoles().stream()
+                .anyMatch(r -> r.getName() == ERole.ROLE_GARDEN_STAFF);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public boolean isGlobalManagerOrAdmin() {
         User user = getCurrentUser();
         if (user == null || user.getRoles() == null) {

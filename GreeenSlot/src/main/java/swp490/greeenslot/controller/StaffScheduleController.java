@@ -28,8 +28,14 @@ public class StaffScheduleController {
 
     @GetMapping
     @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
-    @Operation(summary = "Get all schedules (scoped to location for Location Managers)")
+    @Operation(summary = "Get all schedules (scoped to current staff for Garden Staff, or location for Location Managers)")
     public ResponseEntity<List<StaffScheduleDTO>> getAllSchedules() {
+        if (locationContextService.isGardenStaff()) {
+            swp490.greeenslot.entity.User currentUser = locationContextService.getCurrentUser();
+            if (currentUser != null) {
+                return ResponseEntity.ok(staffScheduleService.getSchedulesByStaff(currentUser.getId()));
+            }
+        }
         if (locationContextService.isLocationManager()) {
             Long managerLocationId = locationContextService.getCurrentUserLocationId();
             if (managerLocationId != null) {
@@ -37,6 +43,17 @@ public class StaffScheduleController {
             }
         }
         return ResponseEntity.ok(staffScheduleService.getAllSchedules());
+    }
+
+    @GetMapping("/my-schedules")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
+    @Operation(summary = "Get personal work schedule for current staff")
+    public ResponseEntity<List<StaffScheduleDTO>> getMySchedules() {
+        swp490.greeenslot.entity.User currentUser = locationContextService.getCurrentUser();
+        if (currentUser == null) {
+            throw new IllegalArgumentException("User not authenticated");
+        }
+        return ResponseEntity.ok(staffScheduleService.getSchedulesByStaff(currentUser.getId()));
     }
 
     @GetMapping("/{id}")
