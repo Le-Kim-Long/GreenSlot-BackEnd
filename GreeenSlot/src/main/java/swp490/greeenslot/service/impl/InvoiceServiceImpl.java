@@ -126,10 +126,26 @@ public class InvoiceServiceImpl implements InvoiceService {
                 if (targetPillarText != null) {
                     contentStream.newLineAtOffset(0, -20);
                     contentStream.showText("Cultivation Pillar: " + targetPillarText);
-                }
-                if (targetTreeText != null) {
-                    contentStream.newLineAtOffset(0, -20);
-                    contentStream.showText("Plant Variety: " + targetTreeText);
+                    if (targetTreeText != null) {
+                        contentStream.newLineAtOffset(0, -20);
+                        contentStream.showText("Plant Variety: " + targetTreeText);
+                    }
+                } else {
+                    java.util.List<swp490.greeenslot.entity.Pillar> rentedPillars = rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()
+                            ? rental.getRentedPillars()
+                            : (rental.getGardenSlot() != null && rental.getGardenSlot().getPillars() != null ? rental.getGardenSlot().getPillars() : (rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null ? java.util.List.of(rental.getGardenSlot().getPillar()) : java.util.List.of()));
+                    
+                    if (!rentedPillars.isEmpty()) {
+                        for (swp490.greeenslot.entity.Pillar p : rentedPillars) {
+                            swp490.greeenslot.entity.Tree pTree = p.getDefaultTree() != null ? p.getDefaultTree() : rental.getTree();
+                            String cropName = pTree != null ? pTree.getTreeName() : "N/A";
+                            contentStream.newLineAtOffset(0, -18);
+                            contentStream.showText("Pillar " + p.getPillarCode() + " (" + p.getEffectiveHoles() + " holes) - Crop: " + cropName);
+                        }
+                    } else if (rental.getTree() != null) {
+                        contentStream.newLineAtOffset(0, -20);
+                        contentStream.showText("Plant Variety: " + rental.getTree().getTreeName());
+                    }
                 }
 
                 contentStream.newLineAtOffset(0, -20);
