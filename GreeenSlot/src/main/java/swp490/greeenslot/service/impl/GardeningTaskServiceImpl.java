@@ -778,29 +778,12 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             return List.of();
         }
 
-        // Lấy danh sách công việc mà nhân viên này ĐÃ BẤM NHẬN VIỆC (chưa hoàn thành)
-        List<GardeningTask> staffTasks = gardeningTaskRepository.findByAssignedStaffUsernameOrderByCreatedAtDesc(username);
-        java.util.Set<Long> claimedSlotIds = staffTasks.stream()
-                .filter(t -> t.getStatus() != ETaskStatus.COMPLETED && t.getStatus() != ETaskStatus.CANCELLED && t.getTargetSlot() != null)
-                .map(t -> t.getTargetSlot().getId())
-                .collect(java.util.stream.Collectors.toSet());
-
-        if (claimedSlotIds.isEmpty()) {
-            // Nhân viên chưa nhận việc tại ô vườn nào -> không hiển thị ô nào để báo thu hoạch sớm
-            return List.of();
-        }
-
-        java.util.Set<String> claimedPillarCodes = staffTasks.stream()
-                .filter(t -> t.getStatus() != ETaskStatus.COMPLETED && t.getStatus() != ETaskStatus.CANCELLED && t.getPillarCodes() != null && !t.getPillarCodes().isBlank())
-                .map(GardeningTask::getPillarCodes)
-                .collect(java.util.stream.Collectors.toSet());
-
         List<SlotRental> rentals = slotRentalRepository.findActiveRentalsByLocationId(staff.getLocation().getId());
         List<EligibleHarvestRentalDTO> result = new java.util.ArrayList<>();
 
         for (SlotRental r : rentals) {
-            if (r.getGardenSlot() == null || !claimedSlotIds.contains(r.getGardenSlot().getId())) {
-                continue; // Bỏ qua nếu nhân viên chưa nhận việc tại ô này
+            if (r.getGardenSlot() == null) {
+                continue;
             }
 
             String slotNumber = r.getGardenSlot() != null ? r.getGardenSlot().getSlotNumber() : "N/A";
@@ -843,11 +826,6 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                     final Long targetPillarId = p.getId();
                     String pCode = p.getPillarCode() != null ? p.getPillarCode() : ("Trụ " + p.getId());
 
-                    // Chỉ cho phép trụ mà nhân viên đã nhận việc
-                    if (!claimedPillarCodes.isEmpty() && !claimedPillarCodes.stream().anyMatch(c -> c.contains(pCode) || pCode.contains(c))) {
-                        continue;
-                    }
-
                     // Tìm giống cây trên trụ này (Ưu tiên: approved request mới nhất -> p.defaultTree -> r.tree)
                     TreePlantingRequest latestReq = requests.stream()
                             .filter(req -> req.getTargetPillar() != null && req.getTargetPillar().getId().equals(targetPillarId))
@@ -865,7 +843,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
                     // Check if this pillar already has an active harvest task for the current planting cycle
                     if (hasActiveHarvestTaskForPillar(r, pCode, plantedDate)) {
-                        continue; // Trụ này đang được thu hoạch -> ẩn khỏi dropdown
+                        continue; // Trụ này đang được thu hoạch hoặc đã gửi đề xuất -> ẩn khỏi dropdown
                     }
 
                     Integer harvestDays = tree.getHarvestDays();
@@ -886,8 +864,8 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                     ));
                 }
             } else if (r.getTree() != null) {
-                if (!hasActiveHarvestTask(r)) {
-                    LocalDateTime plantedDate = r.getPlantedAt() != null ? r.getPlantedAt() : r.getStartTime();
+                LocalDateTime plantedDate = r.getPlantedAt() != null ? r.getPlantedAt() : r.getStartTime();
+                if (!hasActiveHarvestTaskForPillar(r, null, plantedDate)) {
                     Integer harvestDays = r.getTree().getHarvestDays();
                     Integer daysGrown = plantedDate != null
                             ? (int) java.time.temporal.ChronoUnit.DAYS.between(plantedDate.toLocalDate(), java.time.LocalDate.now())
@@ -933,7 +911,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
         Long rentalLocationId = getSlotLocationId(rental.getGardenSlot());
         if (staff.getLocation() == null || !staff.getLocation().getId().equals(rentalLocationId)) {
-            throw new IllegalArgumentException("You can only notify harvest for rentals at your own location");
+            throw new IllegalArgumentException("Bạn chỉ có thể gửi đề xuất thu hoạch sớm cho các ô vườn tại cơ sở làm việc của mình");
         }
 
         Pillar targetPillar = null;
@@ -945,20 +923,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
         String effectivePillarCode = targetPillar != null ? targetPillar.getPillarCode() : pillarCode;
 
-        // Xác thực nhân viên ĐÃ BẤM NHẬN VIỆC tại ô vườn / trụ này
-        List<GardeningTask> staffTasks = gardeningTaskRepository.findByAssignedStaffUsernameOrderByCreatedAtDesc(username);
-        boolean hasClaimed = staffTasks.stream()
-                .anyMatch(t -> t.getStatus() != ETaskStatus.COMPLETED && t.getStatus() != ETaskStatus.CANCELLED 
-                        && t.getTargetSlot() != null && t.getTargetSlot().getId().equals(rental.getGardenSlot().getId())
-                        && (effectivePillarCode == null || t.getPillarCodes() == null || t.getPillarCodes().isBlank() || t.getPillarCodes().contains(effectivePillarCode) || effectivePillarCode.contains(t.getPillarCodes())));
-
-        if (!hasClaimed) {
-            throw new IllegalArgumentException("Bạn chưa nhận việc tại ô vườn / trụ này. Vui lòng bấm [Nhận việc] trước khi báo thu hoạch sớm.");
-        }
-
         LocalDateTime plantedDateCutoff = rental.getPlantedAt() != null ? rental.getPlantedAt() : rental.getStartTime();
         if (hasActiveHarvestTaskForPillar(rental, effectivePillarCode, plantedDateCutoff)) {
-            throw new IllegalArgumentException("This pillar already has an active harvest task in progress");
+            throw new IllegalArgumentException("Trụ " + (effectivePillarCode != null ? effectivePillarCode : "") + " đã có đề xuất thu hoạch sớm đang chờ duyệt hoặc đang được xử lý.");
         }
 
         Tree targetTree = null;
