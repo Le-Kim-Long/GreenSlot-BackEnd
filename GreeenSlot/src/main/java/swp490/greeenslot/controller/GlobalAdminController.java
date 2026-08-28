@@ -32,7 +32,7 @@ public class GlobalAdminController {
     public ResponseEntity<Page<UserAdminDTO>> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, size, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "id"));
         return ResponseEntity.ok(adminService.getAllUsers(pageable));
     }
 
