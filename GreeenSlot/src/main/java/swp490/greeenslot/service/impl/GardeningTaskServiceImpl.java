@@ -252,17 +252,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                 .stream().filter(s -> Boolean.TRUE.equals(s.getIsActive()))
                 .toList();
 
+        // Strictly require an active schedule today
         if (todaySchedules.isEmpty()) {
-            // Check if there are any schedules configured in this location today
-            List<StaffSchedule> locationSchedulesToday = staffScheduleRepository.findByLocationAndDate(staff.getLocation().getId(), today)
-                    .stream().filter(s -> Boolean.TRUE.equals(s.getIsActive()))
-                    .toList();
-            if (!locationSchedulesToday.isEmpty()) {
-                // Location uses shift scheduling and this staff is not scheduled today -> return empty
-                return List.of();
-            }
-            // Fallback for locations without active shift setup
-            return allUnassigned;
+            return List.of();
         }
 
         // Check if staff has any whole-location shift (slot == null)
@@ -279,7 +271,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                 .collect(Collectors.toSet());
 
         return allUnassigned.stream()
-                .filter(t -> t.getTargetSlot() == null || assignedSlotIds.contains(t.getTargetSlot().getId()))
+                .filter(t -> t.getTargetSlot() != null && assignedSlotIds.contains(t.getTargetSlot().getId()))
                 .collect(Collectors.toList());
     }
 
@@ -305,27 +297,32 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             throw new IllegalArgumentException("You can only claim tasks at your own location");
         }
 
-        // If staff has schedules assigned to specific slots today, ensure task matches assigned slot
+        // Strictly verify that staff has an active shift today covering this slot
         LocalDate today = LocalDate.now();
         List<StaffSchedule> todaySchedules = staffScheduleRepository.findByStaffAndDateRange(staff.getId(), today, today)
                 .stream().filter(s -> Boolean.TRUE.equals(s.getIsActive()))
                 .toList();
 
-        if (!todaySchedules.isEmpty()) {
-            boolean hasLocationWideShift = todaySchedules.stream().anyMatch(s -> s.getGardenSlot() == null);
-            if (!hasLocationWideShift && task.getTargetSlot() != null) {
-                Set<Long> assignedSlotIds = todaySchedules.stream()
-                        .map(StaffSchedule::getGardenSlot)
-                        .filter(Objects::nonNull)
-                        .map(GardenSlot::getId)
-                        .collect(Collectors.toSet());
-                if (!assignedSlotIds.contains(task.getTargetSlot().getId())) {
-                    String assignedNames = todaySchedules.stream()
-                            .filter(s -> s.getGardenSlot() != null)
-                            .map(s -> "Ô " + s.getGardenSlot().getSlotNumber())
-                            .collect(Collectors.joining(", "));
-                    throw new IllegalArgumentException("Bạn chỉ có thể nhận công việc tại ô vườn đã được phân công trực (" + assignedNames + ")");
-                }
+        if (todaySchedules.isEmpty()) {
+            throw new IllegalArgumentException("Bạn chưa được phân công ca trực nào trong ngày hôm nay nên không thể nhận việc.");
+        }
+
+        boolean hasLocationWideShift = todaySchedules.stream().anyMatch(s -> s.getGardenSlot() == null);
+        if (!hasLocationWideShift) {
+            if (task.getTargetSlot() == null) {
+                throw new IllegalArgumentException("Công việc này không thuộc ô vườn bạn được phân công trực.");
+            }
+            Set<Long> assignedSlotIds = todaySchedules.stream()
+                    .map(StaffSchedule::getGardenSlot)
+                    .filter(Objects::nonNull)
+                    .map(GardenSlot::getId)
+                    .collect(Collectors.toSet());
+            if (!assignedSlotIds.contains(task.getTargetSlot().getId())) {
+                String assignedNames = todaySchedules.stream()
+                        .filter(s -> s.getGardenSlot() != null)
+                        .map(s -> "Ô " + s.getGardenSlot().getSlotNumber())
+                        .collect(Collectors.joining(", "));
+                throw new IllegalArgumentException("Bạn chỉ có thể nhận công việc tại ô vườn đã được phân công trực hôm nay (" + assignedNames + ")");
             }
         }
 
