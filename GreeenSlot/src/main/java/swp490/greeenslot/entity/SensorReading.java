@@ -29,6 +29,9 @@ public class SensorReading {
     @Column(length = 20)
     private String unit;
 
+    @Column(name = "pillar_id")
+    private Long pillarId;
+
     @Column(name = "recorded_at", nullable = false)
     private Instant recordedAt;
 
@@ -89,5 +92,13 @@ public class SensorReading {
 
     public void setRecordedAt(Instant recordedAt) {
         this.recordedAt = recordedAt;
+    }
+
+    public Long getPillarId() {
+        return pillarId;
+    }
+
+    public void setPillarId(Long pillarId) {
+        this.pillarId = pillarId;
     }
 }

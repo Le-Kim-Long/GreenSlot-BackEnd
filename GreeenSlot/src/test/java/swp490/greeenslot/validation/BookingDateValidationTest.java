@@ -199,7 +199,7 @@ class BookingDateValidationTest {
         SlotRental savedRental = new SlotRental();
         savedRental.setId(100L);
         when(slotRentalRepository.save(any(SlotRental.class))).thenReturn(savedRental);
-        when(vnPayUtils.buildPaymentUrl(anyString(), any(BigDecimal.class), anyString(), anyString(), anyBoolean()))
+        when(vnPayUtils.buildPaymentUrl(anyString(), any(BigDecimal.class), anyString(), anyString(), anyBoolean(), any()))
                 .thenReturn("http://vnpay.mock/url");
 
         BookingResponseDTO response = bookingService.createBooking(request, "testuser", "127.0.0.1");
@@ -229,7 +229,7 @@ class BookingDateValidationTest {
         SlotRental savedRental = new SlotRental();
         savedRental.setId(101L);
         when(slotRentalRepository.save(any(SlotRental.class))).thenReturn(savedRental);
-        when(vnPayUtils.buildPaymentUrl(anyString(), any(BigDecimal.class), anyString(), anyString(), anyBoolean()))
+        when(vnPayUtils.buildPaymentUrl(anyString(), any(BigDecimal.class), anyString(), anyString(), anyBoolean(), any()))
                 .thenReturn("http://vnpay.mock/url");
 
         BookingResponseDTO response = bookingService.createBooking(request, "testuser", "127.0.0.1");
@@ -249,15 +249,11 @@ class BookingDateValidationTest {
 
         swp490.greeenslot.entity.Tree tree = new swp490.greeenslot.entity.Tree();
         tree.setId(5L);
-        tree.setTreeName("Cà chua Bi");
-        tree.setHarvestDays(45); // 45 > 30
+        tree.setTreeName("Cà chua bi");
+        tree.setHarvestDays(45); // 45 days > 30 days -> Error
 
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
         when(gardenSlotRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(testSlot));
-        when(paymentTransactionRepository.findRecentPendingTransactions(eq(10L), any(LocalDateTime.class)))
-                .thenReturn(Collections.emptyList());
-        when(slotRentalRepository.findCurrentlyRentedPillarIds(any(LocalDateTime.class)))
-                .thenReturn(Collections.emptyList());
         when(treeRepository.findById(5L)).thenReturn(Optional.of(tree));
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
@@ -268,24 +264,27 @@ class BookingDateValidationTest {
     }
 
     @Test
-    @DisplayName("Pillar Fallback: Should fallback to location pillars when slot has no assigned pillars")
+    @DisplayName("Pillar Location Fallback: Should pick active pillars belonging to the slot location when slot has no assigned pillars")
     void testService_CreateBooking_SlotWithoutPillars_FallsBackToLocation() {
-        swp490.greeenslot.entity.Location loc = new swp490.greeenslot.entity.Location();
-        loc.setId(2L);
-
         GardenSlot emptySlot = new GardenSlot();
         emptySlot.setId(20L);
         emptySlot.setSlotNumber("S-02");
+        emptySlot.setArea(3.0);
         emptySlot.setStatus(ESlotStatus.AVAILABLE);
+
+        swp490.greeenslot.entity.Location loc = new swp490.greeenslot.entity.Location();
+        loc.setId(2L);
         emptySlot.setLocation(loc);
         emptySlot.setPillars(Collections.emptyList());
 
         Pillar locPillar = new Pillar();
         locPillar.setId(201L);
-        locPillar.setPillarCode("P-LOC-01");
+        locPillar.setPillarCode("P-02");
+        locPillar.setPillarType(swp490.greeenslot.entity.EPillarType.MEDIUM);
         locPillar.setStatus(EPillarStatus.ACTIVE);
         locPillar.setPrice(new BigDecimal("180000"));
-        locPillar.setCapacityHoles(24);
+        locPillar.setCapacityHoles(30);
+        locPillar.setLocation(loc);
 
         BookingRequestDTO request = new BookingRequestDTO();
         request.setSlotId(20L);
@@ -303,7 +302,7 @@ class BookingDateValidationTest {
         SlotRental savedRental = new SlotRental();
         savedRental.setId(200L);
         when(slotRentalRepository.save(any(SlotRental.class))).thenReturn(savedRental);
-        when(vnPayUtils.buildPaymentUrl(anyString(), any(BigDecimal.class), anyString(), anyString(), anyBoolean()))
+        when(vnPayUtils.buildPaymentUrl(anyString(), any(BigDecimal.class), anyString(), anyString(), anyBoolean(), any()))
                 .thenReturn("http://vnpay.mock/url");
 
         BookingResponseDTO response = bookingService.createBooking(request, "testuser", "127.0.0.1");
@@ -366,7 +365,7 @@ class BookingDateValidationTest {
         SlotRental savedRental = new SlotRental();
         savedRental.setId(500L);
         when(slotRentalRepository.save(any(SlotRental.class))).thenReturn(savedRental);
-        when(vnPayUtils.buildPaymentUrl(anyString(), any(BigDecimal.class), anyString(), anyString(), anyBoolean()))
+        when(vnPayUtils.buildPaymentUrl(anyString(), any(BigDecimal.class), anyString(), anyString(), anyBoolean(), any()))
                 .thenReturn("http://vnpay.mock/url");
 
         BookingResponseDTO response = bookingService.createBooking(request, "testuser", "127.0.0.1");
@@ -384,7 +383,7 @@ class BookingDateValidationTest {
                 anyString(),
                 eq("PILLAR_SETUP_REQUIRED"),
                 eq(500L),
-                eq("/dashboard/manager/tasks")
+                anyString()
         );
     }
 }

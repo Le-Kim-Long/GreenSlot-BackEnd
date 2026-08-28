@@ -19,7 +19,11 @@ public class TreeDTO {
     private Integer harvestDays;
     private Integer minRentalDays;
     private BigDecimal price;
+    private BigDecimal priceSmall;
+    private BigDecimal priceMedium;
+    private BigDecimal priceLarge;
     private String imageUrl;
+
     private Double soilMoistureMin;
     private Double soilMoistureMax;
     private Double lightMin;

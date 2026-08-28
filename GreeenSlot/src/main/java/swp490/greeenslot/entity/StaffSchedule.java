@@ -39,6 +39,10 @@ public class StaffSchedule {
     @Column(name = "end_time", nullable = false)
     private LocalTime endTime;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "slot_id")
+    private GardenSlot gardenSlot;
+
     @Nationalized
     @Column(name = "notes", length = 4000)
     private String notes;

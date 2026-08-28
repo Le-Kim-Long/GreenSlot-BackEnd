@@ -618,18 +618,58 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         List<SlotRental> rentals = slotRentalRepository.findAllActiveRentals();
         return rentals.stream()
-                .filter(r -> targetLocationId == null || (r.getGardenSlot() != null && r.getGardenSlot().getPillar() != null && r.getGardenSlot().getPillar().getLocation() != null && targetLocationId.equals(r.getGardenSlot().getPillar().getLocation().getId())))
-                .map(r -> new ActiveRentalDTO(
-                        r.getId(),
-                        r.getUser().getUsername(),
-                        r.getUser().getFullName(),
-                        r.getGardenSlot().getSlotNumber(),
-                        r.getGardenSlot().getPillar().getPillarCode(),
-                        r.getGardenSlot().getPillar().getLocation().getName(),
-                        r.getStartTime(),
-                        r.getEndTime(),
-                        r.getStatus().name()
-                )).collect(Collectors.toList());
+                .filter(r -> {
+                    if (targetLocationId == null) return true;
+                    if (r.getGardenSlot() == null) return false;
+                    GardenSlot slot = r.getGardenSlot();
+                    Location loc = slot.getLocation() != null ? slot.getLocation() : (slot.getPillar() != null ? slot.getPillar().getLocation() : null);
+                    if (loc == null && slot.getPillars() != null && !slot.getPillars().isEmpty()) {
+                        Pillar firstP = slot.getPillars().iterator().next();
+                        if (firstP != null) loc = firstP.getLocation();
+                    }
+                    return loc != null && targetLocationId.equals(loc.getId());
+                })
+                .map(r -> {
+                    String username = (r.getUser() != null) ? r.getUser().getUsername() : "N/A";
+                    String fullName = (r.getUser() != null) ? r.getUser().getFullName() : "N/A";
+                    String slotNumber = (r.getGardenSlot() != null && r.getGardenSlot().getSlotNumber() != null) ? String.valueOf(r.getGardenSlot().getSlotNumber()) : "N/A";
+                    
+                    String pillarCode = "N/A";
+                    String locationName = "N/A";
+                    if (r.getGardenSlot() != null) {
+                        GardenSlot slot = r.getGardenSlot();
+                        if (slot.getPillars() != null && !slot.getPillars().isEmpty()) {
+                            pillarCode = slot.getPillars().stream()
+                                    .filter(java.util.Objects::nonNull)
+                                    .map(Pillar::getPillarCode)
+                                    .filter(java.util.Objects::nonNull)
+                                    .collect(Collectors.joining(", "));
+                        } else if (slot.getPillar() != null && slot.getPillar().getPillarCode() != null) {
+                            pillarCode = slot.getPillar().getPillarCode();
+                        }
+                        
+                        Location loc = slot.getLocation() != null ? slot.getLocation() : (slot.getPillar() != null ? slot.getPillar().getLocation() : null);
+                        if (loc == null && slot.getPillars() != null && !slot.getPillars().isEmpty()) {
+                            Pillar firstP = slot.getPillars().iterator().next();
+                            if (firstP != null) loc = firstP.getLocation();
+                        }
+                        if (loc != null && loc.getName() != null) {
+                            locationName = loc.getName();
+                        }
+                    }
+                    
+                    return new ActiveRentalDTO(
+                            r.getId(),
+                            username,
+                            fullName,
+                            slotNumber,
+                            pillarCode,
+                            locationName,
+                            r.getStartTime(),
+                            r.getEndTime(),
+                            r.getStatus() != null ? r.getStatus().name() : "N/A"
+                    );
+                }).collect(Collectors.toList());
     }
 
     // ==========================================
@@ -661,13 +701,13 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         // Map detailed transactions log list
         List<PaymentTransactionDTO> txDtos = transactions.stream().map(t -> new PaymentTransactionDTO(
                 t.getId(),
-                t.getRental().getId(),
-                t.getRental().getGardenSlot().getSlotNumber(),
-                t.getRental().getUser().getUsername(),
+                t.getRental() != null ? t.getRental().getId() : null,
+                (t.getRental() != null && t.getRental().getGardenSlot() != null && t.getRental().getGardenSlot().getSlotNumber() != null) ? String.valueOf(t.getRental().getGardenSlot().getSlotNumber()) : "N/A",
+                (t.getRental() != null && t.getRental().getUser() != null) ? t.getRental().getUser().getUsername() : "N/A",
                 t.getAmount(),
                 t.getVnpTxnRef(),
                 t.getPaymentDate(),
-                t.getStatus().name()
+                t.getStatus() != null ? t.getStatus().name() : "N/A"
         )).collect(Collectors.toList());
 
         return new RevenueAnalyticsResponseDTO(totalRevenue, dailyBreakdown, txDtos);
@@ -712,27 +752,45 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
                         && (t.getRental().getGardenSlot().getLocation() != null || (t.getRental().getGardenSlot().getPillar() != null && t.getRental().getGardenSlot().getPillar().getLocation() != null))
                         && t.getRental().getUser() != null)
                 .map(t -> {
-                    GardenSlot slot = t.getRental().getGardenSlot();
+                    SlotRental rental = t.getRental();
+                    GardenSlot slot = rental.getGardenSlot();
                     Location loc = slot.getLocation() != null ? slot.getLocation() : (slot.getPillar() != null ? slot.getPillar().getLocation() : null);
                     String locName = loc != null ? loc.getName() : "N/A";
-                    String pillarCode = (slot.getPillars() != null && !slot.getPillars().isEmpty())
-                            ? slot.getPillars().stream().map(Pillar::getPillarCode).collect(Collectors.joining(", "))
-                            : (slot.getPillar() != null ? slot.getPillar().getPillarCode() : "N/A");
+                    String pillarCode = (rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty())
+                            ? rental.getRentedPillars().stream().map(Pillar::getPillarCode).collect(Collectors.joining(", "))
+                            : ((slot.getPillars() != null && !slot.getPillars().isEmpty())
+                                    ? slot.getPillars().stream().map(Pillar::getPillarCode).collect(Collectors.joining(", "))
+                                    : (slot.getPillar() != null ? slot.getPillar().getPillarCode() : "N/A"));
+
+                    String treeName = rental.getTree() != null ? rental.getTree().getTreeName() : "Chưa chọn cây";
+                    Integer durationMonths = (rental.getStartTime() != null && rental.getEndTime() != null)
+                            ? (int) Math.max(1, java.time.temporal.ChronoUnit.MONTHS.between(rental.getStartTime(), rental.getEndTime()))
+                            : 1;
+                    String finalTxCode = (t.getTransactionCode() != null && !t.getTransactionCode().isBlank()) 
+                            ? t.getTransactionCode() 
+                            : (t.getVnpTxnRef() != null ? t.getVnpTxnRef() : "#" + t.getId());
 
                     return new TransactionDeclarationDTO(
                             t.getId(),
-                            t.getRental().getId(),
+                            rental.getId(),
                             slot.getSlotNumber(),
-                            t.getRental().getUser().getUsername(),
-                            t.getRental().getUser().getFullName(),
+                            rental.getUser() != null ? rental.getUser().getUsername() : "N/A",
+                            rental.getUser() != null ? rental.getUser().getFullName() : "N/A",
+                            rental.getUser() != null ? rental.getUser().getEmail() : null,
+                            rental.getUser() != null ? rental.getUser().getPhone() : null,
                             t.getAmount(),
-                            t.getTransactionCode(),
-                            t.getPaymentMethod() != null ? t.getPaymentMethod().name() : null,
+                            finalTxCode,
+                            t.getVnpTxnRef(),
+                            t.getPaymentMethod() != null ? t.getPaymentMethod().name() : "VNPAY",
                             t.getPaymentDate(),
-                            t.getStatus() != null ? t.getStatus().name() : null,
+                            t.getStatus() != null ? t.getStatus().name() : "SUCCESS",
                             locName,
                             pillarCode,
-                            "Khach hang thue slot " + slot.getSlotNumber() + " tai " + locName
+                            treeName,
+                            durationMonths,
+                            rental.getStartTime(),
+                            rental.getEndTime(),
+                            "Khách hàng thuê ô " + slot.getSlotNumber() + " (Trụ " + pillarCode + ") tại " + locName
                     );
                 })
                 .collect(Collectors.toList());

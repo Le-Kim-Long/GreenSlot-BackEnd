@@ -48,16 +48,18 @@ greeenslot:
     # SECURITY: JWT secret MUST be set via environment variable — no fallback
     jwtSecret: ${JWT_SECRET:YmV6a29kZXJTZWNyZXRLZXlXaGljaE11c3RCZUExbGVhc3QyNTZCaXRzTG9uZ0ZvckpXVA==}
     jwtExpirationMs: ${JWT_EXPIRATION_MS:86400000} # 24 hours
-    frontendResetUrl: ${FRONTEND_RESET_URL:https://green-slot-front-end.vercel.app/reset-password}
+    frontendResetUrl: ${FRONTEND_RESET_URL:http://localhost:5173/reset-password}
     resetTokenExpirationMs: ${RESET_TOKEN_EXPIRATION_MS:3600000} # 1 hour
   vnpay:
     tmnCode: ${VNP_TMN_CODE:1COY3S4A}
     hashSecret: ${VNP_HASH_SECRET:FJTNAGQQ30CITUPLSH4BUTT9OL323SMQ}
     url: ${VNP_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
-    returnUrl: ${VNP_RETURN_URL:http://192.168.1.180:8080/api/payments/vnpay-return}
-    frontendReturnUrl: ${FRONTEND_RETURN_URL:https://green-slot-front-end.vercel.app/payment-result}
+    returnUrl: ${VNP_RETURN_URL:http://localhost:8080/api/payments/vnpay-return}
+    frontendReturnUrl: ${FRONTEND_RETURN_URL:http://localhost:5173/payment-result}
     mobileReturnUrl: ${MOBILE_RETURN_URL:greenslot://payment-result}
     ipnUrl: ${VNP_IPN_URL:}
+
+
 
 ---
 # --- POSTGRESQL PROFILE (Render Production) ---

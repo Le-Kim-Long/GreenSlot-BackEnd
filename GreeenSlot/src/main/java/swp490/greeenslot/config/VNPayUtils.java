@@ -30,8 +30,10 @@ public class VNPayUtils {
     @Value("${greeenslot.vnpay.url:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}")
     private String url;
 
-    @Value("${greeenslot.vnpay.returnUrl:https://greenslot-backend-test.onrender.com/api/payments/vnpay-return}")
+    @Value("${greeenslot.vnpay.returnUrl:http://localhost:8080/api/payments/vnpay-return}")
     private String returnUrl;
+
+
 
     @Value("${greeenslot.vnpay.mobileReturnUrl:greenslot://payment-result}")
     private String mobileReturnUrl;
@@ -80,11 +82,12 @@ public class VNPayUtils {
         String effectiveReturnUrl = returnUrl;
         if (isMobile) {
             effectiveReturnUrl += (effectiveReturnUrl.contains("?") ? "&" : "?") + "client=mobile";
-            if (mobileRedirectUrl != null && !mobileRedirectUrl.isBlank()
-                    && isAllowedMobileRedirect(mobileRedirectUrl)) {
-                effectiveReturnUrl += "&redirectUrl=" + encode(mobileRedirectUrl);
-            }
         }
+        if (mobileRedirectUrl != null && !mobileRedirectUrl.isBlank()
+                && isAllowedMobileRedirect(mobileRedirectUrl)) {
+            effectiveReturnUrl += (effectiveReturnUrl.contains("?") ? "&" : "?") + "redirectUrl=" + encode(mobileRedirectUrl);
+        }
+
 
         Map<String, String> vnp_Params = new HashMap<>();
         vnp_Params.put("vnp_Version", vnp_Version);

@@ -232,7 +232,9 @@ public class BookingServiceImpl implements BookingService {
         if (request.getTreeIds() != null && !request.getTreeIds().isEmpty()) {
             for (Long tId : request.getTreeIds()) {
                 if (tId != null && tId > 0) {
-                    treeRepository.findById(tId).ifPresent(resolvedTrees::add);
+                    resolvedTrees.add(treeRepository.findById(tId).orElse(null));
+                } else {
+                    resolvedTrees.add(null);
                 }
             }
         }
@@ -241,8 +243,13 @@ public class BookingServiceImpl implements BookingService {
         if (request.getTreeId() != null && request.getTreeId() > 0) {
             selectedTree = treeRepository.findById(request.getTreeId()).orElse(null);
         }
-        if (selectedTree == null && !resolvedTrees.isEmpty()) {
-            selectedTree = resolvedTrees.get(0);
+        if (selectedTree == null) {
+            for (Tree t : resolvedTrees) {
+                if (t != null) {
+                    selectedTree = t;
+                    break;
+                }
+            }
         }
         if (selectedTree == null) {
             selectedTree = selectedPillars.stream()
@@ -251,6 +258,7 @@ public class BookingServiceImpl implements BookingService {
                     .findFirst()
                     .orElse(null);
         }
+
 
         // Validate tree growth time vs rental duration for all chosen trees
         int maxRentalDays = months * 30;
@@ -278,13 +286,20 @@ public class BookingServiceImpl implements BookingService {
         BigDecimal totalTreeCost = BigDecimal.ZERO;
         for (int i = 0; i < selectedPillars.size(); i++) {
             Pillar p = selectedPillars.get(i);
-            Tree treeForPillar = (i < resolvedTrees.size()) ? resolvedTrees.get(i) : selectedTree;
-            if (treeForPillar != null && treeForPillar.getPrice() != null && treeForPillar.getPrice().compareTo(BigDecimal.ZERO) > 0) {
-                double scale = (double) p.getEffectiveHoles() / 24.0;
-                BigDecimal scaledPrice = treeForPillar.getPrice().multiply(BigDecimal.valueOf(scale));
-                totalTreeCost = totalTreeCost.add(scaledPrice);
+            Tree treeForPillar = i < resolvedTrees.size() ? resolvedTrees.get(i) : null;
+            if (treeForPillar == null) {
+                treeForPillar = selectedTree;
+            }
+            if (treeForPillar != null) {
+                p.setDefaultTree(treeForPillar);
+                pillarRepository.save(p);
+                BigDecimal pillarTreePrice = treeForPillar.getEffectivePriceForPillar(p);
+                if (pillarTreePrice != null && pillarTreePrice.compareTo(BigDecimal.ZERO) > 0) {
+                    totalTreeCost = totalTreeCost.add(pillarTreePrice);
+                }
             }
         }
+
 
         BigDecimal amount = monthlySlotPrice.multiply(new BigDecimal(months)).add(totalTreeCost);
 
@@ -368,7 +383,7 @@ public class BookingServiceImpl implements BookingService {
                     ),
                     "PILLAR_SETUP_REQUIRED",
                     rental.getId(),
-                    "/dashboard/manager/tasks"
+                    "/dashboard/staff/tasks"
                 );
             }
 
@@ -380,7 +395,7 @@ public class BookingServiceImpl implements BookingService {
                         pillarSummary, slot.getSlotNumber(), start.toLocalDate()),
                     "TASK_ASSIGNED",
                     setupTask.getId(),
-                    "/dashboard/staff/tasks"
+                    "/dashboard/garden-staff/schedules"
                 );
             }
         }
@@ -401,7 +416,7 @@ public class BookingServiceImpl implements BookingService {
         int pillarCount = selectedPillars.size();
         String orderInfo = "GreenSlot - Thue vuon " + slot.getSlotNumber() + " (" + pillarCount + " tru) trong " + months + " thang";
         boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
-        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile, request.getMobileRedirectUrl());
+        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile, request.getRedirectUrl());
 
         return new BookingResponseDTO(rental.getId(), paymentUrl, txnRef);
     }
@@ -449,7 +464,8 @@ public class BookingServiceImpl implements BookingService {
 
         String orderInfo = "GreenSlot - Gia han vuon #" + rental.getId() + " them " + months + " thang";
         boolean isMobile = Boolean.TRUE.equals(request.getIsMobile());
-        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile, request.getMobileRedirectUrl());
+        String paymentUrl = vnPayUtils.buildPaymentUrl(txnRef, amount, ipAddress, orderInfo, isMobile, request.getRedirectUrl());
+
 
         return new BookingResponseDTO(rental.getId(), paymentUrl, txnRef);
     }
@@ -506,11 +522,17 @@ public class BookingServiceImpl implements BookingService {
 
         // vnp_TransactionStatus might be null, empty, or absent in return redirects, so check responseCode and fallback if present
         boolean isSuccess = "00".equals(responseCode) && (transactionStatus == null || transactionStatus.isEmpty() || "00".equals(transactionStatus));
-        logger.info("VNPay transaction result for txnRef={}: success={}, responseCode={}, transactionStatus={}", txnRef, isSuccess, responseCode, transactionStatus);
         txn.setPaymentDate(LocalDateTime.now());
+        String vnpTransactionNo = params.get("vnp_TransactionNo");
+        if (vnpTransactionNo != null && !vnpTransactionNo.isBlank()) {
+            txn.setTransactionCode(vnpTransactionNo);
+        } else if (txn.getTransactionCode() == null || txn.getTransactionCode().isBlank()) {
+            txn.setTransactionCode(txnRef);
+        }
+        txn.setPaymentMethod(EPaymentMethod.VNPAY);
 
         if (isSuccess) {
-            logger.info("Updating transaction and rental status to SUCCESS/ACTIVE for txnRef={}", txnRef);
+            logger.info("Updating transaction and rental status to SUCCESS/ACTIVE for txnRef={}, vnpTransactionNo={}", txnRef, vnpTransactionNo);
             txn.setStatus(EPaymentStatus.SUCCESS);
             paymentTransactionRepository.save(txn);
 
@@ -542,9 +564,10 @@ public class BookingServiceImpl implements BookingService {
 
                 // Notify customer of successful payment and rental activation
                 User customer = rental.getUser();
-                String slotNumber = slot.getSlotNumber();
-                String locationName = slot.getPillar() != null && slot.getPillar().getLocation() != null 
-                        ? slot.getPillar().getLocation().getName() : "N/A";
+                String slotNumber = slot != null ? slot.getSlotNumber() : "N/A";
+                String locationName = slot != null && slot.getLocation() != null ? slot.getLocation().getName() :
+                        (slot != null && slot.getPillar() != null && slot.getPillar().getLocation() != null 
+                        ? slot.getPillar().getLocation().getName() : "N/A");
                 
                 notificationService.createNotification(
                         customer.getId(),
@@ -559,6 +582,86 @@ public class BookingServiceImpl implements BookingService {
                         "Thanh toán thành công",
                         String.format("Hợp đồng thuê ô vườn %s đã kích hoạt đến %s", slotNumber, rental.getEndTime().toLocalDate())
                 );
+
+                // Option B: Tạo nhiệm vụ chuẩn bị ô đất & gieo giống bóc tách độc lập theo từng trụ
+                if (slot != null) {
+                    List<Pillar> rentedPillars = rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()
+                            ? rental.getRentedPillars()
+                            : (slot.getPillars() != null && !slot.getPillars().isEmpty() ? slot.getPillars() : (slot.getPillar() != null ? List.of(slot.getPillar()) : List.of()));
+
+                    List<GardeningTask> createdPrepTasks = new ArrayList<>();
+
+                    if (!rentedPillars.isEmpty()) {
+                        for (Pillar p : rentedPillars) {
+                            Tree treeForPillar = p.getDefaultTree() != null ? p.getDefaultTree() : rental.getTree();
+                            String pTreeName = treeForPillar != null ? treeForPillar.getTreeName() : "Chưa chọn giống cây";
+                            String pCode = p.getPillarCode() != null ? p.getPillarCode() : ("Trụ " + p.getId());
+
+                            GardeningTask prepTask = new GardeningTask();
+                            prepTask.setTaskName(String.format("Chuẩn bị & Gieo giống: %s - Ô %s (Trụ %s)", pTreeName, slotNumber, pCode));
+                            prepTask.setDescription(String.format(
+                                "Khách hàng %s vừa hoàn tất thanh toán thuê ô vườn %s (Trụ: %s, Giống: %s). Quản lý vui lòng phân công nhân viên kiểm tra đất và chuẩn bị gieo giống.",
+                                customer.getFullName() != null ? customer.getFullName() : customer.getUsername(),
+                                slotNumber,
+                                pCode,
+                                pTreeName
+                            ));
+                            prepTask.setTaskType(ETaskType.MAINTENANCE);
+                            prepTask.setStatus(ETaskStatus.PENDING);
+                            prepTask.setTargetSlot(slot);
+                            prepTask.setRequestedBy(customer);
+                            prepTask.setAssignedStaff(null);
+                            prepTask.setPillarCodes(pCode);
+                            prepTask.setTreeName(pTreeName);
+                            prepTask.setCreatedAt(LocalDateTime.now());
+                            createdPrepTasks.add(gardeningTaskRepository.save(prepTask));
+                        }
+                    } else {
+                        String treeName = rental.getTree() != null ? rental.getTree().getTreeName() : "Chưa chọn giống cây";
+                        GardeningTask prepTask = new GardeningTask();
+                        prepTask.setTaskName("Chuẩn bị ô đất & Gieo giống: " + treeName + " - Ô " + slotNumber);
+                        prepTask.setDescription(String.format(
+                            "Khách hàng %s vừa hoàn tất thanh toán thuê ô vườn %s (Giống: %s). Quản lý vui lòng phân công nhân viên kiểm tra đất và chuẩn bị gieo giống.",
+                            customer.getFullName() != null ? customer.getFullName() : customer.getUsername(),
+                            slotNumber,
+                            treeName
+                        ));
+                        prepTask.setTaskType(ETaskType.MAINTENANCE);
+                        prepTask.setStatus(ETaskStatus.PENDING);
+                        prepTask.setTargetSlot(slot);
+                        prepTask.setRequestedBy(customer);
+                        prepTask.setAssignedStaff(null);
+                        prepTask.setTreeName(treeName);
+                        prepTask.setCreatedAt(LocalDateTime.now());
+                        createdPrepTasks.add(gardeningTaskRepository.save(prepTask));
+                    }
+
+                    // Báo cho Location Manager của cơ sở để điều phối phân công nhân viên
+                    Long locId = slot.getLocation() != null ? slot.getLocation().getId() : 
+                                 (slot.getPillar() != null && slot.getPillar().getLocation() != null ? slot.getPillar().getLocation().getId() : null);
+                    List<User> managers = locId != null
+                            ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId)
+                            : List.of();
+                    if (managers.isEmpty()) {
+                        managers = userRepository.findByRoleName(ERole.ROLE_LOCATION_MANAGER);
+                    }
+                    if (managers.isEmpty()) {
+                        managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
+                    }
+                    Long firstTaskId = !createdPrepTasks.isEmpty() ? createdPrepTasks.get(0).getId() : null;
+                    for (User mgr : managers) {
+                        notificationService.createNotification(
+                                mgr.getId(),
+                                "Hợp đồng mới cần phân công nhân viên: Ô " + slotNumber,
+                                String.format("Khách hàng %s đã thanh toán thuê ô %s. Vui lòng vào phân công nhân viên phụ trách chuẩn bị đất và gieo giống.",
+                                        customer.getFullName() != null ? customer.getFullName() : customer.getUsername(),
+                                        slotNumber),
+                                "NEW_BOOKING_TASK_ASSIGNMENT",
+                                firstTaskId,
+                                "/dashboard/staff/tasks"
+                        );
+                    }
+                }
 
             } else if (txnRef.startsWith("EXT_")) {
                 SlotRental rental = txn.getRental();
@@ -601,18 +704,55 @@ public class BookingServiceImpl implements BookingService {
                 Long requestId = Long.parseLong(parts[1]);
                 TreePlantingRequest req = treePlantingRequestRepository.findById(requestId).orElse(null);
                 if (req != null) {
-                    req.setStatus(EPlantingRequestStatus.APPROVED);
-                    req.setProcessedAt(LocalDateTime.now());
+                    req.setStatus(EPlantingRequestStatus.PENDING);
+                    req.setProcessedAt(null);
                     treePlantingRequestRepository.save(req);
-                    logger.info("Tree planting request ID {} approved and paid via VNPay", req.getId());
+                    logger.info("Tree planting request ID {} paid via VNPay, status is PENDING manager approval", req.getId());
+
+                    SlotRental rental = req.getRental();
+                    String slotNumber = (rental != null && rental.getGardenSlot() != null) ? rental.getGardenSlot().getSlotNumber() : "N/A";
+                    String treeName = req.getNewTree() != null ? req.getNewTree().getTreeName() : "cây trồng";
+                    String pillarDesc = req.getTargetPillar() != null ? ("Trụ " + req.getTargetPillar().getPillarCode()) : "Toàn bộ các trụ";
+                    String costDesc = req.getAmount() != null ? String.format(" (Số tiền: %,d đ)", req.getAmount().longValue()) : "";
+                    String locName = (rental != null && rental.getGardenSlot() != null && rental.getGardenSlot().getLocation() != null)
+                            ? rental.getGardenSlot().getLocation().getName()
+                            : (rental != null && rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null && rental.getGardenSlot().getPillar().getLocation() != null
+                            ? rental.getGardenSlot().getPillar().getLocation().getName() : "N/A");
 
                     if (req.getRequestedBy() != null && notificationService != null) {
                         notificationService.createNotification(
                                 req.getRequestedBy().getId(),
-                                "Thanh toán giống rau thành công",
-                                "Thanh toán tiền giống rau " + (req.getNewTree() != null ? req.getNewTree().getTreeName() : "") + " thành công. Yêu cầu gieo trồng đã được tiếp nhận và phân công nhân viên xử lý.",
+                                "Thanh toán giống rau thành công: Ô " + slotNumber,
+                                "Thanh toán tiền giống rau " + treeName + " tại ô " + slotNumber + " (" + pillarDesc + ", Cơ sở: " + locName + ")" + costDesc + " thành công. Yêu cầu đang chờ Quản lý cơ sở phê duyệt.",
                                 "PAYMENT_SUCCESS"
                         );
+                    }
+
+                    if (notificationService != null && rental != null && rental.getGardenSlot() != null) {
+                        Long locId = rental.getGardenSlot().getLocation() != null ? rental.getGardenSlot().getLocation().getId() : 
+                                     (rental.getGardenSlot().getPillar() != null && rental.getGardenSlot().getPillar().getLocation() != null ? rental.getGardenSlot().getPillar().getLocation().getId() : null);
+                        List<User> managers = locId != null
+                                ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId)
+                                : List.of();
+                        if (managers.isEmpty()) {
+                            managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
+                        }
+                        for (User manager : managers) {
+                            notificationService.createNotification(
+                                    manager.getId(),
+                                    "Yêu cầu trồng cây đã thanh toán: Ô " + slotNumber,
+                                    String.format("Khách hàng %s đã thanh toán phí giống rau %s tại ô %s (%s, Cơ sở: %s)%s. Vui lòng kiểm tra và phê duyệt.",
+                                            req.getRequestedBy() != null ? req.getRequestedBy().getFullName() : "Khách hàng",
+                                            treeName,
+                                            slotNumber,
+                                            pillarDesc,
+                                            locName,
+                                            costDesc),
+                                    "PLANTING_REQUEST_CREATED",
+                                    req.getId(),
+                                    "/dashboard/staff/tree-planting"
+                            );
+                        }
                     }
                 }
             }
@@ -654,6 +794,25 @@ public class BookingServiceImpl implements BookingService {
                         "Thanh toán không thành công",
                         String.format("Thanh toán cho ô vườn %s chưa thành công. Vui lòng kiểm tra lại.", slotNumber)
                 );
+            } else if (txnRef.startsWith("PLANT_")) {
+                String[] parts = txnRef.split("_");
+                Long requestId = Long.parseLong(parts[1]);
+                TreePlantingRequest req = treePlantingRequestRepository.findById(requestId).orElse(null);
+                if (req != null) {
+                    req.setStatus(EPlantingRequestStatus.REJECTED);
+                    req.setNotes("Thanh toán không thành công hoặc bị hủy");
+                    treePlantingRequestRepository.save(req);
+                    logger.info("Tree planting request ID {} marked as REJECTED due to failed VNPay payment", req.getId());
+
+                    if (req.getRequestedBy() != null && notificationService != null) {
+                        notificationService.createNotification(
+                                req.getRequestedBy().getId(),
+                                "Thanh toán giống cây không thành công",
+                                "Giao dịch thanh toán tiền giống rau không thành công hoặc đã bị hủy. Vui lòng thử lại.",
+                                "PAYMENT_FAILED"
+                        );
+                    }
+                }
             }
         }
 
@@ -693,12 +852,15 @@ public class BookingServiceImpl implements BookingService {
                     if (p != null && p.getPillarCode() != null && !seenCodes.contains(p.getPillarCode())) {
                         seenCodes.add(p.getPillarCode());
                         pillarCodes.add(p.getPillarCode());
+                        Tree pTree = p.getDefaultTree() != null ? p.getDefaultTree() : rental.getTree();
                         pillarInfos.add(new RentalHistoryDTO.PillarInfo(
                                 p.getId(),
                                 p.getPillarCode(),
                                 p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
                                 p.getCameraStreamUrl(),
-                                p.getCameraStatus()
+                                p.getCameraStatus(),
+                                pTree != null ? pTree.getId() : null,
+                                pTree != null ? pTree.getTreeName() : null
                         ));
                     }
                 }
@@ -706,12 +868,15 @@ public class BookingServiceImpl implements BookingService {
                 Pillar p = slot.getPillar();
                 seenCodes.add(p.getPillarCode());
                 pillarCodes.add(p.getPillarCode());
+                Tree pTree = p.getDefaultTree() != null ? p.getDefaultTree() : rental.getTree();
                 pillarInfos.add(new RentalHistoryDTO.PillarInfo(
                         p.getId(),
                         p.getPillarCode(),
                         p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
                         p.getCameraStreamUrl(),
-                        p.getCameraStatus()
+                        p.getCameraStatus(),
+                        pTree != null ? pTree.getId() : null,
+                        pTree != null ? pTree.getTreeName() : null
                 ));
             }
             String primaryPillarCode = !pillarCodes.isEmpty() ? String.join(", ", pillarCodes) : "N/A";
@@ -721,12 +886,49 @@ public class BookingServiceImpl implements BookingService {
             List<PaymentTransaction> txns = txnsByRentalId.getOrDefault(rental.getId(), Collections.emptyList());
             List<RentalHistoryDTO.PaymentTransactionInfo> txnInfos = new ArrayList<>();
             for (PaymentTransaction txn : txns) {
+                String targetPillarCode = null;
+                Integer targetPillarHoles = null;
+                String txnTreeName = null;
+                Integer txnPillarsCount = null;
+
+                if (txn.getVnpTxnRef() != null && txn.getVnpTxnRef().startsWith("PLANT_")) {
+                    try {
+                        String[] parts = txn.getVnpTxnRef().split("_");
+                        if (parts.length >= 2) {
+                            Long reqId = Long.parseLong(parts[1]);
+                            Optional<TreePlantingRequest> reqOpt = treePlantingRequestRepository.findById(reqId);
+                            if (reqOpt.isPresent()) {
+                                TreePlantingRequest req = reqOpt.get();
+                                if (req.getTargetPillar() != null) {
+                                    targetPillarCode = req.getTargetPillar().getPillarCode();
+                                    targetPillarHoles = req.getTargetPillar().getEffectiveHoles();
+                                    txnPillarsCount = 1;
+                                } else {
+                                    targetPillarCode = "Toàn bộ các trụ";
+                                    txnPillarsCount = rentedPillars != null ? rentedPillars.size() : 1;
+                                    targetPillarHoles = rentedPillars != null 
+                                            ? rentedPillars.stream().mapToInt(Pillar::getEffectiveHoles).sum()
+                                            : 24;
+                                }
+                                if (req.getNewTree() != null) {
+                                    txnTreeName = req.getNewTree().getTreeName();
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+
                 txnInfos.add(new RentalHistoryDTO.PaymentTransactionInfo(
                         txn.getId(),
                         txn.getAmount(),
                         txn.getVnpTxnRef(),
                         txn.getPaymentDate(),
-                        txn.getStatus().name()
+                        txn.getStatus().name(),
+                        targetPillarCode,
+                        targetPillarHoles,
+                        txnTreeName,
+                        txnPillarsCount
                 ));
             }
 
@@ -821,6 +1023,8 @@ public class BookingServiceImpl implements BookingService {
         return getOrRegeneratePaymentUrl(rentalId, username, ipAddress, isMobile, null);
     }
 
+    @Override
+    @Transactional
     public BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress,
                                                         boolean isMobile, String mobileRedirectUrl) {
         SlotRental rental = slotRentalRepository.findByIdWithPessimisticLock(rentalId)
@@ -949,6 +1153,15 @@ public class BookingServiceImpl implements BookingService {
             return;
         }
 
+        String slotNumber = rental.getGardenSlot().getSlotNumber();
+        List<Pillar> rentedPillars = rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()
+                ? rental.getRentedPillars()
+                : (rental.getGardenSlot().getPillars() != null ? rental.getGardenSlot().getPillars() : (rental.getGardenSlot().getPillar() != null ? List.of(rental.getGardenSlot().getPillar()) : List.of()));
+        String pillarCodes = rentedPillars.stream()
+                .map(p -> p.getPillarCode() != null ? p.getPillarCode() : ("Trụ " + p.getId()))
+                .collect(java.util.stream.Collectors.joining(", "));
+        String treeName = rental.getTree() != null ? rental.getTree().getTreeName() : "cây trồng";
+
         List<GardeningTask> harvestTasks = gardeningTaskRepository
                 .findByTargetSlotIdAndTaskTypeOrderByCreatedAtDesc(rental.getGardenSlot().getId(), ETaskType.HARVEST);
         GardeningTask task = harvestTasks.stream()
@@ -956,28 +1169,71 @@ public class BookingServiceImpl implements BookingService {
                 .findFirst()
                 .orElse(null);
 
-        if (task == null || task.getAssignedStaff() == null) {
-            return;
-        }
-
-        String slotNumber = rental.getGardenSlot().getSlotNumber();
         if ("SELF".equals(decision)) {
-            task.setStatus(ETaskStatus.CANCELLED);
-            gardeningTaskRepository.save(task);
+            if (task != null) {
+                task.setStatus(ETaskStatus.CANCELLED);
+                gardeningTaskRepository.save(task);
 
-            notificationService.createNotification(
-                    task.getAssignedStaff().getId(),
-                    "Khách đã tự thu hoạch",
-                    "Khách hàng ở ô " + slotNumber + " đã chọn tự thu hoạch, bạn không cần xử lý công việc này nữa.",
-                    "HARVEST_SELF"
-            );
+                if (task.getAssignedStaff() != null && notificationService != null) {
+                    notificationService.createNotification(
+                            task.getAssignedStaff().getId(),
+                            "Khách đã tự thu hoạch",
+                            "Khách hàng ở ô " + slotNumber + " đã chọn tự thu hoạch, bạn không cần xử lý công việc này nữa.",
+                            "HARVEST_SELF",
+                            task.getId(),
+                            "/dashboard/garden-staff"
+                    );
+                }
+            }
         } else {
-            notificationService.createNotification(
-                    task.getAssignedStaff().getId(),
-                    "Khách nhờ hỗ trợ thu hoạch",
-                    "Khách hàng ở ô " + slotNumber + " nhờ hỗ trợ thu hoạch giúp. Tiến hành xử lý công việc nhé.",
-                    "HARVEST_STAFF_CONFIRMED"
-            );
+            // STAFF choice: create or update task to PENDING for execution
+            if (task != null) {
+                task.setTaskName("Thu hoạch: " + treeName + " - Ô " + slotNumber + (pillarCodes != null ? " (" + (pillarCodes.startsWith("Trụ") ? pillarCodes : ("Trụ " + pillarCodes)) + ")" : ""));
+                task.setDescription("Khách hàng đã yêu cầu nhân viên hỗ trợ thu hoạch cây " + treeName + " tại ô " + slotNumber + ". Tiến hành thu hoạch và nộp ảnh bằng chứng để Quản lý duyệt.");
+                task.setStatus(ETaskStatus.PENDING);
+                gardeningTaskRepository.save(task);
+
+                if (task.getAssignedStaff() != null && notificationService != null) {
+                    notificationService.createNotification(
+                            task.getAssignedStaff().getId(),
+                            "Khách nhờ hỗ trợ thu hoạch",
+                            "Khách hàng ở ô " + slotNumber + " nhờ hỗ trợ thu hoạch cây " + treeName + ". Tiến hành xử lý công việc nhé.",
+                            "HARVEST_STAFF_CONFIRMED",
+                            task.getId(),
+                            "/dashboard/garden-staff"
+                    );
+                }
+            } else {
+                GardeningTask execTask = new GardeningTask();
+                execTask.setTaskName("Thu hoạch: " + treeName + " - Ô " + slotNumber + (pillarCodes != null ? " (" + (pillarCodes.startsWith("Trụ") ? pillarCodes : ("Trụ " + pillarCodes)) + ")" : ""));
+                execTask.setDescription("Khách hàng đã yêu cầu nhân viên hỗ trợ thu hoạch cây " + treeName + " tại ô " + slotNumber + ". Tiến hành thu hoạch và nộp ảnh bằng chứng để Quản lý duyệt.");
+                execTask.setStatus(ETaskStatus.PENDING);
+                execTask.setTaskType(ETaskType.HARVEST);
+                execTask.setTargetSlot(rental.getGardenSlot());
+                execTask.setRequestedBy(rental.getUser());
+                execTask.setAssignedStaff(null);
+                execTask.setPillarCodes(pillarCodes);
+                execTask.setTreeName(treeName);
+                execTask.setCreatedAt(LocalDateTime.now());
+                GardeningTask saved = gardeningTaskRepository.save(execTask);
+
+                if (notificationService != null) {
+                    Long locationId = rental.getGardenSlot().getLocation() != null ? rental.getGardenSlot().getLocation().getId() : null;
+                    List<User> staffList = locationId != null 
+                            ? userRepository.findByRoleNameAndLocation(ERole.ROLE_GARDEN_STAFF, locationId) 
+                            : userRepository.findByRoleName(ERole.ROLE_GARDEN_STAFF);
+                    for (User s : staffList) {
+                        notificationService.createNotification(
+                                s.getId(),
+                                "Khách nhờ hỗ trợ thu hoạch",
+                                "Khách hàng ở ô " + slotNumber + " nhờ hỗ trợ thu hoạch cây " + treeName + ". Vui lòng nhận việc.",
+                                "HARVEST_STAFF_CONFIRMED",
+                                saved.getId(),
+                                "/dashboard/garden-staff"
+                        );
+                    }
+                }
+            }
         }
     }
 

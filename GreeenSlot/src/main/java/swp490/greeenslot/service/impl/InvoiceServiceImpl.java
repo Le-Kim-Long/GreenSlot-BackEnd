@@ -27,6 +27,9 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Autowired
     private PaymentTransactionRepository paymentTransactionRepository;
 
+    @Autowired
+    private swp490.greeenslot.repository.TreePlantingRequestRepository treePlantingRequestRepository;
+
     @Override
     public ByteArrayOutputStream generateInvoice(Long rentalId) throws IOException {
         SlotRental rental = slotRentalRepository.findById(rentalId)
@@ -95,27 +98,75 @@ public class InvoiceServiceImpl implements InvoiceService {
 
                 contentStream.beginText();
                 contentStream.newLineAtOffset(50, 620);
-                contentStream.showText("Rental Details:");
+                contentStream.showText("Rental & Cultivation Details:");
                 contentStream.newLineAtOffset(0, -20);
                 contentStream.showText("Slot Number: " + (rental.getGardenSlot() != null ? rental.getGardenSlot().getSlotNumber() : "N/A"));
+                
+                String targetPillarText = null;
+                String targetTreeText = null;
+                if (payment != null && payment.getVnpTxnRef() != null && payment.getVnpTxnRef().startsWith("PLANT_")) {
+                    try {
+                        String[] parts = payment.getVnpTxnRef().split("_");
+                        if (parts.length >= 2) {
+                            Long reqId = Long.parseLong(parts[1]);
+                            var reqOpt = treePlantingRequestRepository.findById(reqId);
+                            if (reqOpt.isPresent()) {
+                                var req = reqOpt.get();
+                                if (req.getTargetPillar() != null) {
+                                    targetPillarText = "Trụ " + req.getTargetPillar().getPillarCode() + " (" + req.getTargetPillar().getEffectiveHoles() + " hốc)";
+                                }
+                                if (req.getNewTree() != null) {
+                                    targetTreeText = req.getNewTree().getTreeName();
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                if (targetPillarText != null) {
+                    contentStream.newLineAtOffset(0, -20);
+                    contentStream.showText("Cultivation Pillar: " + targetPillarText);
+                    if (targetTreeText != null) {
+                        contentStream.newLineAtOffset(0, -20);
+                        contentStream.showText("Plant Variety: " + targetTreeText);
+                    }
+                } else {
+                    java.util.List<swp490.greeenslot.entity.Pillar> rentedPillars = rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()
+                            ? rental.getRentedPillars()
+                            : (rental.getGardenSlot() != null && rental.getGardenSlot().getPillars() != null ? rental.getGardenSlot().getPillars() : (rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null ? java.util.List.of(rental.getGardenSlot().getPillar()) : java.util.List.of()));
+                    
+                    if (!rentedPillars.isEmpty()) {
+                        for (swp490.greeenslot.entity.Pillar p : rentedPillars) {
+                            swp490.greeenslot.entity.Tree pTree = p.getDefaultTree() != null ? p.getDefaultTree() : rental.getTree();
+                            String cropName = pTree != null ? pTree.getTreeName() : "N/A";
+                            contentStream.newLineAtOffset(0, -18);
+                            contentStream.showText("Pillar " + p.getPillarCode() + " (" + p.getEffectiveHoles() + " holes) - Crop: " + cropName);
+                        }
+                    } else if (rental.getTree() != null) {
+                        contentStream.newLineAtOffset(0, -20);
+                        contentStream.showText("Plant Variety: " + rental.getTree().getTreeName());
+                    }
+                }
+
                 contentStream.newLineAtOffset(0, -20);
                 contentStream.showText("Location: " + (rental.getGardenSlot() != null && rental.getGardenSlot().getLocation() != null
                         ? rental.getGardenSlot().getLocation().getName()
                         : (rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null && rental.getGardenSlot().getPillar().getLocation() != null
                             ? rental.getGardenSlot().getPillar().getLocation().getName() : "N/A")));
-                contentStream.newLineAtOffset(0, -20);
-                contentStream.showText("Start Date: " + rental.getStartTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
-                contentStream.newLineAtOffset(0, -20);
-                contentStream.showText("End Date: " + rental.getEndTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
+                if (rental.getStartTime() != null && rental.getEndTime() != null) {
+                    contentStream.newLineAtOffset(0, -20);
+                    contentStream.showText("Rental Duration: " + rental.getStartTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) 
+                            + " to " + rental.getEndTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
+                }
                 contentStream.endText();
 
                 contentStream.beginText();
-                contentStream.newLineAtOffset(50, 540);
-                contentStream.showText("Payment Details:");
+                contentStream.newLineAtOffset(50, 480);
+                contentStream.showText("Payment Breakdown:");
                 contentStream.newLineAtOffset(0, -20);
-                contentStream.showText("Amount: $" + (payment != null ? payment.getAmount().toString() : "0.00"));
+                contentStream.showText("Total Paid: " + (payment != null ? String.format("%,d VNĐ", payment.getAmount().longValue()) : "0 VNĐ"));
                 contentStream.newLineAtOffset(0, -20);
-                contentStream.showText("Status: " + (payment != null ? payment.getStatus().name() : rental.getStatus().name()));
+                contentStream.showText("Payment Status: " + (payment != null ? payment.getStatus().name() : rental.getStatus().name()));
                 contentStream.newLineAtOffset(0, -20);
                 contentStream.showText("Transaction Ref: " + (payment != null ? payment.getVnpTxnRef() : "N/A"));
                 contentStream.endText();
