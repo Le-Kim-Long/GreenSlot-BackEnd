@@ -74,4 +74,17 @@ public class HarvestHistory {
 
     @Column(name = "harvested_at")
     private LocalDateTime harvestedAt;
+
+    @Nationalized
+    @Column(name = "pillar_codes", length = 255)
+    private String pillarCodes;
+
+    @Column(name = "harvest_days")
+    private Integer harvestDays;
+
+    @Column(name = "days_grown")
+    private Integer daysGrown;
+
+    @Column(name = "is_early_harvest")
+    private Boolean isEarlyHarvest = false;
 }

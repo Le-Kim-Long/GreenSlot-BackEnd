@@ -29,6 +29,9 @@ public class StaffScheduleServiceImpl implements StaffScheduleService {
     private LocationRepository locationRepository;
 
     @Autowired
+    private swp490.greeenslot.repository.GardenSlotRepository gardenSlotRepository;
+
+    @Autowired
     private swp490.greeenslot.service.LocationContextService locationContextService;
 
     @Override
@@ -50,7 +53,7 @@ public class StaffScheduleServiceImpl implements StaffScheduleService {
     @Override
     @Transactional
     public StaffScheduleDTO createSchedule(StaffScheduleDTO dto) {
-        validateScheduleDates(dto);
+        validateScheduleDates(dto, null);
         StaffSchedule schedule = mapToEntity(dto);
         StaffSchedule savedSchedule = staffScheduleRepository.save(schedule);
         return mapToDTO(savedSchedule);
@@ -59,7 +62,7 @@ public class StaffScheduleServiceImpl implements StaffScheduleService {
     @Override
     @Transactional
     public StaffScheduleDTO updateSchedule(Long id, StaffScheduleDTO dto) {
-        validateScheduleDates(dto);
+        validateScheduleDates(dto, id);
         StaffSchedule existingSchedule = staffScheduleRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Schedule not found with id: " + id));
         
@@ -68,13 +71,42 @@ public class StaffScheduleServiceImpl implements StaffScheduleService {
         return mapToDTO(updatedSchedule);
     }
 
-    private void validateScheduleDates(StaffScheduleDTO dto) {
+    private void validateScheduleDates(StaffScheduleDTO dto, Long currentScheduleId) {
         if (dto.getScheduleDate() != null && dto.getScheduleDate().isBefore(LocalDate.now())) {
             throw new IllegalArgumentException("Schedule date cannot be in the past");
         }
         if (dto.getStartTime() != null && dto.getEndTime() != null) {
             if (!dto.getStartTime().isBefore(dto.getEndTime())) {
                 throw new IllegalArgumentException("Start time must be before end time");
+            }
+            long minutes = java.time.Duration.between(dto.getStartTime(), dto.getEndTime()).toMinutes();
+            if (minutes <= 0) {
+                throw new IllegalArgumentException("Thời gian làm việc phải lớn hơn 0 phút");
+            }
+            if (minutes > 8 * 60) {
+                throw new IllegalArgumentException("Thời gian làm việc một ca không được vượt quá 8 tiếng (tối đa 8 giờ/ngày)");
+            }
+
+            if (dto.getStaffId() != null && dto.getScheduleDate() != null) {
+                User staff = userRepository.findById(dto.getStaffId()).orElse(null);
+                if (staff != null) {
+                    List<StaffSchedule> existingSchedules = staffScheduleRepository.findByStaff(staff).stream()
+                            .filter(s -> Boolean.TRUE.equals(s.getIsActive()))
+                            .filter(s -> dto.getScheduleDate().equals(s.getScheduleDate()))
+                            .filter(s -> currentScheduleId == null || !s.getId().equals(currentScheduleId))
+                            .toList();
+
+                    long otherMinutes = existingSchedules.stream()
+                            .mapToLong(s -> java.time.Duration.between(s.getStartTime(), s.getEndTime()).toMinutes())
+                            .sum();
+
+                    if (otherMinutes + minutes > 8 * 60) {
+                        double totalHours = (otherMinutes + minutes) / 60.0;
+                        throw new IllegalArgumentException(String.format(
+                                "Tổng thời gian làm việc trong ngày %s của nhân viên không được vượt quá 8 tiếng (Tổng phân công: %.1f tiếng)",
+                                dto.getScheduleDate(), totalHours));
+                    }
+                }
             }
         }
     }
@@ -132,6 +164,8 @@ public class StaffScheduleServiceImpl implements StaffScheduleService {
                 schedule.getScheduleDate(),
                 schedule.getStartTime(),
                 schedule.getEndTime(),
+                schedule.getGardenSlot() != null ? schedule.getGardenSlot().getId() : null,
+                schedule.getGardenSlot() != null ? schedule.getGardenSlot().getSlotNumber() : null,
                 schedule.getNotes(),
                 schedule.getIsActive()
         );
@@ -148,6 +182,9 @@ public class StaffScheduleServiceImpl implements StaffScheduleService {
             Location location = locationRepository.findById(dto.getLocationId())
                     .orElseThrow(() -> new RuntimeException("Location not found with id: " + dto.getLocationId()));
             schedule.setLocation(location);
+        }
+        if (dto.getSlotId() != null) {
+            gardenSlotRepository.findById(dto.getSlotId()).ifPresent(schedule::setGardenSlot);
         }
         schedule.setScheduleDate(dto.getScheduleDate());
         schedule.setStartTime(dto.getStartTime());
@@ -167,6 +204,11 @@ public class StaffScheduleServiceImpl implements StaffScheduleService {
             Location location = locationRepository.findById(dto.getLocationId())
                     .orElseThrow(() -> new RuntimeException("Location not found with id: " + dto.getLocationId()));
             schedule.setLocation(location);
+        }
+        if (dto.getSlotId() != null) {
+            gardenSlotRepository.findById(dto.getSlotId()).ifPresent(schedule::setGardenSlot);
+        } else if (dto.getSlotNumber() == null) {
+            schedule.setGardenSlot(null);
         }
         if (dto.getScheduleDate() != null) schedule.setScheduleDate(dto.getScheduleDate());
         if (dto.getStartTime() != null) schedule.setStartTime(dto.getStartTime());

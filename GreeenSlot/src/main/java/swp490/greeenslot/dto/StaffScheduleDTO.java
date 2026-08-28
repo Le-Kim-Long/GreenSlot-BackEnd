@@ -37,6 +37,9 @@ public class StaffScheduleDTO {
     @NotNull(message = "End time is required")
     private LocalTime endTime;
 
+    private Long slotId;
+    private String slotNumber;
+
     private String notes;
     private Boolean isActive;
 }

@@ -197,6 +197,26 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     private GardeningTaskResponseDTO mapToGardeningTaskDTO(GardeningTask task) {
+        String locationName = null;
+        if (task.getTargetSlot() != null && task.getTargetSlot().getLocation() != null) {
+            locationName = task.getTargetSlot().getLocation().getName();
+        } else if (task.getTargetSlot() != null && task.getTargetSlot().getPillar() != null && task.getTargetSlot().getPillar().getLocation() != null) {
+            locationName = task.getTargetSlot().getPillar().getLocation().getName();
+        } else if (task.getAssignedStaff() != null && task.getAssignedStaff().getLocation() != null) {
+            locationName = task.getAssignedStaff().getLocation().getName();
+        }
+
+        String pillarCodes = task.getPillarCodes();
+        if ((pillarCodes == null || pillarCodes.isBlank()) && task.getTargetSlot() != null && task.getTargetSlot().getPillars() != null && !task.getTargetSlot().getPillars().isEmpty()) {
+            pillarCodes = task.getTargetSlot().getPillars().stream()
+                    .map(swp490.greeenslot.entity.Pillar::getPillarCode)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(Collectors.joining(", "));
+        }
+
+        boolean isEarly = Boolean.TRUE.equals(task.getIsEarlyHarvest()) || (task.getTaskName() != null && task.getTaskName().contains("sớm"));
+        String customerName = task.getRequestedBy() != null ? task.getRequestedBy().getFullName() : null;
+
         return new GardeningTaskResponseDTO(
                 task.getId(),
                 task.getTaskName(),
@@ -209,7 +229,12 @@ public class CustomerServiceImpl implements CustomerService {
                 task.getTargetSlot() != null ? task.getTargetSlot().getId() : null,
                 task.getTargetSlot() != null ? task.getTargetSlot().getSlotNumber() : null,
                 task.getCreatedAt(),
-                task.getRejectionReason()
+                task.getRejectionReason(),
+                locationName,
+                pillarCodes,
+                task.getTreeName(),
+                isEarly,
+                customerName
         );
     }
 
@@ -218,27 +243,23 @@ public class CustomerServiceImpl implements CustomerService {
         Location location = (slot != null && slot.getLocation() != null) ? slot.getLocation() : (slot != null && slot.getPillar() != null ? slot.getPillar().getLocation() : null);
 
         List<Pillar> slotPillars = slot != null ? slot.getPillars() : null;
+        List<Pillar> rentedPillars = rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()
+                ? rental.getRentedPillars()
+                : (slotPillars != null && !slotPillars.isEmpty() ? slotPillars : (slot != null && slot.getPillar() != null ? List.of(slot.getPillar()) : List.of()));
+
         List<String> pillarCodes = new ArrayList<>();
         List<RentalHistoryDTO.PillarInfo> pillarInfos = new ArrayList<>();
-        if (slotPillars != null && !slotPillars.isEmpty()) {
-            for (Pillar p : slotPillars) {
-                pillarCodes.add(p.getPillarCode());
-                pillarInfos.add(new RentalHistoryDTO.PillarInfo(
-                        p.getId(),
-                        p.getPillarCode(),
-                        p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
-                        p.getCameraStreamUrl(),
-                        p.getCameraStatus()
-                ));
-            }
-        } else if (slot != null && slot.getPillar() != null) {
-            pillarCodes.add(slot.getPillar().getPillarCode());
+        for (Pillar p : rentedPillars) {
+            pillarCodes.add(p.getPillarCode());
+            Tree pTree = p.getDefaultTree() != null ? p.getDefaultTree() : rental.getTree();
             pillarInfos.add(new RentalHistoryDTO.PillarInfo(
-                    slot.getPillar().getId(),
-                    slot.getPillar().getPillarCode(),
-                    slot.getPillar().getStatus() != null ? slot.getPillar().getStatus().name() : "ACTIVE",
-                    slot.getPillar().getCameraStreamUrl(),
-                    slot.getPillar().getCameraStatus()
+                    p.getId(),
+                    p.getPillarCode(),
+                    p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
+                    p.getCameraStreamUrl(),
+                    p.getCameraStatus(),
+                    pTree != null ? pTree.getId() : null,
+                    pTree != null ? pTree.getTreeName() : null
             ));
         }
         String primaryPillarCode = !pillarCodes.isEmpty() ? String.join(", ", pillarCodes) : (slot != null && slot.getPillar() != null ? slot.getPillar().getPillarCode() : "N/A");

@@ -17,6 +17,11 @@ public interface LocationContextService {
     boolean isLocationManager();
 
     /**
+     * Checks if current user is a Garden Staff.
+     */
+    boolean isGardenStaff();
+
+    /**
      * Checks if current user is a global Admin or Manager.
      */
     boolean isGlobalManagerOrAdmin();

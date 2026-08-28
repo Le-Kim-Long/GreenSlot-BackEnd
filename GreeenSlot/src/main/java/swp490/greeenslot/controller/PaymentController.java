@@ -37,6 +37,7 @@ public class PaymentController {
     private String defaultReturnUrl;
 
 
+
     @Value("${greeenslot.vnpay.mobileReturnUrl:${MOBILE_RETURN_URL:greenslot://payment-result}}")
     private String mobileReturnUrl;
 

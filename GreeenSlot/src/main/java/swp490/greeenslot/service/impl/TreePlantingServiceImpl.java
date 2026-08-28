@@ -68,6 +68,9 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             if (slot.getPillar() != null && slot.getPillar().getLocation() != null) {
                 return slot.getPillar().getLocation().getId();
             }
+            if (slot.getPillars() != null && !slot.getPillars().isEmpty() && slot.getPillars().get(0).getLocation() != null) {
+                return slot.getPillars().get(0).getLocation().getId();
+            }
         }
         return null;
     }
@@ -80,6 +83,9 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             }
             if (slot.getPillar() != null && slot.getPillar().getLocation() != null) {
                 return slot.getPillar().getLocation().getName();
+            }
+            if (slot.getPillars() != null && !slot.getPillars().isEmpty() && slot.getPillars().get(0).getLocation() != null) {
+                return slot.getPillars().get(0).getLocation().getName();
             }
         }
         return null;
@@ -270,6 +276,11 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         // Notify location managers about planting request
         if (notificationService != null) {
             String slotNumber = rental.getGardenSlot() != null ? rental.getGardenSlot().getSlotNumber() : "N/A";
+            String locName = getRequestLocationName(savedRequest);
+            String pillarDesc = targetPillar != null ? ("Trụ " + targetPillar.getPillarCode()) : "Toàn bộ các trụ";
+            String costDesc = totalTreeCost.compareTo(java.math.BigDecimal.ZERO) > 0 
+                ? String.format(" (Chi phí: %,d đ)", totalTreeCost.longValue()) : "";
+
             Long locId = getRequestLocationId(savedRequest);
             List<User> managers = locId != null
                     ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId)
@@ -277,11 +288,14 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             if (managers.isEmpty()) {
                 managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
             }
-            String title = "Yêu cầu trồng cây mới";
-            String message = String.format("Khách hàng %s yêu cầu trồng cây %s tại ô đất %s.",
+            String title = "Yêu cầu trồng cây mới: Ô " + slotNumber;
+            String message = String.format("Khách hàng %s yêu cầu trồng giống %s tại ô %s (%s, Cơ sở: %s)%s.",
                     user.getFullName() != null ? user.getFullName() : username,
                     newTree.getTreeName(),
-                    slotNumber);
+                    slotNumber,
+                    pillarDesc,
+                    locName != null ? locName : "N/A",
+                    costDesc);
 
             for (User manager : managers) {
                 notificationService.createNotification(
@@ -319,7 +333,34 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         // Duyệt xong thì cây yêu cầu mới thực sự được trồng vào ô đất của rental này
         SlotRental rental = request.getRental();
         Tree newTree = request.getNewTree();
-        rental.setTree(newTree);
+        
+        if (request.getTargetPillar() != null) {
+            // Gán giống cây đích danh cho Trụ mục tiêu
+            request.getTargetPillar().setDefaultTree(newTree);
+            pillarRepository.save(request.getTargetPillar());
+            if (rental.getRentedPillars() == null) {
+                rental.setRentedPillars(new java.util.ArrayList<>());
+            }
+            if (!rental.getRentedPillars().contains(request.getTargetPillar())) {
+                rental.getRentedPillars().add(request.getTargetPillar());
+            }
+            if (rental.getTree() == null) {
+                rental.setTree(newTree);
+            }
+        } else {
+            // Áp dụng cho toàn bộ các trụ trong ô đất
+            rental.setTree(newTree);
+            if (rental.getGardenSlot() != null && rental.getGardenSlot().getPillars() != null) {
+                for (Pillar p : rental.getGardenSlot().getPillars()) {
+                    p.setDefaultTree(newTree);
+                    pillarRepository.save(p);
+                }
+            } else if (rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null) {
+                Pillar p = rental.getGardenSlot().getPillar();
+                p.setDefaultTree(newTree);
+                pillarRepository.save(p);
+            }
+        }
         rental.setTreeStatus(swp490.greeenslot.entity.ETreeStatus.HEALTHY);
         rental.setPlantedAt(now);
         rental.setHarvestReminderSent(false);
@@ -349,8 +390,11 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         if (notificationService != null && updatedRequest.getRequestedBy() != null) {
             String slotNumber = (rental.getGardenSlot() != null) ? rental.getGardenSlot().getSlotNumber() : "N/A";
             String treeName = updatedRequest.getNewTree() != null ? updatedRequest.getNewTree().getTreeName() : "cây trồng";
-            String title = "Yêu cầu trồng cây đã được duyệt";
-            String message = String.format("Yêu cầu trồng cây %s tại ô đất %s của bạn đã được duyệt.", treeName, slotNumber);
+            String pillarDesc = updatedRequest.getTargetPillar() != null ? ("Trụ " + updatedRequest.getTargetPillar().getPillarCode()) : "Toàn bộ các trụ";
+            String locName = getRequestLocationName(updatedRequest);
+            String title = "Yêu cầu trồng cây đã được duyệt: Ô " + slotNumber;
+            String message = String.format("Yêu cầu trồng giống %s tại ô %s (%s, Cơ sở: %s) của bạn đã được Quản lý phê duyệt.",
+                    treeName, slotNumber, pillarDesc, locName != null ? locName : "N/A");
 
             notificationService.createNotification(
                     updatedRequest.getRequestedBy().getId(),
@@ -367,37 +411,55 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         if (targetSlot != null) {
             String slotNumber = targetSlot.getSlotNumber();
             String treeName = newTree != null ? newTree.getTreeName() : "cây trồng";
+            String pillarDesc = request.getTargetPillar() != null ? ("Trụ " + request.getTargetPillar().getPillarCode()) : "Toàn bộ các trụ";
+            String pillarCode = request.getTargetPillar() != null ? request.getTargetPillar().getPillarCode() : null;
+            Integer holes = request.getTargetPillar() != null ? request.getTargetPillar().getEffectiveHoles() : null;
+            String holesText = holes != null ? (" (" + holes + " hốc)") : "";
+            String locName = getRequestLocationName(request);
+
+            if (request.getTargetPillar() != null) {
+                request.getTargetPillar().setDefaultTree(newTree);
+                pillarRepository.save(request.getTargetPillar());
+            }
 
             GardeningTask careTask = new GardeningTask();
-            careTask.setTaskName("Kiểm tra & chăm sóc cây mới trồng: " + treeName + " - Ô " + slotNumber);
+            careTask.setTaskName(String.format("Gieo trồng & chăm sóc: %s - Ô %s (%s)", treeName, slotNumber, pillarDesc));
             careTask.setDescription(String.format(
-                    "Cây %s vừa được duyệt trồng tại ô %s. Vui lòng kiểm tra đất, cảm biến và chăm sóc ban đầu cho cây.",
-                    treeName, slotNumber));
+                    "Giống %s vừa được duyệt trồng tại ô %s (%s%s, Cơ sở: %s). Vui lòng gieo đúng số lượng %s cây giống theo đúng trụ được chỉ định và kiểm tra hệ thống cảm biến/tưới.",
+                    treeName, slotNumber, pillarDesc, holesText, locName != null ? locName : "N/A", holes != null ? (holes + " ") : ""));
             careTask.setStatus(ETaskStatus.PENDING);
             careTask.setTaskType(ETaskType.MAINTENANCE);
             careTask.setTargetSlot(targetSlot);
             careTask.setRequestedBy(request.getRequestedBy());
             careTask.setAssignedStaff(null);
+            careTask.setPillarCodes(pillarCode != null ? pillarCode : pillarDesc);
+            careTask.setTreeName(treeName);
             careTask.setCreatedAt(now);
             GardeningTask savedCareTask = gardeningTaskRepository.save(careTask);
 
-            // Báo cho toàn bộ nhân viên tại location đó biết có việc mới cần nhận
+            // Option B: Báo cho Location Manager vào phân công nhân viên chăm sóc
             if (notificationService != null) {
                 Long locId = getRequestLocationId(request);
-                List<User> staffList = locId != null
-                        ? userRepository.findByRoleNameAndLocation(ERole.ROLE_GARDEN_STAFF, locId)
+                List<User> managers = locId != null
+                        ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId)
                         : List.of();
-                String staffTitle = "Có cây mới cần chăm sóc";
-                String staffMessage = String.format("Cây %s vừa được duyệt trồng tại ô %s. Vào mục nhiệm vụ để nhận việc chăm sóc.",
-                        treeName, slotNumber);
-                for (User staff : staffList) {
+                if (managers.isEmpty()) {
+                    managers = userRepository.findByRoleName(ERole.ROLE_LOCATION_MANAGER);
+                }
+                if (managers.isEmpty()) {
+                    managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
+                }
+                String mgrTitle = "Cần phân công nhân viên chăm sóc: Ô " + slotNumber;
+                String mgrMessage = String.format("Cây %s vừa được duyệt trồng tại ô %s (%s, Cơ sở: %s). Vui lòng vào phân công nhân viên phụ trách chăm sóc.",
+                        treeName, slotNumber, pillarDesc, locName != null ? locName : "N/A");
+                for (User mgr : managers) {
                     notificationService.createNotification(
-                            staff.getId(),
-                            staffTitle,
-                            staffMessage,
-                            "NEW_CARE_TASK_AVAILABLE",
+                            mgr.getId(),
+                            mgrTitle,
+                            mgrMessage,
+                            "PLANTING_TASK_ASSIGNMENT_REQUIRED",
                             savedCareTask.getId(),
-                            "/dashboard/garden-staff"
+                            "/dashboard/staff/tasks"
                     );
                 }
             }
@@ -433,9 +495,11 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             String slotNumber = (updatedRequest.getRental() != null && updatedRequest.getRental().getGardenSlot() != null)
                     ? updatedRequest.getRental().getGardenSlot().getSlotNumber() : "N/A";
             String treeName = updatedRequest.getNewTree() != null ? updatedRequest.getNewTree().getTreeName() : "cây trồng";
-            String title = "Yêu cầu trồng cây bị từ chối";
-            String message = String.format("Yêu cầu trồng cây %s tại ô đất %s bị từ chối. Lý do: %s",
-                    treeName, slotNumber, reason != null ? reason : "Không có lý do cụ thể");
+            String pillarDesc = updatedRequest.getTargetPillar() != null ? ("Trụ " + updatedRequest.getTargetPillar().getPillarCode()) : "Toàn bộ các trụ";
+            String locName = getRequestLocationName(updatedRequest);
+            String title = "Yêu cầu trồng cây bị từ chối: Ô " + slotNumber;
+            String message = String.format("Yêu cầu trồng giống %s tại ô %s (%s, Cơ sở: %s) đã bị từ chối. Lý do: %s",
+                    treeName, slotNumber, pillarDesc, locName != null ? locName : "N/A", reason != null ? reason : "Không có lý do cụ thể");
 
             notificationService.createNotification(
                     updatedRequest.getRequestedBy().getId(),
@@ -478,8 +542,11 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         if (notificationService != null && updatedRequest.getRequestedBy() != null) {
             String slotNumber = (rental.getGardenSlot() != null) ? rental.getGardenSlot().getSlotNumber() : "N/A";
             String treeName = updatedRequest.getNewTree() != null ? updatedRequest.getNewTree().getTreeName() : "cây trồng";
-            String title = "Đã hoàn thành trồng cây";
-            String message = String.format("Cây %s đã được trồng thành công vào ô đất %s.", treeName, slotNumber);
+            String pillarDesc = updatedRequest.getTargetPillar() != null ? ("Trụ " + updatedRequest.getTargetPillar().getPillarCode()) : "Toàn bộ các trụ";
+            String locName = getRequestLocationName(updatedRequest);
+            String title = "Đã hoàn thành gieo trồng: Ô " + slotNumber;
+            String message = String.format("Giống cây %s đã được nhân viên nhà vườn gieo trồng hoàn tất tại ô %s (%s, Cơ sở: %s).",
+                    treeName, slotNumber, pillarDesc, locName != null ? locName : "N/A");
 
             notificationService.createNotification(
                     updatedRequest.getRequestedBy().getId(),

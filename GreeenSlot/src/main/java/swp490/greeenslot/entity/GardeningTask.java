@@ -56,6 +56,17 @@ public class GardeningTask {
     @JoinColumn(name = "requested_by_id")
     private User requestedBy;
 
+    @Nationalized
+    @Column(name = "pillar_codes", length = 255)
+    private String pillarCodes;
+
+    @Nationalized
+    @Column(name = "tree_name", length = 255)
+    private String treeName;
+
+    @Column(name = "is_early_harvest")
+    private Boolean isEarlyHarvest = false;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
     

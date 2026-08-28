@@ -752,27 +752,45 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
                         && (t.getRental().getGardenSlot().getLocation() != null || (t.getRental().getGardenSlot().getPillar() != null && t.getRental().getGardenSlot().getPillar().getLocation() != null))
                         && t.getRental().getUser() != null)
                 .map(t -> {
-                    GardenSlot slot = t.getRental().getGardenSlot();
+                    SlotRental rental = t.getRental();
+                    GardenSlot slot = rental.getGardenSlot();
                     Location loc = slot.getLocation() != null ? slot.getLocation() : (slot.getPillar() != null ? slot.getPillar().getLocation() : null);
                     String locName = loc != null ? loc.getName() : "N/A";
-                    String pillarCode = (slot.getPillars() != null && !slot.getPillars().isEmpty())
-                            ? slot.getPillars().stream().map(Pillar::getPillarCode).collect(Collectors.joining(", "))
-                            : (slot.getPillar() != null ? slot.getPillar().getPillarCode() : "N/A");
+                    String pillarCode = (rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty())
+                            ? rental.getRentedPillars().stream().map(Pillar::getPillarCode).collect(Collectors.joining(", "))
+                            : ((slot.getPillars() != null && !slot.getPillars().isEmpty())
+                                    ? slot.getPillars().stream().map(Pillar::getPillarCode).collect(Collectors.joining(", "))
+                                    : (slot.getPillar() != null ? slot.getPillar().getPillarCode() : "N/A"));
+
+                    String treeName = rental.getTree() != null ? rental.getTree().getTreeName() : "Chưa chọn cây";
+                    Integer durationMonths = (rental.getStartTime() != null && rental.getEndTime() != null)
+                            ? (int) Math.max(1, java.time.temporal.ChronoUnit.MONTHS.between(rental.getStartTime(), rental.getEndTime()))
+                            : 1;
+                    String finalTxCode = (t.getTransactionCode() != null && !t.getTransactionCode().isBlank()) 
+                            ? t.getTransactionCode() 
+                            : (t.getVnpTxnRef() != null ? t.getVnpTxnRef() : "#" + t.getId());
 
                     return new TransactionDeclarationDTO(
                             t.getId(),
-                            t.getRental().getId(),
+                            rental.getId(),
                             slot.getSlotNumber(),
-                            t.getRental().getUser().getUsername(),
-                            t.getRental().getUser().getFullName(),
+                            rental.getUser() != null ? rental.getUser().getUsername() : "N/A",
+                            rental.getUser() != null ? rental.getUser().getFullName() : "N/A",
+                            rental.getUser() != null ? rental.getUser().getEmail() : null,
+                            rental.getUser() != null ? rental.getUser().getPhone() : null,
                             t.getAmount(),
-                            t.getTransactionCode(),
-                            t.getPaymentMethod() != null ? t.getPaymentMethod().name() : null,
+                            finalTxCode,
+                            t.getVnpTxnRef(),
+                            t.getPaymentMethod() != null ? t.getPaymentMethod().name() : "VNPAY",
                             t.getPaymentDate(),
-                            t.getStatus() != null ? t.getStatus().name() : null,
+                            t.getStatus() != null ? t.getStatus().name() : "SUCCESS",
                             locName,
                             pillarCode,
-                            "Khach hang thue slot " + slot.getSlotNumber() + " tai " + locName
+                            treeName,
+                            durationMonths,
+                            rental.getStartTime(),
+                            rental.getEndTime(),
+                            "Khách hàng thuê ô " + slot.getSlotNumber() + " (Trụ " + pillarCode + ") tại " + locName
                     );
                 })
                 .collect(Collectors.toList());

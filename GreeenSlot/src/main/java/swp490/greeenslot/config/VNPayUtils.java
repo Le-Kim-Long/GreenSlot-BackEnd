@@ -34,6 +34,7 @@ public class VNPayUtils {
     private String returnUrl;
 
 
+
     @Value("${greeenslot.vnpay.mobileReturnUrl:greenslot://payment-result}")
     private String mobileReturnUrl;
 

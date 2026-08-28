@@ -30,6 +30,8 @@ public class RentalHistoryDTO {
         private String status;
         private String cameraStreamUrl;
         private String cameraStatus;
+        private Long treeId;
+        private String treeName;
 
         public PillarInfo() {}
 
@@ -39,6 +41,16 @@ public class RentalHistoryDTO {
             this.status = status;
             this.cameraStreamUrl = cameraStreamUrl;
             this.cameraStatus = cameraStatus;
+        }
+
+        public PillarInfo(Long id, String pillarCode, String status, String cameraStreamUrl, String cameraStatus, Long treeId, String treeName) {
+            this.id = id;
+            this.pillarCode = pillarCode;
+            this.status = status;
+            this.cameraStreamUrl = cameraStreamUrl;
+            this.cameraStatus = cameraStatus;
+            this.treeId = treeId;
+            this.treeName = treeName;
         }
 
         public Long getId() { return id; }
@@ -51,6 +63,10 @@ public class RentalHistoryDTO {
         public void setCameraStreamUrl(String cameraStreamUrl) { this.cameraStreamUrl = cameraStreamUrl; }
         public String getCameraStatus() { return cameraStatus; }
         public void setCameraStatus(String cameraStatus) { this.cameraStatus = cameraStatus; }
+        public Long getTreeId() { return treeId; }
+        public void setTreeId(Long treeId) { this.treeId = treeId; }
+        public String getTreeName() { return treeName; }
+        public void setTreeName(String treeName) { this.treeName = treeName; }
     }
 
     public static class PaymentTransactionInfo {
@@ -59,6 +75,10 @@ public class RentalHistoryDTO {
         private String vnpTxnRef;
         private LocalDateTime paymentDate;
         private String status;
+        private String targetPillarCode;
+        private Integer targetPillarHoles;
+        private String treeName;
+        private Integer pillarsCount;
 
         public PaymentTransactionInfo() {
         }
@@ -69,6 +89,19 @@ public class RentalHistoryDTO {
             this.vnpTxnRef = vnpTxnRef;
             this.paymentDate = paymentDate;
             this.status = status;
+        }
+
+        public PaymentTransactionInfo(Long id, BigDecimal amount, String vnpTxnRef, LocalDateTime paymentDate, String status,
+                                      String targetPillarCode, Integer targetPillarHoles, String treeName, Integer pillarsCount) {
+            this.id = id;
+            this.amount = amount;
+            this.vnpTxnRef = vnpTxnRef;
+            this.paymentDate = paymentDate;
+            this.status = status;
+            this.targetPillarCode = targetPillarCode;
+            this.targetPillarHoles = targetPillarHoles;
+            this.treeName = treeName;
+            this.pillarsCount = pillarsCount;
         }
 
         public Long getId() {
@@ -109,6 +142,38 @@ public class RentalHistoryDTO {
 
         public void setStatus(String status) {
             this.status = status;
+        }
+
+        public String getTargetPillarCode() {
+            return targetPillarCode;
+        }
+
+        public void setTargetPillarCode(String targetPillarCode) {
+            this.targetPillarCode = targetPillarCode;
+        }
+
+        public Integer getTargetPillarHoles() {
+            return targetPillarHoles;
+        }
+
+        public void setTargetPillarHoles(Integer targetPillarHoles) {
+            this.targetPillarHoles = targetPillarHoles;
+        }
+
+        public String getTreeName() {
+            return treeName;
+        }
+
+        public void setTreeName(String treeName) {
+            this.treeName = treeName;
+        }
+
+        public Integer getPillarsCount() {
+            return pillarsCount;
+        }
+
+        public void setPillarsCount(Integer pillarsCount) {
+            this.pillarsCount = pillarsCount;
         }
     }
 
