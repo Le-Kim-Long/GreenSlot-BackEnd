@@ -1023,6 +1023,8 @@ public class BookingServiceImpl implements BookingService {
         return getOrRegeneratePaymentUrl(rentalId, username, ipAddress, isMobile, null);
     }
 
+    @Override
+    @Transactional
     public BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress,
                                                         boolean isMobile, String mobileRedirectUrl) {
         SlotRental rental = slotRentalRepository.findByIdWithPessimisticLock(rentalId)
