@@ -33,10 +33,8 @@ public class PaymentController {
     @Autowired
     private BookingService bookingService;
 
-    @Value("${greeenslot.vnpay.frontendReturnUrl:${FRONTEND_RETURN_URL:https://green-slot-front-end.vercel.app/payment-result}}")
+    @Value("${greeenslot.vnpay.frontendReturnUrl:${FRONTEND_RETURN_URL:http://localhost:5173/payment-result}}")
     private String defaultReturnUrl;
-
-
 
     @Value("${greeenslot.vnpay.mobileReturnUrl:${MOBILE_RETURN_URL:greenslot://payment-result}}")
     private String mobileReturnUrl;
@@ -92,6 +90,12 @@ public class PaymentController {
 
         // Determine target URL (Frontend SPA or Mobile App)
         String targetUrl = defaultReturnUrl;
+        String host = request.getHeader("Host");
+        if (host != null && (host.contains("localhost") || host.contains("127.0.0.1"))) {
+            if (targetUrl != null && targetUrl.contains("vercel.app")) {
+                targetUrl = "http://localhost:5173/payment-result";
+            }
+        }
         String clientParam = fields.getOrDefault("client", fields.getOrDefault("source", ""));
         String isMobileParam = fields.get("isMobile");
         String customRedirectUrl = fields.get("redirectUrl");
