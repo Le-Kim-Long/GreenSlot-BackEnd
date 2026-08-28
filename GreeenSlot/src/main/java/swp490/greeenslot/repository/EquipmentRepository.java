@@ -7,6 +7,7 @@ import swp490.greeenslot.entity.EEquipmentStatus;
 import swp490.greeenslot.entity.Pillar;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
@@ -16,4 +17,6 @@ public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
     List<Equipment> findByStatus(EEquipmentStatus status);
     
     List<Equipment> findByPillarAndStatus(Pillar pillar, EEquipmentStatus status);
+
+    Optional<Equipment> findBySerialNumber(String serialNumber);
 }

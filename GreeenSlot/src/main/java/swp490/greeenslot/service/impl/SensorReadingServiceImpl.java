@@ -30,6 +30,9 @@ public class SensorReadingServiceImpl implements SensorReadingService {
     private SensorReadingRepository sensorReadingRepository;
 
     @Autowired
+    private EquipmentRepository equipmentRepository; // THÊM REPOSITORY NÀY
+
+    @Autowired
     private SensorThresholdRepository sensorThresholdRepository;
 
     @Autowired
@@ -66,11 +69,20 @@ public class SensorReadingServiceImpl implements SensorReadingService {
     @Transactional
     public ArduinoSensorDataResponseDTO saveArduinoData(String apiKey, ArduinoSensorDataRequestDTO request) {
         validateApiKey(apiKey);
-
+        String serialNumber = request.getDeviceId().trim();
         String deviceId = request.getDeviceId().trim();
         Instant recordedAt = Instant.now();
         List<SensorReading> saved = new ArrayList<>();
+        // 1. TÌM THIẾT BỊ ĐANG GẮN Ở TRỤ NÀO
+        Equipment equipment = equipmentRepository.findBySerialNumber(serialNumber)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thiết bị với Serial: " + serialNumber));
 
+        Pillar currentPillar = equipment.getPillar();
+        if (currentPillar == null) {
+            throw new IllegalArgumentException("Thiết bị " + serialNumber + " hiện chưa được gắn vào Trụ nào. Không thể lưu dữ liệu.");
+        }
+
+// 2. LƯU DỮ LIỆU CẢM BIẾN VỚI PILLAR_ID
         for (SensorReadingItemDTO item : request.getReadings()) {
             ESensorType sensorType = ESensorType.fromCode(item.getSensorType());
             validateReading(sensorType, item.getValue());
@@ -79,28 +91,26 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                     ? item.getUnit().trim()
                     : sensorType.getDefaultUnit();
 
-            SensorReading reading = new SensorReading(
-                    deviceId,
-                    sensorType,
-                    item.getValue(),
-                    unit,
-                    recordedAt);
+            SensorReading reading = new SensorReading();
+            reading.setDeviceId(serialNumber);
+            reading.setPillarId(currentPillar.getId()); // ĐÓNG DẤU ID CỦA TRỤ "P-Q1-02B" VÀO DATA
+            reading.setSensorType(sensorType);
+            reading.setValue(item.getValue());
+            reading.setUnit(unit);
+            reading.setRecordedAt(recordedAt);
+
             SensorReading savedReading = sensorReadingRepository.save(reading);
             saved.add(savedReading);
-            
-            // Evaluate thresholds for each reading
-            evaluateThresholds(deviceId, sensorType, item.getValue(), unit);
+
+            // Bạn có thể truyền thẳng currentPillar vào hàm evaluateThresholds để đỡ phải query lại!
+            evaluateThresholds(serialNumber, sensorType, item.getValue(), unit);
         }
 
         List<SensorReadingResponseDTO> responseReadings = saved.stream()
                 .map(SensorReadingResponseDTO::fromEntity)
                 .toList();
 
-        return new ArduinoSensorDataResponseDTO(
-                "Sensor data saved successfully.",
-                deviceId,
-                responseReadings.size(),
-                responseReadings);
+        return new ArduinoSensorDataResponseDTO("Đã lưu dữ liệu cảm biến cho trụ " + currentPillar.getPillarCode(), serialNumber, responseReadings.size(), responseReadings);
     }
 
     @Override
@@ -380,50 +390,42 @@ public class SensorReadingServiceImpl implements SensorReadingService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<SensorReadingResponseDTO> getLatestReadings(String deviceId) {
-        String targetDevice = (deviceId != null && !deviceId.isBlank()) ? deviceId.trim() : "arduino-greenhouse-01";
-        List<SensorReadingResponseDTO> result = Arrays.stream(ESensorType.values())
-                .map(type -> sensorReadingRepository
-                        .findFirstByDeviceIdAndSensorTypeOrderByRecordedAtDesc(targetDevice, type))
+    public List<SensorReadingResponseDTO> getLatestReadings(String identifier) {
+        // identifier mà Frontend (React) truyền lên là PillarCode (vd: "P-Q1-02B")
+        String targetCode = (identifier != null && !identifier.isBlank()) ? identifier.trim() : "arduino-greenhouse-01";
+
+        Optional<Pillar> pillarOpt = pillarRepository.findByPillarCode(targetCode);
+        if (pillarOpt.isEmpty()) {
+            return new ArrayList<>(); // Nếu không tìm thấy trụ, trả về mảng rỗng
+        }
+
+        Long pillarId = pillarOpt.get().getId();
+
+        return Arrays.stream(ESensorType.values())
+                .map(type -> sensorReadingRepository.findFirstByPillarIdAndSensorTypeOrderByRecordedAtDesc(pillarId, type))
                 .filter(Optional::isPresent)
                 .map(latest -> SensorReadingResponseDTO.fromEntity(latest.get()))
                 .toList();
-
-        if (result.isEmpty() && !targetDevice.equalsIgnoreCase("arduino-greenhouse-01")) {
-            result = Arrays.stream(ESensorType.values())
-                    .map(type -> sensorReadingRepository
-                            .findFirstByDeviceIdAndSensorTypeOrderByRecordedAtDesc("arduino-greenhouse-01", type))
-                    .filter(Optional::isPresent)
-                    .map(latest -> SensorReadingResponseDTO.fromEntity(latest.get()))
-                    .toList();
-        }
-
-        return result;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<SensorReadingResponseDTO> getHistory(String deviceId, ESensorType sensorType, int limit) {
+    public List<SensorReadingResponseDTO> getHistory(String identifier, ESensorType sensorType, int limit) {
         int safeLimit = Math.min(Math.max(limit, 1), 200);
-        String targetDevice = (deviceId != null && !deviceId.isBlank()) ? deviceId.trim() : "arduino-greenhouse-01";
+        String targetCode = (identifier != null && !identifier.isBlank()) ? identifier.trim() : "arduino-greenhouse-01";
+
+        Optional<Pillar> pillarOpt = pillarRepository.findByPillarCode(targetCode);
+        if (pillarOpt.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        Long pillarId = pillarOpt.get().getId();
         List<SensorReading> readings;
 
         if (sensorType != null) {
-            readings = sensorReadingRepository.findByDeviceIdAndSensorTypeOrderByRecordedAtDesc(
-                    targetDevice, sensorType, PageRequest.of(0, safeLimit));
+            readings = sensorReadingRepository.findByPillarIdAndSensorTypeOrderByRecordedAtDesc(pillarId, sensorType, PageRequest.of(0, safeLimit));
         } else {
-            readings = sensorReadingRepository.findByDeviceIdOrderByRecordedAtDesc(
-                    targetDevice, PageRequest.of(0, safeLimit));
-        }
-
-        if (readings.isEmpty() && !targetDevice.equalsIgnoreCase("arduino-greenhouse-01")) {
-            if (sensorType != null) {
-                readings = sensorReadingRepository.findByDeviceIdAndSensorTypeOrderByRecordedAtDesc(
-                        "arduino-greenhouse-01", sensorType, PageRequest.of(0, safeLimit));
-            } else {
-                readings = sensorReadingRepository.findByDeviceIdOrderByRecordedAtDesc(
-                        "arduino-greenhouse-01", PageRequest.of(0, safeLimit));
-            }
+            readings = sensorReadingRepository.findByPillarIdOrderByRecordedAtDesc(pillarId, PageRequest.of(0, safeLimit));
         }
 
         return readings.stream()
