@@ -33,7 +33,7 @@ spring:
   iot:
     camera:
       # IP mặc định là của mạch ESP32-CAM. Người khác kéo code về có thể tự đổi IP bằng biến môi trường IOT_CAMERA_URL
-      url: ${IOT_CAMERA_URL:http://10.10.10.242/capture}
+      url: ${IOT_CAMERA_URL:http://10.10.10.11/capture}
 springdoc:
   api-docs:
     path: /v3/api-docs
