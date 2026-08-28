@@ -29,4 +29,7 @@ public class CameraController {
     public ResponseEntity<java.util.Collection<CameraPingRequestDTO>> getAllCameras() {
         return ResponseEntity.ok(cameraRegistry.values());
     }
+    public Map<String, CameraPingRequestDTO> getCameraRegistry() {
+        return cameraRegistry;
+    }
 }
