@@ -59,28 +59,29 @@ public class AdminServiceImpl implements AdminService {
         user.setEnabled(true);
 
         Set<Role> roles = new HashSet<>();
-        if (dto.getRoles() == null || dto.getRoles().isEmpty()) {
-            Role userRole = roleRepository.findByName(ERole.ROLE_CUSTOMER)
-                    .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-            roles.add(userRole);
-        } else {
-            dto.getRoles().forEach(role -> {
-                try {
-                    ERole eRole = ERole.valueOf(role);
-                    Role roleEntity = roleRepository.findByName(eRole)
-                            .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-                    roles.add(roleEntity);
-                } catch (IllegalArgumentException e) {
-                    throw new RuntimeException("Error: Role " + role + " is invalid.");
-                }
-            });
+        ERole assignedRole = ERole.ROLE_CUSTOMER;
+        if (dto.getRoles() != null && !dto.getRoles().isEmpty()) {
+            String roleStr = dto.getRoles().get(0);
+            try {
+                assignedRole = ERole.valueOf(roleStr);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Error: Role " + roleStr + " is invalid.");
+            }
         }
+        final ERole finalRole = assignedRole;
+        Role roleEntity = roleRepository.findByName(finalRole)
+                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+        roles.add(roleEntity);
         user.setRoles(roles);
 
-        if (dto.getLocationId() != null && dto.getLocationId() > 0) {
+        // Only assign location for ROLE_LOCATION_MANAGER or ROLE_GARDEN_STAFF
+        boolean canHaveLocation = (assignedRole == ERole.ROLE_LOCATION_MANAGER || assignedRole == ERole.ROLE_GARDEN_STAFF);
+        if (canHaveLocation && dto.getLocationId() != null && dto.getLocationId() > 0) {
             Location location = locationRepository.findById(dto.getLocationId())
                     .orElseThrow(() -> new IllegalArgumentException("Location not found"));
             user.setLocation(location);
+        } else {
+            user.setLocation(null);
         }
 
         User savedUser = userRepository.save(user);
@@ -98,31 +99,36 @@ public class AdminServiceImpl implements AdminService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
 
+        if (dto.getRoles() == null || dto.getRoles().isEmpty()) {
+            throw new IllegalArgumentException("Vui lòng chọn 1 vai trò cho người dùng.");
+        }
+
+        String roleStr = dto.getRoles().get(0);
+        ERole eRole;
+        try {
+            eRole = ERole.valueOf(roleStr);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid role name: " + roleStr);
+        }
+
         // Prevent admin from removing their own ROLE_ADMIN authority
         String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
-        if (user.getUsername().equals(currentUsername)) {
-            boolean hasAdminRole = dto.getRoles().stream()
-                    .anyMatch(role -> role.equals("ROLE_ADMIN"));
-            if (!hasAdminRole) {
-                throw new IllegalArgumentException("Cannot remove ROLE_ADMIN from your own account");
-            }
+        if (user.getUsername().equals(currentUsername) && eRole != ERole.ROLE_ADMIN) {
+            throw new IllegalArgumentException("Cannot remove ROLE_ADMIN from your own account");
         }
 
+        Role role = roleRepository.findByName(eRole)
+                .orElseThrow(() -> new IllegalArgumentException("Role not found in database: " + roleStr));
         Set<Role> newRoles = new HashSet<>();
-        for (String roleStr : dto.getRoles()) {
-            ERole eRole;
-            try {
-                eRole = ERole.valueOf(roleStr);
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid role name: " + roleStr);
-            }
+        newRoles.add(role);
+        user.setRoles(newRoles);
 
-            Role role = roleRepository.findByName(eRole)
-                    .orElseThrow(() -> new IllegalArgumentException("Role not found in database: " + roleStr));
-            newRoles.add(role);
+        // Clear location if role is NOT location_manager or garden_staff
+        boolean canHaveLocation = (eRole == ERole.ROLE_LOCATION_MANAGER || eRole == ERole.ROLE_GARDEN_STAFF);
+        if (!canHaveLocation) {
+            user.setLocation(null);
         }
 
-        user.setRoles(newRoles);
         User updatedUser = userRepository.save(user);
         return convertToUserAdminDTO(updatedUser);
     }
@@ -148,7 +154,10 @@ public class AdminServiceImpl implements AdminService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
 
-        if (locationId == null || locationId == 0) {
+        boolean canHaveLocation = user.getRoles() != null && user.getRoles().stream().anyMatch(r ->
+                r.getName() == ERole.ROLE_LOCATION_MANAGER || r.getName() == ERole.ROLE_GARDEN_STAFF);
+
+        if (!canHaveLocation || locationId == null || locationId == 0) {
             user.setLocation(null);
         } else {
             Location location = locationRepository.findById(locationId)
