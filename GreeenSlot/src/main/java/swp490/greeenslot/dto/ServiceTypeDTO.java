@@ -18,17 +18,17 @@ import java.math.BigDecimal;
 public class ServiceTypeDTO {
     private Long id;
 
-    @NotBlank(message = "Service name cannot be empty or whitespace")
+    @NotBlank(message = "Tên dịch vụ không được để trống")
     private String serviceName;
 
     private String description;
 
-    @NotNull(message = "Price is required")
-    @Min(value = 1000, message = "Price/Amount must be at least 1000")
+    @NotNull(message = "Đơn giá không được để trống")
+    @Min(value = 1000, message = "Đơn giá dịch vụ phải tối thiểu 1.000 VNĐ")
     private BigDecimal price;
 
-    @NotNull(message = "Category ID is required")
-    @Positive(message = "Category ID must be positive")
+    @NotNull(message = "Danh mục dịch vụ không được để trống")
+    @Positive(message = "Mã danh mục dịch vụ không hợp lệ")
     private Long categoryId;
 
     public ServiceTypeDTO(Long id, String serviceName, BigDecimal price, Long categoryId) {

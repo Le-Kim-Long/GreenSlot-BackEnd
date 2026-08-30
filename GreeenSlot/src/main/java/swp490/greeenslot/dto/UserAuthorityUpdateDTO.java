@@ -12,6 +12,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserAuthorityUpdateDTO {
-    @NotEmpty(message = "Roles list cannot be empty")
+    @NotEmpty(message = "Danh sách vai trò không được để trống")
     private List<String> roles;
 }

@@ -19,7 +19,7 @@ import java.util.List;
 public class GardenSlotDTO {
     private Long id;
 
-    @NotBlank(message = "Slot number cannot be empty or whitespace")
+    @NotBlank(message = "Số hiệu ô đất không được để trống")
     private String slotNumber;
 
     private String status; // AVAILABLE, RENTED, MAINTENANCE

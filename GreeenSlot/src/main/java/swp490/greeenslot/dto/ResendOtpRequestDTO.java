@@ -6,8 +6,8 @@ import jakarta.validation.constraints.NotBlank;
 
 public class ResendOtpRequestDTO {
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Email must be valid")
+    @NotBlank(message = "Email không được để trống")
+    @Email(message = "Email không đúng định dạng")
     @Schema(description = "Customer email address to resend OTP", example = "customer@gmail.com")
     private String email;
 

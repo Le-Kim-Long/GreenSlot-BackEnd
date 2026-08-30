@@ -17,13 +17,13 @@ import java.math.BigDecimal;
 public class PillarDTO {
     private Long id;
 
-    @NotBlank(message = "Pillar code cannot be empty or whitespace")
+    @NotBlank(message = "Mã trụ không được để trống")
     private String pillarCode;
 
     private String status; // ACTIVE, MAINTENANCE
 
-    @NotNull(message = "Location ID is required")
-    @Positive(message = "Location ID must be positive")
+    @NotNull(message = "Cơ sở không được để trống")
+    @Positive(message = "Mã cơ sở không hợp lệ")
     private Long locationId;
 
     private String imageUrl;

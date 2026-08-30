@@ -6,7 +6,7 @@ public class UserProfileUpdateDTO {
 
     private String fullName;
 
-    @Size(min = 10, max = 15, message = "Phone number must be between 10 and 15 characters")
+    @Size(min = 10, max = 15, message = "Số điện thoại phải từ 10 đến 15 ký tự")
     private String phone;
 
     private String address;

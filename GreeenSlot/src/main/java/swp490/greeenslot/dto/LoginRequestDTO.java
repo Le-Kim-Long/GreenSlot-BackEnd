@@ -3,10 +3,10 @@ package swp490.greeenslot.dto;
 import jakarta.validation.constraints.NotBlank;
 
 public class LoginRequestDTO {
-    @NotBlank(message = "Username cannot be empty or whitespace")
+    @NotBlank(message = "Tên đăng nhập không được để trống")
     private String username;
 
-    @NotBlank(message = "Password cannot be empty or whitespace")
+    @NotBlank(message = "Mật khẩu không được để trống")
     private String password;
 
     public String getUsername() {

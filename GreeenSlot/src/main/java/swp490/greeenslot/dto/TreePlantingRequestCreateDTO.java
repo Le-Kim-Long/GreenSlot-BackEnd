@@ -12,10 +12,10 @@ import org.hibernate.annotations.Nationalized;
 @NoArgsConstructor
 @AllArgsConstructor
 public class TreePlantingRequestCreateDTO {
-    @NotNull(message = "Rental ID is required")
+    @NotNull(message = "Hợp đồng thuê ô đất không được để trống")
     private Long rentalId;
     
-    @NotNull(message = "New Tree ID is required")
+    @NotNull(message = "Giống cây trồng không được để trống")
     private Long newTreeId;
     
     @Nationalized

@@ -12,10 +12,10 @@ import lombok.Setter;
 @AllArgsConstructor
 public class IssueReportRequestDTO {
 
-    @NotBlank(message = "Issue title cannot be empty or whitespace")
+    @NotBlank(message = "Tiêu đề sự cố không được để trống")
     private String issueTitle;
 
-    @NotBlank(message = "Description cannot be empty or whitespace")
+    @NotBlank(message = "Mô tả sự cố không được để trống")
     private String description;
 
     private String evidenceImageUrl; // optional image evidence

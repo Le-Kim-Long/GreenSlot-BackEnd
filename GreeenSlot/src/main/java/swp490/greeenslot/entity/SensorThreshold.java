@@ -22,19 +22,19 @@ public class SensorThreshold {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Device ID cannot be empty or whitespace")
+    @NotBlank(message = "Mã thiết bị không được để trống")
     @Column(name = "device_id", nullable = false, length = 100)
     private String deviceId; // corresponds to pillar_code
 
-    @NotBlank(message = "Sensor type cannot be empty or whitespace")
+    @NotBlank(message = "Loại cảm biến không được để trống")
     @Column(name = "sensor_type", nullable = false, length = 50)
     private String sensorType; // e.g. PH, SOIL_MOISTURE, etc.
 
-    @NotNull(message = "Min value is required")
+    @NotNull(message = "Giá trị tối thiểu không được để trống")
     @Column(name = "min_value", nullable = false)
     private Double minValue;
 
-    @NotNull(message = "Max value is required")
+    @NotNull(message = "Giá trị tối đa không được để trống")
     @Column(name = "max_value", nullable = false)
     private Double maxValue;
 }

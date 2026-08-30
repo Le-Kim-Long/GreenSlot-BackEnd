@@ -6,12 +6,12 @@ import jakarta.validation.constraints.NotBlank;
 
 public class VerifyOtpRequestDTO {
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Email must be valid")
+    @NotBlank(message = "Email không được để trống")
+    @Email(message = "Email không đúng định dạng")
     @Schema(description = "Customer email address", example = "customer@gmail.com")
     private String email;
 
-    @NotBlank(message = "OTP code is required")
+    @NotBlank(message = "Mã OTP không được để trống")
     @Schema(description = "6-digit OTP code sent to email", example = "123456")
     private String otp;
 

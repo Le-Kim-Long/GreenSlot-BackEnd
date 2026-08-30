@@ -13,12 +13,12 @@ import lombok.Setter;
 @AllArgsConstructor
 public class ServiceRequestDTO {
 
-    @NotNull(message = "Slot ID is required")
-    @Positive(message = "Slot ID must be positive")
+    @NotNull(message = "Ô vườn không được để trống")
+    @Positive(message = "Mã ô vườn không hợp lệ")
     private Long slotId;
 
-    @NotNull(message = "Service Type ID is required")
-    @Positive(message = "Service Type ID must be positive")
+    @NotNull(message = "Loại dịch vụ không được để trống")
+    @Positive(message = "Mã loại dịch vụ không hợp lệ")
     private Long serviceTypeId;
 
     private String description;

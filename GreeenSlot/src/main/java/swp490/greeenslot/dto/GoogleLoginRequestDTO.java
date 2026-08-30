@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 
 public class GoogleLoginRequestDTO {
 
-    @NotBlank(message = "Google ID token is required")
+    @NotBlank(message = "Google ID Token không được để trống")
     @Schema(description = "Google OAuth2 ID Token received from Google Sign-In or Firebase Auth. Auto-registration is enabled - new users will be created automatically.", example = "eyJhbGciOiJSUzI1NiIsImtpZCI6...")
     private String idToken;
 

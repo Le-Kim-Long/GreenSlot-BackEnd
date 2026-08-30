@@ -17,24 +17,24 @@ import java.time.LocalTime;
 public class StaffScheduleDTO {
     private Long id;
 
-    @NotNull(message = "Staff ID is required")
+    @NotNull(message = "Nhân viên không được để trống")
     private Long staffId;
 
     private String staffName;
 
-    @NotNull(message = "Location ID is required")
+    @NotNull(message = "Cơ sở không được để trống")
     private Long locationId;
 
     private String locationName;
 
-    @NotNull(message = "Schedule date is required")
-    @FutureOrPresent(message = "Schedule date cannot be in the past")
+    @NotNull(message = "Ngày trực không được để trống")
+    @FutureOrPresent(message = "Ngày trực không được trong quá khứ")
     private LocalDate scheduleDate;
 
-    @NotNull(message = "Start time is required")
+    @NotNull(message = "Giờ bắt đầu không được để trống")
     private LocalTime startTime;
 
-    @NotNull(message = "End time is required")
+    @NotNull(message = "Giờ kết thúc không được để trống")
     private LocalTime endTime;
 
     private Long slotId;
