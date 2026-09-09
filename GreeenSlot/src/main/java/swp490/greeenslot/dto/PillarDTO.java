@@ -1,5 +1,7 @@
 package swp490.greeenslot.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -30,6 +32,8 @@ public class PillarDTO {
 
     private String pillarType; // SMALL, MEDIUM, LARGE
     private String pillarTypeName;
+    @Min(value = 1, message = "Số hốc trồng phải tối thiểu là 1")
+    @Max(value = 100, message = "Số hốc trồng không được vượt quá 100")
     private Integer capacityHoles;
     private BigDecimal price;
     private Double requiredArea;

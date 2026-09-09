@@ -138,20 +138,34 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         try {
             status = dto.getStatus() != null ? EPillarStatus.valueOf(dto.getStatus().toUpperCase()) : EPillarStatus.ACTIVE;
         } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid pillar status. Must be ACTIVE or MAINTENANCE");
+            throw new IllegalArgumentException("Trạng thái trụ không hợp lệ. Phải là ACTIVE, RENTED hoặc MAINTENANCE");
         }
         pillar.setStatus(status);
 
-        EPillarType pillarType = EPillarType.MEDIUM;
-        if (dto.getPillarType() != null && !dto.getPillarType().trim().isEmpty()) {
+        if (dto.getCapacityHoles() != null) {
+            if (dto.getCapacityHoles() < 1 || dto.getCapacityHoles() > 100) {
+                throw new IllegalArgumentException("Số hốc trồng phải từ 1 đến 100");
+            }
+        }
+
+        EPillarType pillarType;
+        int holes;
+        if (dto.getCapacityHoles() != null && dto.getCapacityHoles() > 0) {
+            holes = dto.getCapacityHoles();
+            pillarType = EPillarType.fromHoles(holes);
+        } else if (dto.getPillarType() != null && !dto.getPillarType().trim().isEmpty()) {
             try {
                 pillarType = EPillarType.valueOf(dto.getPillarType().trim().toUpperCase());
             } catch (Exception e) {
                 pillarType = EPillarType.MEDIUM;
             }
+            holes = pillarType.getDefaultHoles();
+        } else {
+            pillarType = EPillarType.MEDIUM;
+            holes = pillarType.getDefaultHoles();
         }
         pillar.setPillarType(pillarType);
-        pillar.setCapacityHoles(dto.getCapacityHoles() != null && dto.getCapacityHoles() > 0 ? dto.getCapacityHoles() : pillarType.getDefaultHoles());
+        pillar.setCapacityHoles(holes);
         pillar.setPrice(dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) > 0 ? dto.getPrice() : pillarType.getDefaultPrice());
 
         if (dto.getDefaultTreeId() != null && dto.getDefaultTreeId() > 0) {
@@ -191,19 +205,29 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             try {
                 pillar.setStatus(EPillarStatus.valueOf(dto.getStatus().toUpperCase()));
             } catch (Exception e) {
-                throw new IllegalArgumentException("Invalid pillar status. Must be ACTIVE or MAINTENANCE");
+                throw new IllegalArgumentException("Trạng thái trụ không hợp lệ. Phải là ACTIVE, RENTED hoặc MAINTENANCE");
             }
         }
-        if (dto.getPillarType() != null && !dto.getPillarType().trim().isEmpty()) {
+
+        if (dto.getCapacityHoles() != null) {
+            if (dto.getCapacityHoles() < 1 || dto.getCapacityHoles() > 100) {
+                throw new IllegalArgumentException("Số hốc trồng phải từ 1 đến 100");
+            }
+            int holes = dto.getCapacityHoles();
+            pillar.setCapacityHoles(holes);
+            pillar.setPillarType(EPillarType.fromHoles(holes));
+        } else if (dto.getPillarType() != null && !dto.getPillarType().trim().isEmpty()) {
             try {
-                pillar.setPillarType(EPillarType.valueOf(dto.getPillarType().trim().toUpperCase()));
+                EPillarType pType = EPillarType.valueOf(dto.getPillarType().trim().toUpperCase());
+                pillar.setPillarType(pType);
+                if (pillar.getCapacityHoles() == null || pillar.getCapacityHoles() <= 0) {
+                    pillar.setCapacityHoles(pType.getDefaultHoles());
+                }
             } catch (Exception e) {
                 // Keep current if invalid
             }
         }
-        if (dto.getCapacityHoles() != null && dto.getCapacityHoles() > 0) {
-            pillar.setCapacityHoles(dto.getCapacityHoles());
-        }
+
         if (dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) > 0) {
             pillar.setPrice(dto.getPrice());
         }

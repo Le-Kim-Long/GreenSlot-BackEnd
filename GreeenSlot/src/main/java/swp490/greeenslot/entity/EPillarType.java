@@ -34,4 +34,14 @@ public enum EPillarType {
     public BigDecimal getDefaultPrice() {
         return defaultPrice;
     }
+
+    public static EPillarType fromHoles(int holes) {
+        if (holes <= 24) {
+            return SMALL;
+        } else if (holes <= 36) {
+            return MEDIUM;
+        } else {
+            return LARGE;
+        }
+    }
 }
