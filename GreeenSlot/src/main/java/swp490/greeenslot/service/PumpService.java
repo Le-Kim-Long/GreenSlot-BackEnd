@@ -7,13 +7,17 @@ import swp490.greeenslot.dto.PumpStatusDTO;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class PumpService {
 
     private static final Logger logger = LoggerFactory.getLogger(PumpService.class);
 
-    // Lưu trạng thái mặc định ban đầu là tắt
+    // Lưu trạng thái mặc định ban đầu là tắt (toàn cục)
     private volatile String currentStatus = "OFF";
 
     // Chế độ tự động xịt/tưới nước khi độ ẩm đất thấp (mặc định bật)
@@ -25,6 +29,92 @@ public class PumpService {
 
     // Thời gian tối thiểu giữa 2 lần tự động kích hoạt bơm (cooldown 10s để hệ thống phản hồi nhanh khi test)
     private static final long AUTO_TRIGGER_COOLDOWN_SECONDS = 10;
+
+    // Quản lý trạng thái máy bơm riêng cho từng Trụ (1 trụ = 1 máy bơm)
+    private final ConcurrentHashMap<Long, PumpStatusDTO> pillarStatuses = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService autoOffScheduler = Executors.newScheduledThreadPool(2);
+
+    // ==========================================
+    // CÁC HÀM QUẢN LÝ MÁY BƠM THEO TỪNG TRỤ
+    // ==========================================
+
+    public PumpStatusDTO getPillarPumpStatus(Long pillarId) {
+        if (pillarId == null) {
+            return getFullStatus();
+        }
+        return pillarStatuses.computeIfAbsent(pillarId, id -> PumpStatusDTO.builder()
+                .status("OFF")
+                .autoMode(true)
+                .lastTriggerReason("Hệ thống sẵn sàng")
+                .lastTriggerTime(null)
+                .build());
+    }
+
+    public PumpStatusDTO setPillarPumpStatus(Long pillarId, String status, int autoOffSeconds) {
+        if (pillarId == null) {
+            setPumpStatus(status);
+            return getFullStatus();
+        }
+        String cleanStatus = (status != null && status.equalsIgnoreCase("ON")) ? "ON" : "OFF";
+        LocalDateTime now = LocalDateTime.now();
+        String reason = cleanStatus.equals("ON") ? "Kích hoạt thủ công (" + autoOffSeconds + "s)" : "Tắt thủ công";
+
+        PumpStatusDTO dto = pillarStatuses.compute(pillarId, (id, current) -> {
+            boolean auto = (current != null && current.getAutoMode() != null) ? current.getAutoMode() : true;
+            return PumpStatusDTO.builder()
+                    .status(cleanStatus)
+                    .autoMode(auto)
+                    .lastTriggerReason(reason)
+                    .lastTriggerTime(now)
+                    .build();
+        });
+
+        logger.info("💧 [PILLAR PUMP] Trụ ID {} chuyển trạng thái máy bơm thành: {} ({})", pillarId, cleanStatus, reason);
+
+        // Nếu bật và có hẹn giờ tự ngắt (mặc định 5s)
+        if ("ON".equalsIgnoreCase(cleanStatus) && autoOffSeconds > 0) {
+            autoOffScheduler.schedule(() -> {
+                try {
+                    PumpStatusDTO cur = pillarStatuses.get(pillarId);
+                    if (cur != null && "ON".equalsIgnoreCase(cur.getStatus())) {
+                        pillarStatuses.put(pillarId, PumpStatusDTO.builder()
+                                .status("OFF")
+                                .autoMode(cur.getAutoMode())
+                                .lastTriggerReason("Tự ngắt an toàn sau " + autoOffSeconds + "s")
+                                .lastTriggerTime(LocalDateTime.now())
+                                .build());
+                        logger.info("🛑 [PILLAR PUMP AUTO-OFF] Máy bơm trụ ID {} đã tự ngắt an toàn sau {}s.", pillarId, autoOffSeconds);
+                    }
+                } catch (Exception e) {
+                    logger.error("Lỗi khi tự ngắt máy bơm trụ ID {}: {}", pillarId, e.getMessage());
+                }
+            }, autoOffSeconds, TimeUnit.SECONDS);
+        }
+
+        return dto;
+    }
+
+    public PumpStatusDTO setPillarAutoMode(Long pillarId, boolean autoMode) {
+        if (pillarId == null) {
+            setAutoMode(autoMode);
+            return getFullStatus();
+        }
+        return pillarStatuses.compute(pillarId, (id, current) -> {
+            String status = (current != null && current.getStatus() != null) ? current.getStatus() : "OFF";
+            String reason = (current != null) ? current.getLastTriggerReason() : "Hệ thống sẵn sàng";
+            LocalDateTime time = (current != null) ? current.getLastTriggerTime() : null;
+            return PumpStatusDTO.builder()
+                    .status(status)
+                    .autoMode(autoMode)
+                    .lastTriggerReason(reason)
+                    .lastTriggerTime(time)
+                    .build();
+        });
+    }
+
+    // ==========================================
+    // CÁC HÀM TOÀN CỤC (TƯƠNG THÍCH NGƯỢC)
+    // ==========================================
 
     public String getPumpStatus() {
         return currentStatus;
@@ -45,6 +135,17 @@ public class PumpService {
             this.lastTriggerTime = LocalDateTime.now();
             this.lastTriggerReason = "Điều khiển thủ công (" + this.currentStatus + ")";
             logger.info("Pump status manually updated to: {}", this.currentStatus);
+
+            if ("ON".equalsIgnoreCase(this.currentStatus)) {
+                autoOffScheduler.schedule(() -> {
+                    if ("ON".equalsIgnoreCase(this.currentStatus)) {
+                        this.currentStatus = "OFF";
+                        this.lastTriggerReason = "Tự ngắt an toàn sau 5s";
+                        this.lastTriggerTime = LocalDateTime.now();
+                        logger.info("🛑 [GLOBAL PUMP AUTO-OFF] Máy bơm toàn cục đã tự ngắt an toàn sau 5s.");
+                    }
+                }, 5, TimeUnit.SECONDS);
+            }
         }
     }
 
@@ -77,6 +178,15 @@ public class PumpService {
         this.lastTriggerTime = now;
         this.lastTriggerReason = reason;
         logger.warn("💧 [AUTO-SPRAY ACTIVATED] Kích hoạt máy bơm tự động: {}", reason);
+
+        autoOffScheduler.schedule(() -> {
+            if ("ON".equalsIgnoreCase(this.currentStatus)) {
+                this.currentStatus = "OFF";
+                this.lastTriggerReason = "Tự ngắt an toàn sau 5s";
+                this.lastTriggerTime = LocalDateTime.now();
+            }
+        }, 5, TimeUnit.SECONDS);
+
         return true;
     }
 
