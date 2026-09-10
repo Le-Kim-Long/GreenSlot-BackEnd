@@ -77,9 +77,10 @@ class StaffScheduleValidationTest {
         validDTO.setStaffId(5L);
         validDTO.setLocationId(10L);
         validDTO.setScheduleDate(LocalDate.now().plusDays(2));
+        validDTO.setEndDate(LocalDate.now().plusDays(5));
         validDTO.setStartTime(LocalTime.of(8, 0));
         validDTO.setEndTime(LocalTime.of(16, 0));
-        validDTO.setNotes("Regular morning shift");
+        validDTO.setNotes("Regular shift date range");
         validDTO.setIsActive(true);
     }
 
@@ -95,7 +96,7 @@ class StaffScheduleValidationTest {
         assertFalse(violations.isEmpty());
         boolean hasDateViolation = violations.stream()
                 .anyMatch(v -> v.getPropertyPath().toString().equals("scheduleDate")
-                        && v.getMessage().contains("cannot be in the past"));
+                        && (v.getMessage().contains("quá khứ") || v.getMessage().contains("cannot be in the past")));
         assertTrue(hasDateViolation);
     }
 
@@ -106,7 +107,7 @@ class StaffScheduleValidationTest {
 
         Set<ConstraintViolation<StaffScheduleDTO>> violations = validator.validate(emptyDTO);
 
-        assertEquals(5, violations.size()); // staffId, locationId, scheduleDate, startTime, endTime
+        assertEquals(4, violations.size()); // staffId, locationId, scheduleDate, endDate
     }
 
     @Test
@@ -132,49 +133,34 @@ class StaffScheduleValidationTest {
     }
 
     @Test
-    @DisplayName("Service Validation: createSchedule with startTime >= endTime throws IllegalArgumentException")
-    void testService_CreateSchedule_InvalidTimeRange_ThrowsException() {
-        validDTO.setStartTime(LocalTime.of(17, 0));
-        validDTO.setEndTime(LocalTime.of(8, 0));
+    @DisplayName("Service Validation: createSchedule with endDate before scheduleDate throws IllegalArgumentException")
+    void testService_CreateSchedule_EndDateBeforeStartDate_ThrowsException() {
+        validDTO.setScheduleDate(LocalDate.now().plusDays(5));
+        validDTO.setEndDate(LocalDate.now().plusDays(2));
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
                 staffScheduleService.createSchedule(validDTO)
         );
 
-        assertEquals("Start time must be before end time", ex.getMessage());
+        assertTrue(ex.getMessage().contains("Ngày kết thúc phải cùng ngày hoặc sau ngày bắt đầu trực"));
         verify(staffScheduleRepository, never()).save(any(StaffSchedule.class));
     }
 
     @Test
-    @DisplayName("Service Validation: createSchedule with startTime equal to endTime throws IllegalArgumentException")
-    void testService_CreateSchedule_EqualStartTimeEndTime_ThrowsException() {
-        validDTO.setStartTime(LocalTime.of(10, 0));
-        validDTO.setEndTime(LocalTime.of(10, 0));
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                staffScheduleService.createSchedule(validDTO)
-        );
-
-        assertEquals("Start time must be before end time", ex.getMessage());
-        verify(staffScheduleRepository, never()).save(any(StaffSchedule.class));
-    }
-
-    @Test
-    @DisplayName("Service Validation: createSchedule with duration > 8 hours throws IllegalArgumentException")
-    void testService_CreateSchedule_Exceeds8Hours_ThrowsException() {
+    @DisplayName("Service Validation: validateEightHoursRuleLegacy throws when duration > 8 hours")
+    void testService_Legacy8HoursRule_Exceeds8Hours_ThrowsException() {
         validDTO.setStartTime(LocalTime.of(8, 0));
         validDTO.setEndTime(LocalTime.of(17, 0)); // 9 hours
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
-                staffScheduleService.createSchedule(validDTO)
+                staffScheduleService.validateEightHoursRuleLegacy(validDTO, null)
         );
 
         assertTrue(ex.getMessage().contains("không được vượt quá 8 tiếng"));
-        verify(staffScheduleRepository, never()).save(any(StaffSchedule.class));
     }
 
     @Test
-    @DisplayName("Service Validation: createSchedule with valid date and time succeeds")
+    @DisplayName("Service Validation: createSchedule with valid date range succeeds")
     void testService_CreateSchedule_Valid_Success() {
         when(userRepository.findById(5L)).thenReturn(Optional.of(testStaff));
         when(locationRepository.findById(10L)).thenReturn(Optional.of(testLocation));
@@ -184,6 +170,7 @@ class StaffScheduleValidationTest {
         savedSchedule.setStaff(testStaff);
         savedSchedule.setLocation(testLocation);
         savedSchedule.setScheduleDate(validDTO.getScheduleDate());
+        savedSchedule.setEndDate(validDTO.getEndDate());
         savedSchedule.setStartTime(validDTO.getStartTime());
         savedSchedule.setEndTime(validDTO.getEndTime());
         savedSchedule.setIsActive(true);

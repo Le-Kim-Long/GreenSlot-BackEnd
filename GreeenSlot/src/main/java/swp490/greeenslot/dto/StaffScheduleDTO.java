@@ -31,10 +31,12 @@ public class StaffScheduleDTO {
     @FutureOrPresent(message = "Ngày trực không được trong quá khứ")
     private LocalDate scheduleDate;
 
-    @NotNull(message = "Giờ bắt đầu không được để trống")
+    @NotNull(message = "Ngày kết thúc không được để trống")
+    @FutureOrPresent(message = "Ngày kết thúc không được trong quá khứ")
+    private LocalDate endDate;
+
     private LocalTime startTime;
 
-    @NotNull(message = "Giờ kết thúc không được để trống")
     private LocalTime endTime;
 
     private Long slotId;

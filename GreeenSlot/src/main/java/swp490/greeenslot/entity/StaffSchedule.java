@@ -33,10 +33,13 @@ public class StaffSchedule {
     @Column(name = "schedule_date", nullable = false)
     private LocalDate scheduleDate;
 
-    @Column(name = "start_time", nullable = false)
+    @Column(name = "end_date")
+    private LocalDate endDate;
+
+    @Column(name = "start_time")
     private LocalTime startTime;
 
-    @Column(name = "end_time", nullable = false)
+    @Column(name = "end_time")
     private LocalTime endTime;
 
     @ManyToOne(fetch = FetchType.LAZY)
