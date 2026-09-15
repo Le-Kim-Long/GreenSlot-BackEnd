@@ -703,7 +703,12 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Override
     @Transactional(readOnly = true)
     public RevenueAnalyticsResponseDTO getRevenueAnalytics(Long locationId, LocalDateTime start, LocalDateTime end) {
-        List<PaymentTransaction> transactions = paymentTransactionRepository.findSuccessfulTransactionsByLocationBetween(locationId, start, end);
+        List<PaymentTransaction> transactions;
+        if (locationId != null && locationId > 0) {
+            transactions = paymentTransactionRepository.findSuccessfulTransactionsByLocationBetween(locationId, start, end);
+        } else {
+            transactions = paymentTransactionRepository.findSuccessfulTransactionsBetween(start, end);
+        }
 
         // Compute total revenue
         BigDecimal totalRevenue = transactions.stream()

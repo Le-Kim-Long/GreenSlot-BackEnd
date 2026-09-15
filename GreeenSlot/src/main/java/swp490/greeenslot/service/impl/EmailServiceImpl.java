@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import swp490.greeenslot.service.EmailService;
 
@@ -47,8 +48,9 @@ public class EmailServiceImpl implements EmailService {
         return true;
     }
 
+    @Async
     @Override
-    public boolean sendRegistrationOtpEmail(String toEmail, String otp, String fullName) {
+    public void sendRegistrationOtpEmail(String toEmail, String otp, String fullName) {
         String subject = "GreenSlot - Mã xác thực đăng ký tài khoản (OTP)";
         String recipientName = (fullName != null && !fullName.isBlank()) ? fullName : "Quý khách";
 
@@ -59,7 +61,7 @@ public class EmailServiceImpl implements EmailService {
         if (mailSender == null || mailFrom == null || mailFrom.isBlank()) {
             logger.warn("Mail is not configured (spring.mail.username is empty). Registration OTP for {}: {}", toEmail, otp);
             logger.info("To send real emails, please configure MAIL_USERNAME and MAIL_PASSWORD (Google App Password) in environment or application.yml");
-            return false;
+            return;
         }
 
         try {
@@ -87,7 +89,6 @@ public class EmailServiceImpl implements EmailService {
             helper.setText(htmlContent, true);
             mailSender.send(mimeMessage);
             logger.info("Registration OTP HTML email sent successfully to {}", toEmail);
-            return true;
         } catch (Exception e) {
             logger.warn("Failed to send HTML email, trying plain text fallback for {}: {}", toEmail, e.getMessage());
             try {
@@ -98,10 +99,8 @@ public class EmailServiceImpl implements EmailService {
                 message.setText(String.format("Xin chào %s,\n\nMã xác thực OTP đăng ký GreenSlot của bạn là: %s (Hết hạn sau 10 phút).\n\nTrân trọng,\nĐội ngũ GreenSlot", recipientName, otp));
                 mailSender.send(message);
                 logger.info("Registration OTP plain text email sent successfully to {}", toEmail);
-                return true;
             } catch (Exception ex) {
                 logger.error("Failed to send OTP email to {}: {}", toEmail, ex.getMessage());
-                return false;
             }
         }
     }

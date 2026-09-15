@@ -8,7 +8,7 @@ public interface EmailService {
     boolean sendPasswordResetEmail(String toEmail, String resetToken);
 
     /**
-     * Sends a 6-digit registration verification OTP code to the user's email.
+     * Sends a 6-digit registration verification OTP code to the user's email asynchronously.
      */
-    boolean sendRegistrationOtpEmail(String toEmail, String otp, String fullName);
+    void sendRegistrationOtpEmail(String toEmail, String otp, String fullName);
 }
