@@ -83,7 +83,7 @@ public class EquipmentServiceImpl implements EquipmentService {
         Long locId = getEquipmentLocationId(existingEquipment);
         locationContextService.validateLocationAccess(locId);
 
-        if (dto.getPillarId() != null) {
+        if (dto.getPillarId() != null && dto.getPillarId() > 0) {
             Pillar newPillar = pillarRepository.findById(dto.getPillarId())
                     .orElseThrow(() -> new RuntimeException("Pillar not found with id: " + dto.getPillarId()));
             if (newPillar.getLocation() != null) {
@@ -177,10 +177,12 @@ public class EquipmentServiceImpl implements EquipmentService {
         if (dto.getSerialNumber() != null) equipment.setSerialNumber(dto.getSerialNumber());
         if (dto.getDescription() != null) equipment.setDescription(dto.getDescription());
         if (dto.getStatus() != null) equipment.setStatus(EEquipmentStatus.valueOf(dto.getStatus().toUpperCase()));
-        if (dto.getPillarId() != null) {
+        if (dto.getPillarId() != null && dto.getPillarId() > 0) {
             Pillar pillar = pillarRepository.findById(dto.getPillarId())
                     .orElseThrow(() -> new RuntimeException("Pillar not found with id: " + dto.getPillarId()));
             equipment.setPillar(pillar);
+        } else {
+            equipment.setPillar(null);
         }
         if (dto.getPurchaseDate() != null) equipment.setPurchaseDate(dto.getPurchaseDate());
         if (dto.getLastMaintenanceDate() != null) equipment.setLastMaintenanceDate(dto.getLastMaintenanceDate());
