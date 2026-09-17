@@ -20,6 +20,7 @@ public class AvailableSlotResponseDTO {
     private Integer totalHoles;
     private BigDecimal calculatedPillarsPrice;
     private BigDecimal calculatedTreesPrice;
+    private BigDecimal landPrice;
 
     public AvailableSlotResponseDTO() {
     }
@@ -189,5 +190,13 @@ public class AvailableSlotResponseDTO {
 
     public void setCalculatedTreesPrice(BigDecimal calculatedTreesPrice) {
         this.calculatedTreesPrice = calculatedTreesPrice;
+    }
+
+    public BigDecimal getLandPrice() {
+        return landPrice;
+    }
+
+    public void setLandPrice(BigDecimal landPrice) {
+        this.landPrice = landPrice;
     }
 }

@@ -31,9 +31,20 @@ public class ServiceTypeDTO {
     @Positive(message = "Mã danh mục dịch vụ không hợp lệ")
     private Long categoryId;
 
+    private Long locationId;
+    private String locationName;
+
     public ServiceTypeDTO(Long id, String serviceName, BigDecimal price, Long categoryId) {
         this.id = id;
         this.serviceName = serviceName;
+        this.price = price;
+        this.categoryId = categoryId;
+    }
+
+    public ServiceTypeDTO(Long id, String serviceName, String description, BigDecimal price, Long categoryId) {
+        this.id = id;
+        this.serviceName = serviceName;
+        this.description = description;
         this.price = price;
         this.categoryId = categoryId;
     }

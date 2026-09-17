@@ -41,6 +41,10 @@ public class Equipment {
     @JoinColumn(name = "pillar_id")
     private Pillar pillar;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id")
+    private Location location;
+
     @Column(name = "purchase_date")
     private LocalDateTime purchaseDate;
 

@@ -6,8 +6,10 @@ import org.springframework.transaction.annotation.Transactional;
 import swp490.greeenslot.dto.EquipmentDTO;
 import swp490.greeenslot.entity.EEquipmentStatus;
 import swp490.greeenslot.entity.Equipment;
+import swp490.greeenslot.entity.Location;
 import swp490.greeenslot.entity.Pillar;
 import swp490.greeenslot.repository.EquipmentRepository;
+import swp490.greeenslot.repository.LocationRepository;
 import swp490.greeenslot.repository.PillarRepository;
 import swp490.greeenslot.service.EquipmentService;
 
@@ -25,11 +27,19 @@ public class EquipmentServiceImpl implements EquipmentService {
     private PillarRepository pillarRepository;
 
     @Autowired
+    private LocationRepository locationRepository;
+
+    @Autowired
     private swp490.greeenslot.service.LocationContextService locationContextService;
 
     private Long getEquipmentLocationId(Equipment equipment) {
-        if (equipment != null && equipment.getPillar() != null && equipment.getPillar().getLocation() != null) {
-            return equipment.getPillar().getLocation().getId();
+        if (equipment != null) {
+            if (equipment.getLocation() != null) {
+                return equipment.getLocation().getId();
+            }
+            if (equipment.getPillar() != null && equipment.getPillar().getLocation() != null) {
+                return equipment.getPillar().getLocation().getId();
+            }
         }
         return null;
     }
@@ -62,14 +72,33 @@ public class EquipmentServiceImpl implements EquipmentService {
     @Transactional
     public EquipmentDTO createEquipment(EquipmentDTO dto) {
         validateEquipmentDates(dto);
-        if (dto.getPillarId() != null) {
-            Pillar pillar = pillarRepository.findById(dto.getPillarId())
+
+        Long targetLocationId = locationContextService.resolveTargetLocationId(dto.getLocationId());
+        Location location = null;
+        if (targetLocationId != null) {
+            locationContextService.validateLocationAccess(targetLocationId);
+            location = locationRepository.findById(targetLocationId)
+                    .orElseThrow(() -> new RuntimeException("Location not found with id: " + targetLocationId));
+        }
+
+        Pillar pillar = null;
+        if (dto.getPillarId() != null && dto.getPillarId() > 0) {
+            pillar = pillarRepository.findById(dto.getPillarId())
                     .orElseThrow(() -> new RuntimeException("Pillar not found with id: " + dto.getPillarId()));
             if (pillar.getLocation() != null) {
                 locationContextService.validateLocationAccess(pillar.getLocation().getId());
+                if (location == null) {
+                    location = pillar.getLocation();
+                } else if (!location.getId().equals(pillar.getLocation().getId())) {
+                    throw new IllegalArgumentException("Trụ đã chọn không thuộc cơ sở này.");
+                }
             }
         }
+
         Equipment equipment = mapToEntity(dto);
+        equipment.setPillar(pillar);
+        equipment.setLocation(location);
+
         Equipment savedEquipment = equipmentRepository.save(equipment);
         return mapToDTO(savedEquipment);
     }
@@ -80,18 +109,44 @@ public class EquipmentServiceImpl implements EquipmentService {
         validateEquipmentDates(dto);
         Equipment existingEquipment = equipmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Equipment not found with id: " + id));
-        Long locId = getEquipmentLocationId(existingEquipment);
-        locationContextService.validateLocationAccess(locId);
+        Long currentLocId = getEquipmentLocationId(existingEquipment);
+        if (currentLocId != null) {
+            locationContextService.validateLocationAccess(currentLocId);
+        } else if (locationContextService.isLocationManager()) {
+            locationContextService.validateLocationAccess(null); // Deny if user is location manager and equipment has no location
+        }
 
+        Long targetLocationId = dto.getLocationId() != null 
+                ? locationContextService.resolveTargetLocationId(dto.getLocationId())
+                : currentLocId;
+
+        Location location = null;
+        if (targetLocationId != null) {
+            locationContextService.validateLocationAccess(targetLocationId);
+            location = locationRepository.findById(targetLocationId)
+                    .orElseThrow(() -> new RuntimeException("Location not found with id: " + targetLocationId));
+        }
+
+        Pillar newPillar = null;
         if (dto.getPillarId() != null && dto.getPillarId() > 0) {
-            Pillar newPillar = pillarRepository.findById(dto.getPillarId())
+            newPillar = pillarRepository.findById(dto.getPillarId())
                     .orElseThrow(() -> new RuntimeException("Pillar not found with id: " + dto.getPillarId()));
             if (newPillar.getLocation() != null) {
                 locationContextService.validateLocationAccess(newPillar.getLocation().getId());
+                if (location == null) {
+                    location = newPillar.getLocation();
+                } else if (!location.getId().equals(newPillar.getLocation().getId())) {
+                    throw new IllegalArgumentException("Trụ đã chọn không thuộc cơ sở này.");
+                }
             }
         }
 
         updateEntityFromDTO(existingEquipment, dto);
+        existingEquipment.setPillar(newPillar);
+        if (location != null) {
+            existingEquipment.setLocation(location);
+        }
+
         Equipment updatedEquipment = equipmentRepository.save(existingEquipment);
         return mapToDTO(updatedEquipment);
     }
@@ -139,6 +194,16 @@ public class EquipmentServiceImpl implements EquipmentService {
     }
 
     private EquipmentDTO mapToDTO(Equipment equipment) {
+        Long locId = null;
+        String locName = null;
+        if (equipment.getLocation() != null) {
+            locId = equipment.getLocation().getId();
+            locName = equipment.getLocation().getName();
+        } else if (equipment.getPillar() != null && equipment.getPillar().getLocation() != null) {
+            locId = equipment.getPillar().getLocation().getId();
+            locName = equipment.getPillar().getLocation().getName();
+        }
+
         return new EquipmentDTO(
                 equipment.getId(),
                 equipment.getEquipmentName(),
@@ -147,6 +212,8 @@ public class EquipmentServiceImpl implements EquipmentService {
                 equipment.getStatus() != null ? equipment.getStatus().name() : null,
                 equipment.getPillar() != null ? equipment.getPillar().getId() : null,
                 equipment.getPillar() != null ? equipment.getPillar().getPillarCode() : null,
+                locId,
+                locName,
                 equipment.getPurchaseDate(),
                 equipment.getLastMaintenanceDate(),
                 equipment.getImageUrl()
