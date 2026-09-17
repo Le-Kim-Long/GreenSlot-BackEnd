@@ -353,11 +353,11 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         }
         slot.setStatus(status);
         
-        // Auto-assign calculated price if price is not provided or zero
-        BigDecimal finalPrice = (dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) > 0)
+        // Flexible land rental price: use dto.getPrice() or 0 if null/empty
+        BigDecimal landPrice = (dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) > 0)
                 ? dto.getPrice()
-                : (calculatedPillarsPrice.compareTo(BigDecimal.ZERO) > 0 ? calculatedPillarsPrice : BigDecimal.ZERO);
-        slot.setPrice(finalPrice);
+                : BigDecimal.ZERO;
+        slot.setPrice(landPrice);
         slot.setArea(area);
         slot.setMaxPillars(maxPillars);
         slot.setImageUrl(dto.getImageUrl());
@@ -386,12 +386,20 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         GardenSlot slot = gardenSlotRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Garden slot not found with ID " + id));
 
+        Long currentLocId = slot.getLocation() != null ? slot.getLocation().getId() : null;
+        if (currentLocId != null) {
+            locationContextService.validateLocationAccess(currentLocId);
+        } else if (locationContextService.isLocationManager()) {
+            locationContextService.validateLocationAccess(null);
+        }
+
         Long targetLocId = dto.getLocationId() != null 
-                ? dto.getLocationId() 
-                : (slot.getLocation() != null ? slot.getLocation().getId() : locationContextService.resolveTargetLocationId(null));
+                ? locationContextService.resolveTargetLocationId(dto.getLocationId()) 
+                : currentLocId;
 
         Location location = null;
         if (targetLocId != null) {
+            locationContextService.validateLocationAccess(targetLocId);
             location = locationRepository.findById(targetLocId)
                     .orElseThrow(() -> new IllegalArgumentException("Location not found with ID " + targetLocId));
         }
@@ -434,10 +442,10 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             }
         }
         
-        BigDecimal finalPrice = (dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) > 0)
-                ? dto.getPrice()
-                : (calculatedPillarsPrice.compareTo(BigDecimal.ZERO) > 0 ? calculatedPillarsPrice : slot.getPrice());
-        slot.setPrice(finalPrice);
+        if (dto.getPrice() != null) {
+            BigDecimal landPrice = dto.getPrice().compareTo(BigDecimal.ZERO) > 0 ? dto.getPrice() : BigDecimal.ZERO;
+            slot.setPrice(landPrice);
+        }
         slot.setArea(area);
         slot.setMaxPillars(maxPillars);
         slot.setImageUrl(dto.getImageUrl());
@@ -584,11 +592,27 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         ServiceCategory category = serviceCategoryRepository.findById(dto.getCategoryId())
                 .orElseThrow(() -> new IllegalArgumentException("Service category not found with ID " + dto.getCategoryId()));
 
+        Long targetLocId = null;
+        if (locationContextService.isLocationManager()) {
+            targetLocId = locationContextService.resolveTargetLocationId(null);
+        } else if (dto.getLocationId() != null && dto.getLocationId() > 0) {
+            targetLocId = dto.getLocationId();
+        }
+
+        Location location = null;
+        if (targetLocId != null) {
+            final Long locIdToFind = targetLocId;
+            locationContextService.validateLocationAccess(targetLocId);
+            location = locationRepository.findById(targetLocId)
+                    .orElseThrow(() -> new IllegalArgumentException("Location not found with ID " + locIdToFind));
+        }
+
         ServiceType serviceType = new ServiceType();
         serviceType.setServiceName(dto.getServiceName());
         serviceType.setDescription(dto.getDescription());
         serviceType.setPrice(dto.getPrice());
         serviceType.setCategory(category);
+        serviceType.setLocation(location);
 
         ServiceType saved = serviceTypeRepository.save(serviceType);
         return mapToServiceTypeDTO(saved);
@@ -603,6 +627,22 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         ServiceCategory category = serviceCategoryRepository.findById(dto.getCategoryId())
                 .orElseThrow(() -> new IllegalArgumentException("Service category not found with ID " + dto.getCategoryId()));
 
+        if (locationContextService.isLocationManager()) {
+            Long userLocId = locationContextService.getCurrentUserLocationId();
+            if (serviceType.getLocation() == null || !serviceType.getLocation().getId().equals(userLocId)) {
+                throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền chỉnh sửa dịch vụ chung hoặc dịch vụ của cơ sở khác.");
+            }
+        } else {
+            // Manager / Admin can reassign location or make it global
+            if (dto.getLocationId() != null && dto.getLocationId() > 0) {
+                Location loc = locationRepository.findById(dto.getLocationId())
+                        .orElseThrow(() -> new IllegalArgumentException("Location not found with ID " + dto.getLocationId()));
+                serviceType.setLocation(loc);
+            } else if (dto.getLocationId() != null && dto.getLocationId() == 0) {
+                serviceType.setLocation(null);
+            }
+        }
+
         serviceType.setServiceName(dto.getServiceName());
         serviceType.setDescription(dto.getDescription());
         serviceType.setPrice(dto.getPrice());
@@ -615,6 +655,13 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     @Override
     @Transactional(readOnly = true)
     public List<ServiceTypeDTO> getAllServiceTypes() {
+        if (locationContextService.isLocationManager()) {
+            Long userLocId = locationContextService.getCurrentUserLocationId();
+            return serviceTypeRepository.findAll().stream()
+                    .filter(s -> s.getLocation() == null || (userLocId != null && userLocId.equals(s.getLocation().getId())))
+                    .map(this::mapToServiceTypeDTO)
+                    .collect(Collectors.toList());
+        }
         return serviceTypeRepository.findAll().stream()
                 .map(this::mapToServiceTypeDTO)
                 .collect(Collectors.toList());
@@ -629,7 +676,9 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     }
 
     private ServiceTypeDTO mapToServiceTypeDTO(ServiceType s) {
-        return new ServiceTypeDTO(s.getId(), s.getServiceName(), s.getDescription(), s.getPrice(), s.getCategory().getId());
+        Long locId = s.getLocation() != null ? s.getLocation().getId() : null;
+        String locName = s.getLocation() != null ? s.getLocation().getName() : null;
+        return new ServiceTypeDTO(s.getId(), s.getServiceName(), s.getDescription(), s.getPrice(), s.getCategory().getId(), locId, locName);
     }
 
     // ==========================================
@@ -865,6 +914,13 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         GardenSlot slot = gardenSlotRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ô vườn với ID: " + id));
 
+        Long locId = slot.getLocation() != null ? slot.getLocation().getId() : null;
+        if (locId != null) {
+            locationContextService.validateLocationAccess(locId);
+        } else if (locationContextService.isLocationManager()) {
+            locationContextService.validateLocationAccess(null);
+        }
+
         boolean hasActiveRental = slotRentalRepository.existsByGardenSlotIdAndStatus(id, ERentalStatus.ACTIVE);
         if (hasActiveRental) {
             throw new IllegalArgumentException("Không thể xóa ô vườn " + slot.getSlotNumber() + " vì đang có hợp đồng thuê hoạt động.");
@@ -903,6 +959,13 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
     public void deleteServiceType(Long id) {
         ServiceType type = serviceTypeRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Service type not found with ID: " + id));
+
+        if (locationContextService.isLocationManager()) {
+            Long userLocId = locationContextService.getCurrentUserLocationId();
+            if (type.getLocation() == null || !type.getLocation().getId().equals(userLocId)) {
+                throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền xóa dịch vụ chung hoặc dịch vụ của cơ sở khác.");
+            }
+        }
 
         boolean hasTasks = gardeningTaskRepository.existsByTaskName(type.getServiceName());
         if (hasTasks) {

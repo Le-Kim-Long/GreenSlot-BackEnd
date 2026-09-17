@@ -72,6 +72,12 @@ public class SecurityConfig {
                 "http://localhost:3000"
         ));
 
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+                "https://*.vercel.app",
+                "http://localhost:*",
+                "http://127.0.0.1:*"
+        ));
+
         configuration.setAllowedMethods(Arrays.asList(
                 "GET",
                 "POST",

@@ -80,6 +80,7 @@ public class BookingController {
             dto.setTotalHoles(totalHoles);
             dto.setCalculatedPillarsPrice(calculatedPillarsPrice);
             dto.setCalculatedTreesPrice(calculatedTreesPrice);
+            dto.setLandPrice(s.getPrice() != null ? s.getPrice() : BigDecimal.ZERO);
             return dto;
         }).collect(Collectors.toList());
         return ResponseEntity.ok(dtoList);

@@ -20,6 +20,8 @@ public class EquipmentDTO {
     private String status;
     private Long pillarId;
     private String pillarCode;
+    private Long locationId;
+    private String locationName;
 
     @PastOrPresent(message = "Purchase date cannot be in the future")
     private LocalDateTime purchaseDate;

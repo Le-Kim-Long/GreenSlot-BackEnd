@@ -277,10 +277,17 @@ public class BookingServiceImpl implements BookingService {
         }
 
         // Calculate amount:
-        // Monthly rent = sum of selected pillars' monthly prices (Slot base price = 0)
-        BigDecimal monthlySlotPrice = selectedPillars.stream()
+        // Calculate amount:
+        // Monthly rent = Land rental price + sum of selected pillars' monthly prices
+        BigDecimal landPrice = (slot.getPrice() != null && slot.getPrice().compareTo(BigDecimal.ZERO) > 0)
+                ? slot.getPrice()
+                : BigDecimal.ZERO;
+
+        BigDecimal monthlyPillarsPrice = selectedPillars.stream()
                 .map(Pillar::getEffectivePrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal monthlyRent = landPrice.add(monthlyPillarsPrice);
 
         // Vegetable seedling cost scaled by hole capacity for each pillar (Option 1: price * holes / 24.0)
         BigDecimal totalTreeCost = BigDecimal.ZERO;
@@ -301,7 +308,7 @@ public class BookingServiceImpl implements BookingService {
         }
 
 
-        BigDecimal amount = monthlySlotPrice.multiply(new BigDecimal(months)).add(totalTreeCost);
+        BigDecimal amount = monthlyRent.multiply(new BigDecimal(months)).add(totalTreeCost);
 
         // Create SlotRental in PENDING state
         SlotRental rental = new SlotRental();
@@ -447,7 +454,17 @@ public class BookingServiceImpl implements BookingService {
         }
 
         GardenSlot slot = rental.getGardenSlot();
-        BigDecimal amount = slot.getPrice().multiply(new BigDecimal(months));
+        BigDecimal landPrice = (slot.getPrice() != null && slot.getPrice().compareTo(BigDecimal.ZERO) > 0)
+                ? slot.getPrice()
+                : BigDecimal.ZERO;
+        BigDecimal monthlyPillarsPrice = rental.getRentedPillars() != null
+                ? rental.getRentedPillars().stream().map(Pillar::getEffectivePrice).reduce(BigDecimal.ZERO, BigDecimal::add)
+                : BigDecimal.ZERO;
+        BigDecimal monthlyRent = landPrice.add(monthlyPillarsPrice);
+        if (monthlyRent.compareTo(BigDecimal.ZERO) <= 0 && slot.getPrice() != null && slot.getPrice().compareTo(BigDecimal.ZERO) > 0) {
+            monthlyRent = slot.getPrice();
+        }
+        BigDecimal amount = monthlyRent.multiply(new BigDecimal(months));
 
         // Generate vnpTxnRef: EXT_[rentalId]_[duration]_[uuid]
         String uuid = UUID.randomUUID().toString().substring(0, 8);
