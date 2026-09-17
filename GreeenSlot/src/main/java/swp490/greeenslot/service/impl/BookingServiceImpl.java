@@ -356,12 +356,7 @@ public class BookingServiceImpl implements BookingService {
             setupTask.setTargetSlot(slot);
             setupTask.setRequestedBy(user);
 
-            if (slot.getLocation() != null) {
-                List<User> staffList = userRepository.findByRoleNameAndLocation(ERole.ROLE_GARDEN_STAFF, slot.getLocation().getId());
-                if (!staffList.isEmpty()) {
-                    setupTask.setAssignedStaff(staffList.get(0));
-                }
-            }
+            setupTask.setAssignedStaff(null);
             gardeningTaskRepository.save(setupTask);
 
             // 2. Notify Location Manager(s) of this location
@@ -391,18 +386,6 @@ public class BookingServiceImpl implements BookingService {
                     "PILLAR_SETUP_REQUIRED",
                     rental.getId(),
                     "/dashboard/staff/tasks"
-                );
-            }
-
-            if (setupTask.getAssignedStaff() != null) {
-                notificationService.createNotification(
-                    setupTask.getAssignedStaff().getId(),
-                    "Nhiệm vụ mới: Lắp đặt trụ cho Ô " + slot.getSlotNumber(),
-                    String.format("Bạn được giao nhiệm vụ lắp đặt bổ sung %s cho Ô %s trước ngày %s.",
-                        pillarSummary, slot.getSlotNumber(), start.toLocalDate()),
-                    "TASK_ASSIGNED",
-                    setupTask.getId(),
-                    "/dashboard/garden-staff/schedules"
                 );
             }
         }
@@ -1236,17 +1219,20 @@ public class BookingServiceImpl implements BookingService {
 
                 if (notificationService != null) {
                     Long locationId = rental.getGardenSlot().getLocation() != null ? rental.getGardenSlot().getLocation().getId() : null;
-                    List<User> staffList = locationId != null 
-                            ? userRepository.findByRoleNameAndLocation(ERole.ROLE_GARDEN_STAFF, locationId) 
-                            : userRepository.findByRoleName(ERole.ROLE_GARDEN_STAFF);
-                    for (User s : staffList) {
+                    List<User> managers = locationId != null 
+                            ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locationId) 
+                            : userRepository.findByRoleName(ERole.ROLE_LOCATION_MANAGER);
+                    if (managers.isEmpty()) {
+                        managers = userRepository.findByRoleName(ERole.ROLE_ADMIN);
+                    }
+                    for (User m : managers) {
                         notificationService.createNotification(
-                                s.getId(),
-                                "Khách nhờ hỗ trợ thu hoạch",
-                                "Khách hàng ở ô " + slotNumber + " nhờ hỗ trợ thu hoạch cây " + treeName + ". Vui lòng nhận việc.",
-                                "HARVEST_STAFF_CONFIRMED",
+                                m.getId(),
+                                "Yêu cầu thu hoạch mới: Ô " + slotNumber,
+                                "Khách hàng ở ô " + slotNumber + " nhờ hỗ trợ thu hoạch cây " + treeName + ". Vui lòng phân công nhân viên xử lý.",
+                                "HARVEST_REQUEST_ASSIGNMENT",
                                 saved.getId(),
-                                "/dashboard/garden-staff"
+                                "/dashboard/staff/tasks"
                         );
                     }
                 }

@@ -8,6 +8,7 @@ import swp490.greeenslot.entity.*;
 import swp490.greeenslot.repository.*;
 import swp490.greeenslot.service.GardeningTaskService;
 
+import jakarta.annotation.PostConstruct;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -176,13 +177,39 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         return gardeningTaskRepository.save(task);
     }
 
+    @PostConstruct
+    public void unassignOrphanPendingSetupTasks() {
+        try {
+            List<GardeningTask> pendingSetupTasks = gardeningTaskRepository.findAll().stream()
+                    .filter(t -> t.getStatus() == ETaskStatus.PENDING && t.getTaskName() != null && t.getTaskName().startsWith("Lắp đặt bổ sung") && t.getAssignedStaff() != null)
+                    .collect(Collectors.toList());
+            for (GardeningTask t : pendingSetupTasks) {
+                t.setAssignedStaff(null);
+                gardeningTaskRepository.save(t);
+            }
+        } catch (Exception e) {
+            // Ignore any errors during startup
+        }
+    }
+
     @Override
     @Transactional
     public GardeningTask assignStaffToTask(Long taskId, TaskAssignmentDTO request) {
-        if (request.getStaffId() == null) {
-            throw new IllegalArgumentException("Staff ID is required for task assignment");
+        // Fetch the task
+        GardeningTask task = gardeningTaskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
+
+        Long taskLocId = getSlotLocationId(task.getTargetSlot());
+        if (taskLocId != null) {
+            locationContextService.validateLocationAccess(taskLocId);
         }
-        
+
+        // Support unassigning (bỏ gán)
+        if (request.getStaffId() == null || request.getStaffId() <= 0) {
+            task.setAssignedStaff(null);
+            return gardeningTaskRepository.save(task);
+        }
+
         // Fetch target staff and check role
         User staff = userRepository.findById(request.getStaffId())
                 .orElseThrow(() -> new IllegalArgumentException("Staff user not found with ID " + request.getStaffId()));
@@ -194,9 +221,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             throw new IllegalArgumentException("User with ID " + request.getStaffId() + " does not have ROLE_GARDEN_STAFF");
         }
 
-        // Fetch the task
-        GardeningTask task = gardeningTaskRepository.findById(taskId)
-                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
+        if (taskLocId != null && staff.getLocation() != null && !taskLocId.equals(staff.getLocation().getId())) {
+            throw new IllegalArgumentException("Nhân viên được chọn không thuộc cơ sở của ô vườn này.");
+        }
 
         // Assign staff
         task.setAssignedStaff(staff);
@@ -235,99 +262,16 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
     @Override
     public List<GardeningTask> getAvailableTasks(String username) {
-        User staff = userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
-        if (staff.getLocation() == null) {
-            return List.of();
-        }
-
-        List<GardeningTask> allUnassigned = gardeningTaskRepository.findUnassignedByLocationId(staff.getLocation().getId());
-        if (allUnassigned.isEmpty()) {
-            return List.of();
-        }
-
-        // Check active shifts of this staff for today
-        LocalDate today = LocalDate.now();
-        List<StaffSchedule> todaySchedules = staffScheduleRepository.findByStaffAndDateRange(staff.getId(), today, today)
-                .stream().filter(s -> Boolean.TRUE.equals(s.getIsActive()))
-                .toList();
-
-        // Strictly require an active schedule today
-        if (todaySchedules.isEmpty()) {
-            return List.of();
-        }
-
-        // Check if staff has any whole-location shift (slot == null)
-        boolean hasLocationWideShift = todaySchedules.stream().anyMatch(s -> s.getGardenSlot() == null);
-        if (hasLocationWideShift) {
-            return allUnassigned;
-        }
-
-        // Staff is assigned to specific slot(s)
-        Set<Long> assignedSlotIds = todaySchedules.stream()
-                .map(StaffSchedule::getGardenSlot)
-                .filter(Objects::nonNull)
-                .map(GardenSlot::getId)
-                .collect(Collectors.toSet());
-
-        return allUnassigned.stream()
-                .filter(t -> t.getTargetSlot() != null && assignedSlotIds.contains(t.getTargetSlot().getId()))
-                .collect(Collectors.toList());
+        // Toàn bộ công việc bắt buộc phải do Quản lý cơ sở phân công, không còn cơ chế tự nhận việc
+        return List.of();
     }
 
     @Override
     @Transactional
     public GardeningTask claimTask(Long taskId, String username) {
-        GardeningTask task = gardeningTaskRepository.findById(taskId)
-                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
-
-        if (task.getAssignedStaff() != null) {
-            throw new IllegalArgumentException("Task has already been claimed by another staff member");
-        }
-
-        User staff = userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
-
-        // Verify task belongs to staff location
-        Long taskLocId = getSlotLocationId(task.getTargetSlot());
-        if (taskLocId == null && task.getAssignedStaff() != null && task.getAssignedStaff().getLocation() != null) {
-            taskLocId = task.getAssignedStaff().getLocation().getId();
-        }
-        if (staff.getLocation() != null && taskLocId != null && !staff.getLocation().getId().equals(taskLocId)) {
-            throw new IllegalArgumentException("You can only claim tasks at your own location");
-        }
-
-        // Strictly verify that staff has an active shift today covering this slot
-        LocalDate today = LocalDate.now();
-        List<StaffSchedule> todaySchedules = staffScheduleRepository.findByStaffAndDateRange(staff.getId(), today, today)
-                .stream().filter(s -> Boolean.TRUE.equals(s.getIsActive()))
-                .toList();
-
-        if (todaySchedules.isEmpty()) {
-            throw new IllegalArgumentException("Bạn chưa được phân công ca trực nào trong ngày hôm nay nên không thể nhận việc.");
-        }
-
-        boolean hasLocationWideShift = todaySchedules.stream().anyMatch(s -> s.getGardenSlot() == null);
-        if (!hasLocationWideShift) {
-            if (task.getTargetSlot() == null) {
-                throw new IllegalArgumentException("Công việc này không thuộc ô vườn bạn được phân công trực.");
-            }
-            Set<Long> assignedSlotIds = todaySchedules.stream()
-                    .map(StaffSchedule::getGardenSlot)
-                    .filter(Objects::nonNull)
-                    .map(GardenSlot::getId)
-                    .collect(Collectors.toSet());
-            if (!assignedSlotIds.contains(task.getTargetSlot().getId())) {
-                String assignedNames = todaySchedules.stream()
-                        .filter(s -> s.getGardenSlot() != null)
-                        .map(s -> "Ô " + s.getGardenSlot().getSlotNumber())
-                        .collect(Collectors.joining(", "));
-                throw new IllegalArgumentException("Bạn chỉ có thể nhận công việc tại ô vườn đã được phân công trực hôm nay (" + assignedNames + ")");
-            }
-        }
-
-        task.setAssignedStaff(staff);
-        return gardeningTaskRepository.save(task);
+        throw new org.springframework.security.access.AccessDeniedException(
+                "Hệ thống chỉ cho phép Quản lý cơ sở phân công công việc. Nhân viên không thể tự nhận việc."
+        );
     }
 
     @Override
