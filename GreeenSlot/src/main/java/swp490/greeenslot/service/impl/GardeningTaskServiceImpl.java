@@ -8,6 +8,7 @@ import swp490.greeenslot.entity.*;
 import swp490.greeenslot.repository.*;
 import swp490.greeenslot.service.GardeningTaskService;
 
+import jakarta.annotation.PostConstruct;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -176,13 +177,39 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         return gardeningTaskRepository.save(task);
     }
 
+    @PostConstruct
+    public void unassignOrphanPendingSetupTasks() {
+        try {
+            List<GardeningTask> pendingSetupTasks = gardeningTaskRepository.findAll().stream()
+                    .filter(t -> t.getStatus() == ETaskStatus.PENDING && t.getTaskName() != null && t.getTaskName().startsWith("Lắp đặt bổ sung") && t.getAssignedStaff() != null)
+                    .collect(Collectors.toList());
+            for (GardeningTask t : pendingSetupTasks) {
+                t.setAssignedStaff(null);
+                gardeningTaskRepository.save(t);
+            }
+        } catch (Exception e) {
+            // Ignore any errors during startup
+        }
+    }
+
     @Override
     @Transactional
     public GardeningTask assignStaffToTask(Long taskId, TaskAssignmentDTO request) {
-        if (request.getStaffId() == null) {
-            throw new IllegalArgumentException("Staff ID is required for task assignment");
+        // Fetch the task
+        GardeningTask task = gardeningTaskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
+
+        Long taskLocId = getSlotLocationId(task.getTargetSlot());
+        if (taskLocId != null) {
+            locationContextService.validateLocationAccess(taskLocId);
         }
-        
+
+        // Support unassigning (bỏ gán)
+        if (request.getStaffId() == null || request.getStaffId() <= 0) {
+            task.setAssignedStaff(null);
+            return gardeningTaskRepository.save(task);
+        }
+
         // Fetch target staff and check role
         User staff = userRepository.findById(request.getStaffId())
                 .orElseThrow(() -> new IllegalArgumentException("Staff user not found with ID " + request.getStaffId()));
@@ -194,16 +221,8 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             throw new IllegalArgumentException("User with ID " + request.getStaffId() + " does not have ROLE_GARDEN_STAFF");
         }
 
-        // Fetch the task
-        GardeningTask task = gardeningTaskRepository.findById(taskId)
-                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
-
-        Long taskLocId = getSlotLocationId(task.getTargetSlot());
-        if (taskLocId != null) {
-            locationContextService.validateLocationAccess(taskLocId);
-            if (staff.getLocation() != null && !taskLocId.equals(staff.getLocation().getId())) {
-                throw new IllegalArgumentException("Nhân viên được chọn không thuộc cơ sở của ô vườn này.");
-            }
+        if (taskLocId != null && staff.getLocation() != null && !taskLocId.equals(staff.getLocation().getId())) {
+            throw new IllegalArgumentException("Nhân viên được chọn không thuộc cơ sở của ô vườn này.");
         }
 
         // Assign staff
