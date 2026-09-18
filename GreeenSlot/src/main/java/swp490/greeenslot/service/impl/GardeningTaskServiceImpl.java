@@ -421,12 +421,42 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         }
 
         if (newStatus == ETaskStatus.PENDING_APPROVAL) {
-            if (request.getEvidenceImageUrl() == null || request.getEvidenceImageUrl().trim().isEmpty()) {
-                throw new IllegalArgumentException("Evidence image URL is required when submitting task for approval");
+            // 1. Thu thập ảnh bằng chứng & ghi chú nhân viên
+            java.util.List<String> allImages = new java.util.ArrayList<>();
+            if (request.getEvidenceImageUrl() != null && !request.getEvidenceImageUrl().trim().isEmpty()) {
+                allImages.add(request.getEvidenceImageUrl().trim());
             }
-            task.setEvidenceImageUrl(request.getEvidenceImageUrl());
+            if (request.getEquipmentBindings() != null) {
+                for (swp490.greeenslot.dto.PillarEquipmentBindingDTO b : request.getEquipmentBindings()) {
+                    if (b.getEvidenceImageUrl() != null && !b.getEvidenceImageUrl().trim().isEmpty()) {
+                        String bImg = b.getEvidenceImageUrl().trim();
+                        if (!allImages.contains(bImg)) {
+                            allImages.add(bImg);
+                        }
+                    }
+                }
+            }
+            if (allImages.isEmpty()) {
+                throw new IllegalArgumentException("Vui lòng cung cấp hình ảnh bằng chứng công việc khi nộp duyệt");
+            }
+            task.setEvidenceImageUrl(String.join(",", allImages));
 
-            // 1. Process equipment bindings if provided (Staff attaching equipment to pillars)
+            if (request.getStaffNotes() != null && !request.getStaffNotes().isBlank()) {
+                task.setStaffNotes(request.getStaffNotes());
+            } else if (request.getEquipmentBindings() != null && !request.getEquipmentBindings().isEmpty()) {
+                StringBuilder notesSb = new StringBuilder();
+                for (swp490.greeenslot.dto.PillarEquipmentBindingDTO b : request.getEquipmentBindings()) {
+                    if (b.getNotes() != null && !b.getNotes().isBlank()) {
+                        if (notesSb.length() > 0) notesSb.append("\n");
+                        notesSb.append("[").append(b.getPillarCode()).append("]: ").append(b.getNotes().trim());
+                    }
+                }
+                if (notesSb.length() > 0) {
+                    task.setStaffNotes(notesSb.toString());
+                }
+            }
+
+            // 2. Process equipment bindings if provided (Staff attaching equipment to pillars)
             if (request.getEquipmentBindings() != null && !request.getEquipmentBindings().isEmpty()) {
                 Location taskLocation = (task.getTargetSlot() != null && task.getTargetSlot().getLocation() != null)
                         ? task.getTargetSlot().getLocation()
@@ -472,11 +502,11 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                 }
             }
 
-            // 2. Ràng buộc: Đối với task lắp đặt/bổ sung trụ, tất cả các trụ thuộc task BẮT BUỘC phải có thiết bị được gắn
+            // 3. Ràng buộc: Chỉ đối với task lắp đặt/bổ sung trụ mới, tất cả các trụ thuộc task BẮT BUỘC phải có thiết bị được gắn
             boolean isPillarSetupTask = (task.getTaskName() != null && (
-                    task.getTaskName().toLowerCase().contains("lắp đặt") ||
-                    task.getTaskName().toLowerCase().contains("bổ sung trụ") ||
-                    task.getTaskName().toLowerCase().contains("chuẩn bị trụ")
+                    task.getTaskName().toLowerCase().contains("lắp đặt bổ sung") ||
+                    task.getTaskName().toLowerCase().contains("lắp đặt trụ") ||
+                    task.getTaskName().toLowerCase().contains("bổ sung trụ")
             )) && (task.getPillarCodes() != null && !task.getPillarCodes().isBlank());
 
             if (isPillarSetupTask) {

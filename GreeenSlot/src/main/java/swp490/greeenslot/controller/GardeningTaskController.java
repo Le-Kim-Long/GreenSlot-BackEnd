@@ -284,6 +284,64 @@ public class GardeningTaskController {
         dto.setDeviceStatus(deviceStatus);
         dto.setIotStatus(iotStatus);
         dto.setIotRecommendation(iotRecommendation);
+        dto.setStaffNotes(task.getStaffNotes());
+
+        if (pillarCodes != null && !pillarCodes.isBlank()) {
+            List<swp490.greeenslot.dto.PillarEquipmentBindingDTO> bindings = new ArrayList<>();
+            String[] pCodes = pillarCodes.split(",");
+            String[] evImages = (task.getEvidenceImageUrl() != null && !task.getEvidenceImageUrl().isBlank())
+                    ? task.getEvidenceImageUrl().split(",")
+                    : new String[0];
+            String notesContent = task.getStaffNotes() != null ? task.getStaffNotes() : "";
+
+            for (int i = 0; i < pCodes.length; i++) {
+                String pCode = pCodes[i].trim();
+                if (pCode.isEmpty()) continue;
+
+                Pillar p = pillarRepository.findByPillarCode(pCode).orElse(null);
+                Long eqId = null;
+                String eqName = null;
+                String eqSn = null;
+                if (p != null) {
+                    List<Equipment> pEqs = equipmentRepository.findByPillar(p);
+                    if (pEqs != null && !pEqs.isEmpty()) {
+                        Equipment eq = pEqs.get(0);
+                        eqId = eq.getId();
+                        eqName = eq.getEquipmentName();
+                        eqSn = eq.getSerialNumber();
+                    }
+                }
+
+                String pImg = null;
+                if (i < evImages.length && !evImages[i].trim().isEmpty()) {
+                    pImg = evImages[i].trim();
+                } else if (evImages.length == 1) {
+                    pImg = evImages[0].trim();
+                }
+
+                String pNote = null;
+                if (notesContent.contains("[" + pCode + "]:")) {
+                    for (String line : notesContent.split("\n")) {
+                        if (line.trim().startsWith("[" + pCode + "]:")) {
+                            pNote = line.trim().substring(("[" + pCode + "]:").length()).trim();
+                            break;
+                        }
+                    }
+                } else if (pCodes.length == 1 && !notesContent.isBlank()) {
+                    pNote = notesContent.trim();
+                }
+
+                bindings.add(swp490.greeenslot.dto.PillarEquipmentBindingDTO.builder()
+                        .pillarCode(pCode)
+                        .equipmentId(eqId)
+                        .newEquipmentName(eqName)
+                        .newSerialNumber(eqSn)
+                        .evidenceImageUrl(pImg)
+                        .notes(pNote)
+                        .build());
+            }
+            dto.setEquipmentBindings(bindings);
+        }
 
         return dto;
     }

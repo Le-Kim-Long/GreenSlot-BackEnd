@@ -14,4 +14,6 @@ public class PillarEquipmentBindingDTO {
     private Long equipmentId;
     private String newEquipmentName;
     private String newSerialNumber;
+    private String evidenceImageUrl;
+    private String notes;
 }

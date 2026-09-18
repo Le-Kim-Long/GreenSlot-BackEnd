@@ -38,6 +38,8 @@ public class GardeningTaskResponseDTO {
     private String deviceStatus;
     private String iotStatus;
     private String iotRecommendation;
+    private String staffNotes;
+    private List<PillarEquipmentBindingDTO> equipmentBindings;
 
     public GardeningTaskResponseDTO(Long id, String taskName, String description, String status,
                                   String evidenceImageUrl, String taskType, Long assignedStaffId,
