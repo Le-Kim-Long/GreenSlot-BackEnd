@@ -38,6 +38,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
     private PillarRepository pillarRepository;
 
     @Autowired
+    private EquipmentRepository equipmentRepository;
+
+    @Autowired
     private TreePlantingRequestRepository treePlantingRequestRepository;
 
     @Autowired
@@ -422,6 +425,77 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                 throw new IllegalArgumentException("Evidence image URL is required when submitting task for approval");
             }
             task.setEvidenceImageUrl(request.getEvidenceImageUrl());
+
+            // 1. Process equipment bindings if provided (Staff attaching equipment to pillars)
+            if (request.getEquipmentBindings() != null && !request.getEquipmentBindings().isEmpty()) {
+                Location taskLocation = (task.getTargetSlot() != null && task.getTargetSlot().getLocation() != null)
+                        ? task.getTargetSlot().getLocation()
+                        : (task.getAssignedStaff() != null ? task.getAssignedStaff().getLocation() : null);
+
+                for (swp490.greeenslot.dto.PillarEquipmentBindingDTO binding : request.getEquipmentBindings()) {
+                    if (binding.getPillarCode() == null || binding.getPillarCode().isBlank()) {
+                        continue;
+                    }
+                    String pCode = binding.getPillarCode().trim();
+                    Pillar pillar = pillarRepository.findByPillarCode(pCode).orElse(null);
+                    if (pillar == null) {
+                        throw new IllegalArgumentException("Không tìm thấy trụ với mã: " + pCode);
+                    }
+
+                    if (binding.getEquipmentId() != null && binding.getEquipmentId() > 0) {
+                        Equipment existingEq = equipmentRepository.findById(binding.getEquipmentId())
+                                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thiết bị ID: " + binding.getEquipmentId()));
+                        existingEq.setPillar(pillar);
+                        existingEq.setStatus(EEquipmentStatus.IN_USE);
+                        if (taskLocation != null) {
+                            existingEq.setLocation(taskLocation);
+                        }
+                        equipmentRepository.save(existingEq);
+                    } else if (binding.getNewSerialNumber() != null && !binding.getNewSerialNumber().trim().isEmpty()) {
+                        String cleanSerial = binding.getNewSerialNumber().trim().toUpperCase();
+                        Equipment eq = equipmentRepository.findBySerialNumber(cleanSerial).orElse(null);
+                        if (eq == null) {
+                            eq = new Equipment();
+                            String eqName = (binding.getNewEquipmentName() != null && !binding.getNewEquipmentName().trim().isEmpty())
+                                    ? binding.getNewEquipmentName().trim()
+                                    : "Mạch điều khiển ESP32";
+                            eq.setEquipmentName(eqName);
+                            eq.setSerialNumber(cleanSerial);
+                        }
+                        eq.setPillar(pillar);
+                        eq.setStatus(EEquipmentStatus.IN_USE);
+                        if (taskLocation != null) {
+                            eq.setLocation(taskLocation);
+                        }
+                        equipmentRepository.save(eq);
+                    }
+                }
+            }
+
+            // 2. Ràng buộc: Đối với task lắp đặt/bổ sung trụ, tất cả các trụ thuộc task BẮT BUỘC phải có thiết bị được gắn
+            boolean isPillarSetupTask = (task.getTaskName() != null && (
+                    task.getTaskName().toLowerCase().contains("lắp đặt") ||
+                    task.getTaskName().toLowerCase().contains("bổ sung trụ") ||
+                    task.getTaskName().toLowerCase().contains("chuẩn bị trụ")
+            )) && (task.getPillarCodes() != null && !task.getPillarCodes().isBlank());
+
+            if (isPillarSetupTask) {
+                String[] pCodes = task.getPillarCodes().split(",");
+                for (String codeRaw : pCodes) {
+                    String pCode = codeRaw.trim();
+                    if (pCode.isEmpty()) continue;
+                    Pillar pillar = pillarRepository.findByPillarCode(pCode).orElse(null);
+                    if (pillar != null) {
+                        List<Equipment> attachedEquipments = equipmentRepository.findByPillar(pillar);
+                        if (attachedEquipments == null || attachedEquipments.isEmpty()) {
+                            throw new IllegalArgumentException(String.format(
+                                    "Trụ %s chưa được gắn thiết bị IoT (Mạch điều khiển/Cảm biến). Vui lòng chọn thiết bị từ kho hoặc nhập mã Serial của thiết bị đã lắp trước khi nộp duyệt.",
+                                    pCode
+                            ));
+                        }
+                    }
+                }
+            }
             
             // Clear previous rejection reason if any
             if (task.getStatus() == ETaskStatus.REJECTED) {

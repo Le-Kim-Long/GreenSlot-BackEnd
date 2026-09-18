@@ -16,4 +16,6 @@ public class TaskStatusUpdateDTO {
     private String status; // PENDING, IN_PROGRESS, COMPLETED
 
     private String evidenceImageUrl; // required only if status is COMPLETED
+
+    private java.util.List<PillarEquipmentBindingDTO> equipmentBindings;
 }
