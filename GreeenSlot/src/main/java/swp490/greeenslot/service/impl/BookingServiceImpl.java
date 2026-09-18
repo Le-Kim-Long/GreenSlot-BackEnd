@@ -600,23 +600,14 @@ public class BookingServiceImpl implements BookingService {
                             String pTreeName = treeForPillar != null ? treeForPillar.getTreeName() : "Chưa chọn giống cây";
                             String pCode = p.getPillarCode() != null ? p.getPillarCode() : ("Trụ " + p.getId());
 
-                            List<swp490.greeenslot.entity.Equipment> existingEquipments = equipmentRepository.findByPillar(p);
-                            String iotNotice;
-                            if (existingEquipments == null || existingEquipments.isEmpty()) {
-                                iotNotice = "\n\n[HƯỚNG DẪN THIẾT BỊ IOT]: Trụ chưa được gắn thiết bị trong hệ thống. Nhân viên vui lòng nhận bộ thiết bị chuẩn (Mạch ESP32 + Cảm biến độ ẩm/pH + Camera) từ kho cơ sở để lắp đặt và kết nối cho trụ.";
-                            } else {
-                                iotNotice = String.format("\n\n[HƯỚNG DẪN THIẾT BỊ IOT]: Trụ đã gắn %d thiết bị. Nhân viên vui lòng kiểm tra nguồn điện, kết nối WiFi và tín hiệu camera/cảm biến trước khi bàn giao gieo giống.", existingEquipments.size());
-                            }
-
                             GardeningTask prepTask = new GardeningTask();
                             prepTask.setTaskName(String.format("Chuẩn bị & Gieo giống: %s - Ô %s (Trụ %s)", pTreeName, slotNumber, pCode));
                             prepTask.setDescription(String.format(
-                                "Khách hàng %s vừa hoàn tất thanh toán thuê ô vườn %s (Trụ: %s, Giống: %s). Quản lý vui lòng phân công nhân viên kiểm tra đất, lắp đặt/kiểm tra thiết bị IoT và chuẩn bị gieo giống.%s",
+                                "Khách hàng %s vừa hoàn tất thanh toán thuê ô vườn %s (Trụ: %s, Giống: %s). Quản lý vui lòng phân công nhân viên kiểm tra đất và chuẩn bị gieo giống.",
                                 customer.getFullName() != null ? customer.getFullName() : customer.getUsername(),
                                 slotNumber,
                                 pCode,
-                                pTreeName,
-                                iotNotice
+                                pTreeName
                             ));
                             prepTask.setTaskType(ETaskType.MAINTENANCE);
                             prepTask.setStatus(ETaskStatus.PENDING);

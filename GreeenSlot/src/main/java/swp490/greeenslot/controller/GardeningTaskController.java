@@ -258,10 +258,20 @@ public class GardeningTaskController {
             }
         }
 
+        String cleanDescription = task.getDescription();
+        boolean isPillarSetupTask = task.getTaskName() != null && (
+                task.getTaskName().toLowerCase().contains("lắp đặt bổ sung") ||
+                task.getTaskName().toLowerCase().contains("lắp đặt trụ") ||
+                task.getTaskName().toLowerCase().contains("bổ sung trụ")
+        );
+        if (!isPillarSetupTask && cleanDescription != null && cleanDescription.contains("[HƯỚNG DẪN THIẾT BỊ IOT]")) {
+            cleanDescription = cleanDescription.split("\\[HƯỚNG DẪN THIẾT BỊ IOT\\]")[0].trim();
+        }
+
         GardeningTaskResponseDTO dto = new GardeningTaskResponseDTO(
                 task.getId(),
                 task.getTaskName(),
-                task.getDescription(),
+                cleanDescription,
                 task.getStatus().name(),
                 task.getEvidenceImageUrl(),
                 task.getTaskType().name(),
