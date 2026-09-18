@@ -64,6 +64,9 @@ public class BookingServiceImpl implements BookingService {
     @Autowired
     private swp490.greeenslot.service.HarvestHistoryService harvestHistoryService;
 
+    @Autowired
+    private swp490.greeenslot.repository.EquipmentRepository equipmentRepository;
+
     @Override
     @Transactional(readOnly = true)
     public List<GardenSlot> getAvailableSlots(Long locationId) {
