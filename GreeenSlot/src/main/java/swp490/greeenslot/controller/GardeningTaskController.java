@@ -8,10 +8,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import swp490.greeenslot.dto.*;
+import swp490.greeenslot.entity.Equipment;
 import swp490.greeenslot.entity.GardeningTask;
+import swp490.greeenslot.entity.Pillar;
+import swp490.greeenslot.repository.EquipmentRepository;
+import swp490.greeenslot.repository.PillarRepository;
 import swp490.greeenslot.service.GardeningTaskService;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,6 +28,12 @@ public class GardeningTaskController {
 
     @Autowired
     private GardeningTaskService gardeningTaskService;
+
+    @Autowired
+    private PillarRepository pillarRepository;
+
+    @Autowired
+    private EquipmentRepository equipmentRepository;
 
     @PostMapping("/services/request")
     @PreAuthorize("hasRole('ROLE_CUSTOMER')")
@@ -196,7 +207,58 @@ public class GardeningTaskController {
         boolean isEarly = Boolean.TRUE.equals(task.getIsEarlyHarvest()) || (task.getTaskName() != null && task.getTaskName().contains("sớm"));
         String customerName = task.getRequestedBy() != null ? task.getRequestedBy().getFullName() : null;
 
-        return new GardeningTaskResponseDTO(
+        // 1. Tìm Pillar liên quan
+        Pillar targetPillar = null;
+        if (pillarCodes != null && !pillarCodes.isBlank()) {
+            String firstCode = pillarCodes.contains(",") ? pillarCodes.split(",")[0].trim() : pillarCodes.trim();
+            targetPillar = pillarRepository.findByPillarCode(firstCode).orElse(null);
+        }
+        if (targetPillar == null && task.getTargetSlot() != null) {
+            if (task.getTargetSlot().getPillar() != null) {
+                targetPillar = task.getTargetSlot().getPillar();
+            } else if (task.getTargetSlot().getPillars() != null && !task.getTargetSlot().getPillars().isEmpty()) {
+                targetPillar = task.getTargetSlot().getPillars().get(0);
+            }
+        }
+
+        // 2. Lấy thiết bị IoT
+        List<EquipmentDTO> equipmentDTOs = new ArrayList<>();
+        String cameraStatus = null;
+        String cameraStreamUrl = null;
+        String deviceStatus = null;
+        String iotStatus = "NONE";
+        String iotRecommendation = null;
+
+        if (targetPillar != null) {
+            cameraStatus = targetPillar.getCameraStatus();
+            cameraStreamUrl = targetPillar.getCameraStreamUrl();
+            deviceStatus = targetPillar.getDeviceStatus();
+
+            List<Equipment> equipmentList = equipmentRepository.findByPillar(targetPillar);
+            if (equipmentList != null && !equipmentList.isEmpty()) {
+                equipmentDTOs = equipmentList.stream().map(e -> new EquipmentDTO(
+                        e.getId(),
+                        e.getEquipmentName(),
+                        e.getSerialNumber(),
+                        e.getDescription(),
+                        e.getStatus() != null ? e.getStatus().name() : null,
+                        e.getPillar() != null ? e.getPillar().getId() : null,
+                        e.getPillar() != null ? e.getPillar().getPillarCode() : null,
+                        e.getLocation() != null ? e.getLocation().getId() : null,
+                        e.getLocation() != null ? e.getLocation().getName() : null,
+                        e.getPurchaseDate(),
+                        e.getLastMaintenanceDate(),
+                        e.getImageUrl()
+                )).collect(Collectors.toList());
+                iotStatus = "READY";
+                iotRecommendation = "Trụ đã có " + equipmentList.size() + " thiết bị. Vui lòng kiểm tra nguồn điện, kết nối WiFi và tín hiệu hoạt động.";
+            } else {
+                iotStatus = "NEEDS_SETUP";
+                iotRecommendation = "Trụ chưa có thiết bị IoT nào được gắn. Vui lòng nhận bộ thiết bị tiêu chuẩn (Mạch ESP32 + Cảm biến độ ẩm/pH + Camera) từ kho cơ sở để lắp đặt.";
+            }
+        }
+
+        GardeningTaskResponseDTO dto = new GardeningTaskResponseDTO(
                 task.getId(),
                 task.getTaskName(),
                 task.getDescription(),
@@ -215,5 +277,14 @@ public class GardeningTaskController {
                 isEarly,
                 customerName
         );
+
+        dto.setEquipments(equipmentDTOs);
+        dto.setCameraStatus(cameraStatus);
+        dto.setCameraStreamUrl(cameraStreamUrl);
+        dto.setDeviceStatus(deviceStatus);
+        dto.setIotStatus(iotStatus);
+        dto.setIotRecommendation(iotRecommendation);
+
+        return dto;
     }
 }
