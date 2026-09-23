@@ -34,6 +34,11 @@ spring:
     camera:
       # IP mặc định là của mạch ESP32-CAM. Người khác kéo code về có thể tự đổi IP bằng biến môi trường IOT_CAMERA_URL
       url: ${IOT_CAMERA_URL:http://10.10.10.242/capture}
+
+brevo:
+  api-key: ${BREVO_API_KEY:}
+  sender-email: ${BREVO_SENDER_EMAIL:thongcctse140148@fpt.edu.vn}
+  sender-name: ${BREVO_SENDER_NAME:GreenSlot Support}
 springdoc:
   api-docs:
     path: /v3/api-docs
