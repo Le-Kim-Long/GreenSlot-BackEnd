@@ -37,7 +37,7 @@ spring:
 
 brevo:
   api-key: ${BREVO_API_KEY:}
-  sender-email: ${BREVO_SENDER_EMAIL:thongcctse140148@fpt.edu.vn}
+  sender-email: ${BREVO_SENDER_EMAIL:caocongtanthong@gmail.com}
   sender-name: ${BREVO_SENDER_NAME:GreenSlot Support}
 springdoc:
   api-docs:
