@@ -863,7 +863,9 @@ public class BookingServiceImpl implements BookingService {
                                 p.getCameraStreamUrl(),
                                 p.getCameraStatus(),
                                 pTree != null ? pTree.getId() : null,
-                                pTree != null ? pTree.getTreeName() : null
+                                pTree != null ? pTree.getTreeName() : null,
+                                p.getEffectiveHoles(),
+                                p.getEffectivePillarType() != null ? p.getEffectivePillarType().name() : "SMALL"
                         ));
                     }
                 }
@@ -879,7 +881,9 @@ public class BookingServiceImpl implements BookingService {
                         p.getCameraStreamUrl(),
                         p.getCameraStatus(),
                         pTree != null ? pTree.getId() : null,
-                        pTree != null ? pTree.getTreeName() : null
+                        pTree != null ? pTree.getTreeName() : null,
+                        p.getEffectiveHoles(),
+                        p.getEffectivePillarType() != null ? p.getEffectivePillarType().name() : "SMALL"
                 ));
             }
             String primaryPillarCode = !pillarCodes.isEmpty() ? String.join(", ", pillarCodes) : "N/A";

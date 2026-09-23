@@ -259,7 +259,9 @@ public class CustomerServiceImpl implements CustomerService {
                     p.getCameraStreamUrl(),
                     p.getCameraStatus(),
                     pTree != null ? pTree.getId() : null,
-                    pTree != null ? pTree.getTreeName() : null
+                    pTree != null ? pTree.getTreeName() : null,
+                    p.getEffectiveHoles(),
+                    p.getEffectivePillarType() != null ? p.getEffectivePillarType().name() : "SMALL"
             ));
         }
         String primaryPillarCode = !pillarCodes.isEmpty() ? String.join(", ", pillarCodes) : (slot != null && slot.getPillar() != null ? slot.getPillar().getPillarCode() : "N/A");
