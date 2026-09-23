@@ -27,14 +27,30 @@ public class EmailServiceImpl implements EmailService {
     @Value("${brevo.api-key:}")
     private String brevoApiKey;
 
-    @Value("${brevo.sender-email:thongcctse140148@fpt.edu.vn}")
+    @Value("${brevo.sender-email:caocongtanthong@gmail.com}")
     private String brevoSenderEmail;
 
     @Value("${brevo.sender-name:GreenSlot Support}")
     private String brevoSenderName;
 
+    private String resolveBrevoApiKey() {
+        if (brevoApiKey != null && !brevoApiKey.isBlank()) {
+            return brevoApiKey.trim();
+        }
+        String envKey = System.getenv("BREVO_API_KEY");
+        if (envKey != null && !envKey.isBlank()) {
+            return envKey.trim();
+        }
+        String propKey = System.getProperty("BREVO_API_KEY");
+        if (propKey != null && !propKey.isBlank()) {
+            return propKey.trim();
+        }
+        return null;
+    }
+
     private boolean sendViaBrevoHttpApi(String toEmail, String recipientName, String subject, String htmlContent) {
-        if (brevoApiKey == null || brevoApiKey.isBlank()) {
+        String apiKey = resolveBrevoApiKey();
+        if (apiKey == null || apiKey.isBlank()) {
             return false;
         }
 
@@ -45,8 +61,8 @@ public class EmailServiceImpl implements EmailService {
             java.util.Map<String, Object> payload = new java.util.HashMap<>();
 
             java.util.Map<String, String> sender = new java.util.HashMap<>();
-            sender.put("name", brevoSenderName);
-            sender.put("email", brevoSenderEmail);
+            sender.put("name", brevoSenderName != null ? brevoSenderName : "GreenSlot Support");
+            sender.put("email", (brevoSenderEmail != null && !brevoSenderEmail.isBlank()) ? brevoSenderEmail : "caocongtanthong@gmail.com");
             payload.put("sender", sender);
 
             java.util.List<java.util.Map<String, String>> toList = new java.util.ArrayList<>();
@@ -64,7 +80,7 @@ public class EmailServiceImpl implements EmailService {
             java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
                     .uri(java.net.URI.create("https://api.brevo.com/v3/smtp/email"))
                     .header("accept", "application/json")
-                    .header("api-key", brevoApiKey.trim())
+                    .header("api-key", apiKey)
                     .header("content-type", "application/json")
                     .POST(java.net.http.HttpRequest.BodyPublishers.ofString(requestBody, java.nio.charset.StandardCharsets.UTF_8))
                     .build();
@@ -150,7 +166,7 @@ public class EmailServiceImpl implements EmailService {
                 + "</div>";
 
         // 1. Ưu tiên gửi qua Brevo HTTP API (Cổng HTTPS 443 - không bị Cloud Render chặn)
-        if (brevoApiKey != null && !brevoApiKey.isBlank()) {
+        if (resolveBrevoApiKey() != null) {
             boolean sentViaBrevo = sendViaBrevoHttpApi(toEmail, recipientName, subject, htmlContent);
             if (sentViaBrevo) {
                 logger.info("Registration OTP email delivered via Brevo HTTP API successfully to {}", toEmail);
