@@ -17,14 +17,17 @@ import swp490.greeenslot.dto.ForgotPasswordResponseDTO;
 import swp490.greeenslot.dto.GoogleLoginRequestDTO;
 import swp490.greeenslot.dto.JwtResponseDTO;
 import swp490.greeenslot.dto.LoginRequestDTO;
+import swp490.greeenslot.dto.RegisterResponseDTO;
 import swp490.greeenslot.dto.ResetPasswordRequestDTO;
 import swp490.greeenslot.dto.SignupRequestDTO;
 import swp490.greeenslot.dto.VerifyOtpRequestDTO;
 import swp490.greeenslot.dto.ResendOtpRequestDTO;
 import swp490.greeenslot.service.EmailService;
 import swp490.greeenslot.entity.ERole;
+import swp490.greeenslot.entity.PendingRegistration;
 import swp490.greeenslot.entity.Role;
 import swp490.greeenslot.entity.User;
+import swp490.greeenslot.repository.PendingRegistrationRepository;
 import swp490.greeenslot.repository.RoleRepository;
 import swp490.greeenslot.repository.UserRepository;
 import swp490.greeenslot.service.AuthService;
@@ -46,6 +49,9 @@ public class AuthServiceImpl implements AuthService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PendingRegistrationRepository pendingRegistrationRepository;
 
     @Autowired
     private RoleRepository roleRepository;
@@ -185,7 +191,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public void registerUser(SignupRequestDTO signUpRequest) {
+    public RegisterResponseDTO registerUser(SignupRequestDTO signUpRequest) {
         String username = signUpRequest.getUsername().trim();
         String email = signUpRequest.getEmail().trim();
 
@@ -202,43 +208,35 @@ public class AuthServiceImpl implements AuthService {
             }
         }
 
-        // 2. Tạo mã OTP 6 số ngẫu nhiên
+        // 2. Dọn dẹp bản ghi cũ trong pending_registrations nếu có cùng email hoặc username
+        pendingRegistrationRepository.findByEmail(email).ifPresent(p -> pendingRegistrationRepository.delete(p));
+        pendingRegistrationRepository.findByUsername(username).ifPresent(p -> pendingRegistrationRepository.delete(p));
+
+        // 3. Tạo mã OTP 6 số ngẫu nhiên
         String otp = String.format("%06d", new java.security.SecureRandom().nextInt(1000000));
         Instant otpExpiry = Instant.now().plus(10, java.time.temporal.ChronoUnit.MINUTES);
 
-        User user;
-        if (existingUserOpt.isPresent()) {
-            user = existingUserOpt.get();
-            user.setUsername(username);
-            user.setPassword(encoder.encode(signUpRequest.getPassword()));
-            user.setFullName(signUpRequest.getFullName());
-            user.setPhone(signUpRequest.getPhone());
-            user.setAddress(signUpRequest.getAddress());
-            user.setEnabled(false);
-            user.setVerificationOtp(otp);
-            user.setOtpExpiry(otpExpiry);
-        } else {
-            user = new User(username,
-                    email,
-                    encoder.encode(signUpRequest.getPassword()),
-                    signUpRequest.getFullName(),
-                    signUpRequest.getPhone(),
-                    signUpRequest.getAddress());
-            user.setEnabled(false);
-            user.setVerificationOtp(otp);
-            user.setOtpExpiry(otpExpiry);
+        // 4. Lưu thông tin đăng ký vào bảng tạm PendingRegistration (KHÔNG lưu vào bảng users)
+        PendingRegistration pending = new PendingRegistration(
+                username,
+                email,
+                encoder.encode(signUpRequest.getPassword()),
+                signUpRequest.getFullName(),
+                signUpRequest.getPhone(),
+                signUpRequest.getAddress(),
+                otp,
+                otpExpiry
+        );
+        pendingRegistrationRepository.save(pending);
 
-            Set<Role> roles = new HashSet<>();
-            Role customerRole = roleRepository.findByName(ERole.ROLE_CUSTOMER)
-                    .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-            roles.add(customerRole);
-            user.setRoles(roles);
-        }
+        // 5. Gửi email chứa mã OTP
+        emailService.sendRegistrationOtpEmail(email, otp, signUpRequest.getFullName());
 
-        userRepository.save(user);
-
-        // 3. Gửi email chứa mã OTP
-        emailService.sendRegistrationOtpEmail(user.getEmail(), otp, user.getFullName());
+        return new RegisterResponseDTO(
+                "Mã OTP xác thực đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư!",
+                email,
+                otp
+        );
     }
 
     @Override
@@ -247,30 +245,62 @@ public class AuthServiceImpl implements AuthService {
         String email = request.getEmail().trim();
         String otp = request.getOtp().trim();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông tin đăng ký với email: " + email));
+        // 1. Tìm thông tin đăng ký trong bảng tạm PendingRegistration
+        PendingRegistration pending = pendingRegistrationRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông tin đăng ký hoặc phiên đăng ký đã hết hạn. Vui lòng đăng ký lại!"));
 
-        if (Boolean.TRUE.equals(user.getEnabled())) {
-            throw new IllegalArgumentException("Tài khoản này đã được kích hoạt từ trước. Vui lòng đăng nhập!");
-        }
-
-        if (user.getVerificationOtp() == null || !user.getVerificationOtp().equals(otp)) {
+        // 2. Kiểm tra mã OTP
+        if (pending.getOtp() == null || !pending.getOtp().equals(otp)) {
             throw new IllegalArgumentException("Mã xác thực OTP không chính xác. Vui lòng kiểm tra lại!");
         }
 
-        if (user.getOtpExpiry() == null || Instant.now().isAfter(user.getOtpExpiry())) {
+        // 3. Kiểm tra hạn OTP
+        if (pending.getOtpExpiry() == null || Instant.now().isAfter(pending.getOtpExpiry())) {
             throw new IllegalArgumentException("Mã OTP đã hết hạn (quá 10 phút). Vui lòng bấm 'Gửi lại mã'!");
         }
 
-        // Kích hoạt tài khoản
-        user.setEnabled(true);
-        user.setVerificationOtp(null);
-        user.setOtpExpiry(null);
-        userRepository.save(user);
+        // 4. Kiểm tra an toàn xem email hoặc username đã bị tài khoản khác kích hoạt chưa
+        User existingUserByEmail = userRepository.findByEmail(email).orElse(null);
+        if (existingUserByEmail != null && Boolean.TRUE.equals(existingUserByEmail.getEnabled())) {
+            pendingRegistrationRepository.delete(pending);
+            throw new IllegalArgumentException("Email này đã được kích hoạt từ trước. Vui lòng đăng nhập!");
+        } else if (existingUserByEmail != null) {
+            userRepository.delete(existingUserByEmail);
+        }
 
-        // Tạo JWT và trả về thông tin đăng nhập ngay lập tức
+        User existingUserByUsername = userRepository.findByUsername(pending.getUsername()).orElse(null);
+        if (existingUserByUsername != null && Boolean.TRUE.equals(existingUserByUsername.getEnabled())) {
+            pendingRegistrationRepository.delete(pending);
+            throw new IllegalArgumentException("Tên đăng nhập này đã được sử dụng. Vui lòng đăng ký lại với tên đăng nhập khác!");
+        } else if (existingUserByUsername != null) {
+            userRepository.delete(existingUserByUsername);
+        }
+
+        // 5. TẠO TÀI KHOẢN CHÍNH THỨC VÀO BẢNG USERS
+        User user = new User(
+                pending.getUsername(),
+                pending.getEmail(),
+                pending.getPassword(),
+                pending.getFullName(),
+                pending.getPhone(),
+                pending.getAddress()
+        );
+        user.setEnabled(true);
+
+        Set<Role> roles = new HashSet<>();
+        Role customerRole = roleRepository.findByName(ERole.ROLE_CUSTOMER)
+                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+        roles.add(customerRole);
+        user.setRoles(roles);
+
+        user = userRepository.save(user);
+
+        // 6. Xoá bản ghi tạm sau khi tạo tài khoản thành công
+        pendingRegistrationRepository.delete(pending);
+
+        // 7. Tạo JWT và trả về thông tin đăng nhập ngay lập tức
         String jwt = jwtUtils.generateTokenFromUsername(user.getUsername());
-        List<String> roles = user.getRoles().stream()
+        List<String> roleNames = user.getRoles().stream()
                 .map(r -> r.getName().name())
                 .collect(Collectors.toList());
 
@@ -283,7 +313,7 @@ public class AuthServiceImpl implements AuthService {
                 user.getUsername(),
                 user.getEmail(),
                 user.getFullName(),
-                roles,
+                roleNames,
                 otpLocationId,
                 otpLocationName
         );
@@ -291,23 +321,33 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public void resendRegistrationOtp(String email) {
+    public RegisterResponseDTO resendRegistrationOtp(String email) {
         String cleanEmail = email.trim();
-        User user = userRepository.findByEmail(cleanEmail)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông tin đăng ký với email: " + cleanEmail));
 
-        if (Boolean.TRUE.equals(user.getEnabled())) {
+        // 1. Kiểm tra nếu tài khoản đã được kích hoạt từ trước
+        java.util.Optional<User> activeUser = userRepository.findByEmail(cleanEmail);
+        if (activeUser.isPresent() && Boolean.TRUE.equals(activeUser.get().getEnabled())) {
             throw new IllegalArgumentException("Tài khoản này đã được kích hoạt. Vui lòng đăng nhập!");
         }
 
-        String otp = String.format("%06d", new java.security.SecureRandom().nextInt(1000000));
-        Instant otpExpiry = Instant.now().plus(10, java.time.temporal.ChronoUnit.MINUTES);
+        // 2. Tìm thông tin trong PendingRegistration
+        PendingRegistration pending = pendingRegistrationRepository.findByEmail(cleanEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông tin đăng ký chờ xác thực với email: " + cleanEmail + ". Vui lòng đăng ký lại!"));
 
-        user.setVerificationOtp(otp);
-        user.setOtpExpiry(otpExpiry);
-        userRepository.save(user);
+        // 3. Tạo mã OTP mới
+        String newOtp = String.format("%06d", new java.security.SecureRandom().nextInt(1000000));
+        pending.setOtp(newOtp);
+        pending.setOtpExpiry(Instant.now().plus(10, java.time.temporal.ChronoUnit.MINUTES));
+        pendingRegistrationRepository.save(pending);
 
-        emailService.sendRegistrationOtpEmail(user.getEmail(), otp, user.getFullName());
+        // 4. Gửi email
+        emailService.sendRegistrationOtpEmail(cleanEmail, newOtp, pending.getFullName());
+
+        return new RegisterResponseDTO(
+                "Mã OTP mới đã được gửi đến email của bạn!",
+                cleanEmail,
+                newOtp
+        );
     }
 
     @Override
