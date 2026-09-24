@@ -25,6 +25,7 @@ public class RentalHistoryDTO {
     private BigDecimal monthlyPrice;
     private BigDecimal landPrice;
     private BigDecimal monthlyPillarsPrice;
+    private Double slotArea;
 
     public static class PillarInfo {
         private Long id;
@@ -382,5 +383,13 @@ public class RentalHistoryDTO {
 
     public void setMonthlyPillarsPrice(BigDecimal monthlyPillarsPrice) {
         this.monthlyPillarsPrice = monthlyPillarsPrice;
+    }
+
+    public Double getSlotArea() {
+        return slotArea;
+    }
+
+    public void setSlotArea(Double slotArea) {
+        this.slotArea = slotArea;
     }
 }

@@ -306,6 +306,7 @@ public class CustomerServiceImpl implements CustomerService {
         dto.setLandPrice(landPrice);
         dto.setMonthlyPillarsPrice(monthlyPillarsPrice);
         dto.setMonthlyPrice(totalMonthlyPrice);
+        dto.setSlotArea(slot != null ? slot.getArea() : null);
         return dto;
     }
 
