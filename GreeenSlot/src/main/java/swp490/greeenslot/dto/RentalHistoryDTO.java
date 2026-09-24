@@ -23,6 +23,9 @@ public class RentalHistoryDTO {
     private LocalDateTime plantedAt;
     private LocalDateTime expectedHarvestAt;
     private BigDecimal monthlyPrice;
+    private BigDecimal landPrice;
+    private BigDecimal monthlyPillarsPrice;
+    private Double slotArea;
 
     public static class PillarInfo {
         private Long id;
@@ -34,6 +37,7 @@ public class RentalHistoryDTO {
         private String treeName;
         private Integer capacityHoles;
         private String pillarType;
+        private BigDecimal monthlyPrice;
 
         public PillarInfo() {}
 
@@ -85,6 +89,8 @@ public class RentalHistoryDTO {
         public void setCapacityHoles(Integer capacityHoles) { this.capacityHoles = capacityHoles; }
         public String getPillarType() { return pillarType; }
         public void setPillarType(String pillarType) { this.pillarType = pillarType; }
+        public BigDecimal getMonthlyPrice() { return monthlyPrice; }
+        public void setMonthlyPrice(BigDecimal monthlyPrice) { this.monthlyPrice = monthlyPrice; }
     }
 
     public static class PaymentTransactionInfo {
@@ -361,5 +367,29 @@ public class RentalHistoryDTO {
 
     public void setMonthlyPrice(BigDecimal monthlyPrice) {
         this.monthlyPrice = monthlyPrice;
+    }
+
+    public BigDecimal getLandPrice() {
+        return landPrice;
+    }
+
+    public void setLandPrice(BigDecimal landPrice) {
+        this.landPrice = landPrice;
+    }
+
+    public BigDecimal getMonthlyPillarsPrice() {
+        return monthlyPillarsPrice;
+    }
+
+    public void setMonthlyPillarsPrice(BigDecimal monthlyPillarsPrice) {
+        this.monthlyPillarsPrice = monthlyPillarsPrice;
+    }
+
+    public Double getSlotArea() {
+        return slotArea;
+    }
+
+    public void setSlotArea(Double slotArea) {
+        this.slotArea = slotArea;
     }
 }

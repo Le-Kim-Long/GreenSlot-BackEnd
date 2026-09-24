@@ -252,7 +252,7 @@ public class CustomerServiceImpl implements CustomerService {
         for (Pillar p : rentedPillars) {
             pillarCodes.add(p.getPillarCode());
             Tree pTree = p.getDefaultTree() != null ? p.getDefaultTree() : rental.getTree();
-            pillarInfos.add(new RentalHistoryDTO.PillarInfo(
+            RentalHistoryDTO.PillarInfo pInfo = new RentalHistoryDTO.PillarInfo(
                     p.getId(),
                     p.getPillarCode(),
                     p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
@@ -262,7 +262,9 @@ public class CustomerServiceImpl implements CustomerService {
                     pTree != null ? pTree.getTreeName() : null,
                     p.getEffectiveHoles(),
                     p.getEffectivePillarType() != null ? p.getEffectivePillarType().name() : "SMALL"
-            ));
+            );
+            pInfo.setMonthlyPrice(p.getEffectivePrice());
+            pillarInfos.add(pInfo);
         }
         String primaryPillarCode = !pillarCodes.isEmpty() ? String.join(", ", pillarCodes) : (slot != null && slot.getPillar() != null ? slot.getPillar().getPillarCode() : "N/A");
 
@@ -288,8 +290,23 @@ public class CustomerServiceImpl implements CustomerService {
                 rental.getPlantedAt(),
                 expectedHarvestAt
         );
+        BigDecimal landPrice = (slot != null && slot.getPrice() != null && slot.getPrice().compareTo(BigDecimal.ZERO) > 0)
+                ? slot.getPrice()
+                : BigDecimal.ZERO;
+        BigDecimal monthlyPillarsPrice = rentedPillars != null
+                ? rentedPillars.stream().map(Pillar::getEffectivePrice).reduce(BigDecimal.ZERO, BigDecimal::add)
+                : BigDecimal.ZERO;
+        BigDecimal totalMonthlyPrice = landPrice.add(monthlyPillarsPrice);
+        if (totalMonthlyPrice.compareTo(BigDecimal.ZERO) <= 0 && slot != null && slot.getPrice() != null && slot.getPrice().compareTo(BigDecimal.ZERO) > 0) {
+            totalMonthlyPrice = slot.getPrice();
+        }
+
         dto.setPillars(pillarInfos);
         dto.setPillarCodes(pillarCodes);
+        dto.setLandPrice(landPrice);
+        dto.setMonthlyPillarsPrice(monthlyPillarsPrice);
+        dto.setMonthlyPrice(totalMonthlyPrice);
+        dto.setSlotArea(slot != null ? slot.getArea() : null);
         return dto;
     }
 
