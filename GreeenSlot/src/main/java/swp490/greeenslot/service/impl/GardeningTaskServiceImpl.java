@@ -468,6 +468,13 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                     }
                     String pCode = binding.getPillarCode().trim();
                     Pillar pillar = pillarRepository.findByPillarCode(pCode).orElse(null);
+                    if (pillar == null && task.getTargetSlot() != null) {
+                        if (task.getTargetSlot().getPillars() != null && !task.getTargetSlot().getPillars().isEmpty()) {
+                            pillar = task.getTargetSlot().getPillars().get(0);
+                        } else if (task.getTargetSlot().getPillar() != null) {
+                            pillar = task.getTargetSlot().getPillar();
+                        }
+                    }
                     if (pillar == null) {
                         throw new IllegalArgumentException("Không tìm thấy trụ với mã: " + pCode);
                     }
@@ -502,11 +509,15 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                 }
             }
 
-            // 3. Ràng buộc: Chỉ đối với task lắp đặt/bổ sung trụ mới, tất cả các trụ thuộc task BẮT BUỘC phải có thiết bị được gắn
+            // 3. Ràng buộc: Đối với task lắp đặt/thiết bị
             boolean isPillarSetupTask = (task.getTaskName() != null && (
-                    task.getTaskName().toLowerCase().contains("lắp đặt bổ sung") ||
-                    task.getTaskName().toLowerCase().contains("lắp đặt trụ") ||
-                    task.getTaskName().toLowerCase().contains("bổ sung trụ")
+                    task.getTaskName().toLowerCase().contains("lắp đặt") ||
+                    task.getTaskName().toLowerCase().contains("thiết bị") ||
+                    task.getTaskName().toLowerCase().contains("bổ sung trụ") ||
+                    task.getTaskName().toLowerCase().contains("chuẩn bị trụ") ||
+                    task.getTaskName().toLowerCase().contains("gắn thiết bị") ||
+                    task.getTaskName().toLowerCase().contains("gán thiết bị") ||
+                    task.getTaskName().toLowerCase().contains("iot")
             )) && (task.getPillarCodes() != null && !task.getPillarCodes().isBlank());
 
             if (isPillarSetupTask) {

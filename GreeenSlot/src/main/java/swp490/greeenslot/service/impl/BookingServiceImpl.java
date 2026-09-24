@@ -346,6 +346,17 @@ public class BookingServiceImpl implements BookingService {
             String pillarSummary = String.join(", ", parts);
 
             // 1. Create setup task for technical staff
+            String provisionedCodes = newlyProvisionedPillars.stream()
+                .map(Pillar::getPillarCode)
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining(", "));
+            if (provisionedCodes.isBlank()) {
+                provisionedCodes = selectedPillars.stream()
+                    .map(Pillar::getPillarCode)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.joining(", "));
+            }
+
             GardeningTask setupTask = new GardeningTask();
             setupTask.setTaskName("Lắp đặt bổ sung " + newlyProvisionedPillars.size() + " trụ cho Ô " + slot.getSlotNumber());
             setupTask.setDescription(String.format(
@@ -360,7 +371,7 @@ public class BookingServiceImpl implements BookingService {
             setupTask.setStatus(ETaskStatus.PENDING);
             setupTask.setTargetSlot(slot);
             setupTask.setRequestedBy(user);
-
+            setupTask.setPillarCodes(provisionedCodes);
             setupTask.setAssignedStaff(null);
             gardeningTaskRepository.save(setupTask);
 
@@ -1535,7 +1546,7 @@ public class BookingServiceImpl implements BookingService {
         );
 
         GardeningTask setupTask = new GardeningTask();
-        setupTask.setTaskName("Lắp đặt & Chuẩn bị trụ mới: Ô " + slotNumber + " (" + pillarSummary + ")");
+        setupTask.setTaskName("Lắp đặt bổ sung trụ mới: Ô " + slotNumber + " (" + pillarSummary + ")");
         setupTask.setDescription(String.format(
                 "Khách hàng %s vừa hoàn tất thanh toán thuê thêm %d trụ (%s) tại Ô %s. Cơ sở vui lòng phân công nhân viên chuẩn bị và lắp đặt hoàn thiện.",
                 customer.getFullName() != null ? customer.getFullName() : customer.getUsername(),
