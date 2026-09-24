@@ -856,7 +856,7 @@ public class BookingServiceImpl implements BookingService {
                         seenCodes.add(p.getPillarCode());
                         pillarCodes.add(p.getPillarCode());
                         Tree pTree = p.getDefaultTree() != null ? p.getDefaultTree() : rental.getTree();
-                        pillarInfos.add(new RentalHistoryDTO.PillarInfo(
+                        RentalHistoryDTO.PillarInfo pInfo = new RentalHistoryDTO.PillarInfo(
                                 p.getId(),
                                 p.getPillarCode(),
                                 p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
@@ -866,7 +866,9 @@ public class BookingServiceImpl implements BookingService {
                                 pTree != null ? pTree.getTreeName() : null,
                                 p.getEffectiveHoles(),
                                 p.getEffectivePillarType() != null ? p.getEffectivePillarType().name() : "SMALL"
-                        ));
+                        );
+                        pInfo.setMonthlyPrice(p.getEffectivePrice());
+                        pillarInfos.add(pInfo);
                     }
                 }
             } else if (slot.getPillar() != null && !seenCodes.contains(slot.getPillar().getPillarCode())) {
@@ -874,7 +876,7 @@ public class BookingServiceImpl implements BookingService {
                 seenCodes.add(p.getPillarCode());
                 pillarCodes.add(p.getPillarCode());
                 Tree pTree = p.getDefaultTree() != null ? p.getDefaultTree() : rental.getTree();
-                pillarInfos.add(new RentalHistoryDTO.PillarInfo(
+                RentalHistoryDTO.PillarInfo pInfo = new RentalHistoryDTO.PillarInfo(
                         p.getId(),
                         p.getPillarCode(),
                         p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
@@ -884,7 +886,9 @@ public class BookingServiceImpl implements BookingService {
                         pTree != null ? pTree.getTreeName() : null,
                         p.getEffectiveHoles(),
                         p.getEffectivePillarType() != null ? p.getEffectivePillarType().name() : "SMALL"
-                ));
+                );
+                pInfo.setMonthlyPrice(p.getEffectivePrice());
+                pillarInfos.add(pInfo);
             }
             String primaryPillarCode = !pillarCodes.isEmpty() ? String.join(", ", pillarCodes) : "N/A";
             String locationName = location != null ? location.getName() : "N/A";
@@ -961,9 +965,22 @@ public class BookingServiceImpl implements BookingService {
                     rental.getPlantedAt(),
                     expectedHarvestAt
             );
+            BigDecimal landPrice = (slot.getPrice() != null && slot.getPrice().compareTo(BigDecimal.ZERO) > 0)
+                    ? slot.getPrice()
+                    : BigDecimal.ZERO;
+            BigDecimal monthlyPillarsPrice = rentedPillars != null
+                    ? rentedPillars.stream().map(Pillar::getEffectivePrice).reduce(BigDecimal.ZERO, BigDecimal::add)
+                    : BigDecimal.ZERO;
+            BigDecimal totalMonthlyPrice = landPrice.add(monthlyPillarsPrice);
+            if (totalMonthlyPrice.compareTo(BigDecimal.ZERO) <= 0 && slot.getPrice() != null && slot.getPrice().compareTo(BigDecimal.ZERO) > 0) {
+                totalMonthlyPrice = slot.getPrice();
+            }
+
             dto.setPillars(pillarInfos);
             dto.setPillarCodes(pillarCodes);
-            dto.setMonthlyPrice(slot.getPrice());
+            dto.setLandPrice(landPrice);
+            dto.setMonthlyPillarsPrice(monthlyPillarsPrice);
+            dto.setMonthlyPrice(totalMonthlyPrice);
             history.add(dto);
         }
 
