@@ -772,7 +772,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         }
 
         // Lưu lại lịch sử thu hoạch TRƯỚC khi xóa dữ liệu cây khỏi rental
-        harvestHistoryService.recordHarvest(rental, "STAFF", task.getAssignedStaff());
+        harvestHistoryService.recordHarvest(rental, "STAFF", task.getAssignedStaff(), task.getPillarCodes());
 
         // Thu hoạch xong -> ô đất trở lại trạng thái "chưa trồng", sẵn sàng cho yêu cầu trồng cây mới
         rental.setTree(null);

@@ -7,6 +7,7 @@ import swp490.greeenslot.entity.HarvestHistory;
 import swp490.greeenslot.entity.Location;
 import swp490.greeenslot.entity.Pillar;
 import swp490.greeenslot.entity.SlotRental;
+import swp490.greeenslot.entity.Tree;
 import swp490.greeenslot.entity.User;
 import swp490.greeenslot.repository.HarvestHistoryRepository;
 import swp490.greeenslot.repository.UserRepository;
@@ -15,6 +16,7 @@ import swp490.greeenslot.service.LocationContextService;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class HarvestHistoryServiceImpl implements HarvestHistoryService {
@@ -35,11 +37,27 @@ public class HarvestHistoryServiceImpl implements HarvestHistoryService {
 
     @Override
     public void recordHarvest(SlotRental rental, String method, User staff, String pillarCodes) {
-        if (rental == null || rental.getTree() == null) {
+        if (rental == null) {
             return;
         }
 
+        Tree tree = rental.getTree();
+        if (tree == null && rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()) {
+            tree = rental.getRentedPillars().stream()
+                    .map(Pillar::getDefaultTree)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+        }
         GardenSlot slot = rental.getGardenSlot();
+        if (tree == null && slot != null && slot.getPillars() != null && !slot.getPillars().isEmpty()) {
+            tree = slot.getPillars().stream()
+                    .map(Pillar::getDefaultTree)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse(null);
+        }
+
         Pillar pillar = slot != null ? slot.getPillar() : null;
         Location location = pillar != null ? pillar.getLocation() : null;
         if (location == null && slot != null && slot.getLocation() != null) {
@@ -62,7 +80,7 @@ public class HarvestHistoryServiceImpl implements HarvestHistoryService {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime plantedAt = rental.getPlantedAt() != null ? rental.getPlantedAt() : rental.getStartTime();
         
-        Integer harvestDays = rental.getTree().getHarvestDays() != null ? rental.getTree().getHarvestDays() : 30;
+        Integer harvestDays = (tree != null && tree.getHarvestDays() != null) ? tree.getHarvestDays() : 30;
         int daysGrown = 0;
         if (plantedAt != null) {
             daysGrown = (int) Math.max(0, java.time.temporal.ChronoUnit.DAYS.between(plantedAt, now));
@@ -75,8 +93,8 @@ public class HarvestHistoryServiceImpl implements HarvestHistoryService {
         history.setLocationName(location != null ? location.getName() : null);
         history.setSlotId(slot != null ? slot.getId() : null);
         history.setSlotNumber(slot != null ? slot.getSlotNumber() : null);
-        history.setTreeId(rental.getTree().getId());
-        history.setTreeName(rental.getTree().getTreeName());
+        history.setTreeId(tree != null ? tree.getId() : null);
+        history.setTreeName(tree != null ? tree.getTreeName() : "Rau/Cây trồng");
         history.setCustomerId(rental.getUser() != null ? rental.getUser().getId() : null);
         history.setCustomerName(rental.getUser() != null ? rental.getUser().getFullName() : null);
         history.setHarvestMethod(method);
@@ -95,6 +113,7 @@ public class HarvestHistoryServiceImpl implements HarvestHistoryService {
     @Override
     public List<HarvestHistory> getMyHistory(String username) {
         User user = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
                 .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
         return harvestHistoryRepository.findByCustomerIdOrderByHarvestedAtDesc(user.getId());
     }
