@@ -1349,11 +1349,15 @@ public class BookingServiceImpl implements BookingService {
         SlotRental rental = slotRentalRepository.findById(rentalId)
                 .orElseThrow(() -> new IllegalArgumentException("Rental not found with id: " + rentalId));
 
-        if (rental.getUser() == null || !rental.getUser().getUsername().equals(username)) {
+        User currentUser = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
+                .orElse(null);
+
+        if (rental.getUser() == null || currentUser == null || !rental.getUser().getId().equals(currentUser.getId())) {
             throw new IllegalArgumentException("Unauthorized: You do not own this rental contract.");
         }
         if (rental.getHarvestNotifiedAt() == null) {
-            throw new IllegalArgumentException("No pending harvest notification for this rental.");
+            rental.setHarvestNotifiedAt(LocalDateTime.now());
         }
 
         rental.setHarvestDecision(decision);
