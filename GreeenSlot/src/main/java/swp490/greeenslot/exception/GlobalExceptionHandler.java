@@ -42,6 +42,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(new MessageResponseDTO(message != null ? message : "Yêu cầu không hợp lệ."));
     }
 
+    @ExceptionHandler(org.springframework.security.authentication.BadCredentialsException.class)
+    public ResponseEntity<MessageResponseDTO> handleBadCredentials(org.springframework.security.authentication.BadCredentialsException ex) {
+        return ResponseEntity.badRequest().body(new MessageResponseDTO("Mật khẩu không chính xác. Vui lòng kiểm tra lại."));
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<MessageResponseDTO> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         logger.error("Database constraint violation: {}", ex.getMessage(), ex);

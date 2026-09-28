@@ -70,8 +70,22 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public JwtResponseDTO authenticateUser(LoginRequestDTO loginRequest) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
+        String loginIdentifier = loginRequest.getUsername() != null ? loginRequest.getUsername().trim() : "";
+        User existingUser = userRepository.findByUsername(loginIdentifier)
+                .or(() -> userRepository.findByEmail(loginIdentifier))
+                .orElse(null);
+
+        if (existingUser == null) {
+            throw new IllegalArgumentException("Tên đăng nhập không tồn tại trên hệ thống.");
+        }
+
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(existingUser.getUsername(), loginRequest.getPassword()));
+        } catch (org.springframework.security.authentication.BadCredentialsException ex) {
+            throw new IllegalArgumentException("Mật khẩu không chính xác. Vui lòng kiểm tra lại.");
+        }
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = jwtUtils.generateJwtToken(authentication);
