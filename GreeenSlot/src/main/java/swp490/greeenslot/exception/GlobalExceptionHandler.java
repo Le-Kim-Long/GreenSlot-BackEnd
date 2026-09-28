@@ -24,9 +24,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<MessageResponseDTO> handleValidation(Exception ex) {
         if (ex instanceof BindException bindEx) {
             String message = bindEx.getBindingResult().getFieldErrors().stream()
-                    .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                    .map(error -> error.getDefaultMessage())
+                    .filter(msg -> msg != null && !msg.isBlank())
+                    .distinct()
                     .collect(Collectors.joining("; "));
-            return ResponseEntity.badRequest().body(new MessageResponseDTO(message));
+            return ResponseEntity.badRequest().body(new MessageResponseDTO(!message.isEmpty() ? message : "Dữ liệu đầu vào không hợp lệ."));
         }
         return ResponseEntity.badRequest().body(new MessageResponseDTO("Dữ liệu đầu vào không hợp lệ."));
     }

@@ -16,7 +16,7 @@ import lombok.Setter;
 @Schema(description = "Customer harvest decision request DTO")
 public class HarvestDecisionRequestDTO {
 
-    @NotBlank(message = "Decision is required (SELF or STAFF)")
+    @NotBlank(message = "Lựa chọn phương thức thu hoạch không được để trống (SELF hoặc STAFF)")
     @Schema(description = "Harvest decision type: SELF (customer harvests) or STAFF (staff assists)", example = "SELF")
     private String decision;
 

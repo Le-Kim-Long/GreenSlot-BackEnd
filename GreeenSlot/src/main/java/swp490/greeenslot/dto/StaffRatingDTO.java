@@ -22,9 +22,9 @@ public class StaffRatingDTO {
     
     private String ratedByName;
     
-    @NotNull(message = "Rating is required")
-    @Min(value = 1, message = "Rating must be at least 1")
-    @Max(value = 5, message = "Rating must be at most 5")
+    @NotNull(message = "Đánh giá sao không được để trống")
+    @Min(value = 1, message = "Đánh giá tối thiểu là 1 sao")
+    @Max(value = 5, message = "Đánh giá tối đa là 5 sao")
     private Integer rating;
     
     private String comment;

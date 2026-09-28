@@ -56,6 +56,9 @@ public class IoTSensorController {
     private PillarRepository pillarRepository;
 
     @Autowired
+    private EquipmentRepository equipmentRepository;
+
+    @Autowired
     private swp490.greeenslot.service.FirebaseStorageService firebaseStorageService;
 
     @Autowired
@@ -248,6 +251,61 @@ public class IoTSensorController {
                 })
                 .toList();
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/pillars/{pillarCode}/status")
+    @PreAuthorize("hasAnyRole('ROLE_GARDEN_STAFF', 'ROLE_LOCATION_MANAGER', 'ROLE_MANAGER', 'ROLE_ADMIN')")
+    @Operation(summary = "Lấy thông tin thiết bị và tín hiệu cảm biến của trụ",
+            description = "Trả về danh sách thiết bị gắn trên trụ và số đo cảm biến mới nhất nhận được")
+    public ResponseEntity<PillarIoTStatusDTO> getPillarIoTStatus(@PathVariable String pillarCode) {
+        Pillar pillar = pillarRepository.findByPillarCode(pillarCode.trim())
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy trụ với mã: " + pillarCode));
+
+        Long locId = (pillar.getLocation() != null) ? pillar.getLocation().getId() : null;
+        if (locId != null) {
+            locationContextService.validateLocationAccess(locId);
+        }
+
+        List<Equipment> equipments = equipmentRepository.findByPillar(pillar);
+        List<EquipmentDTO> equipmentDTOs = equipments.stream().map(e -> {
+            EquipmentDTO dto = new EquipmentDTO();
+            dto.setId(e.getId());
+            dto.setEquipmentName(e.getEquipmentName());
+            dto.setSerialNumber(e.getSerialNumber());
+            dto.setStatus(e.getStatus() != null ? e.getStatus().name() : "IN_USE");
+            dto.setPillarId(pillar.getId());
+            dto.setPillarCode(pillar.getPillarCode());
+            dto.setDescription(e.getDescription());
+            dto.setImageUrl(e.getImageUrl());
+            return dto;
+        }).toList();
+
+        List<SensorReadingResponseDTO> latestReadings = sensorReadingService.getLatestReadings(pillar.getPillarCode());
+        boolean hasSignal = latestReadings != null && !latestReadings.isEmpty();
+        java.time.Instant lastSignalAt = hasSignal
+                ? latestReadings.stream().map(SensorReadingResponseDTO::getRecordedAt).filter(java.util.Objects::nonNull).max(java.time.Instant::compareTo).orElse(null)
+                : null;
+
+        GardenSlot slot = pillar.getGardenSlot();
+
+        PillarIoTStatusDTO statusDTO = PillarIoTStatusDTO.builder()
+                .pillarId(pillar.getId())
+                .pillarCode(pillar.getPillarCode())
+                .pillarType(pillar.getEffectivePillarType() != null ? pillar.getEffectivePillarType().name() : "MEDIUM")
+                .slotId(slot != null ? slot.getId() : null)
+                .slotNumber(slot != null ? slot.getSlotNumber() : "N/A")
+                .locationId(locId)
+                .locationName(pillar.getLocation() != null ? pillar.getLocation().getName() : "")
+                .equipments(equipmentDTOs)
+                .latestReadings(latestReadings)
+                .hasSignal(hasSignal)
+                .lastSignalAt(lastSignalAt)
+                .deviceStatus(pillar.getDeviceStatus() != null ? pillar.getDeviceStatus() : (hasSignal ? "ONLINE" : "UNKNOWN"))
+                .cameraStatus(pillar.getCameraStatus() != null ? pillar.getCameraStatus() : "UNKNOWN")
+                .cameraStreamUrl(pillar.getCameraStreamUrl())
+                .build();
+
+        return ResponseEntity.ok(statusDTO);
     }
 
     @GetMapping("/sensors/types")

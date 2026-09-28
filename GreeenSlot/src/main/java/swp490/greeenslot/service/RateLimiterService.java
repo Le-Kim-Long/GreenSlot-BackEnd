@@ -15,6 +15,9 @@ public class RateLimiterService {
     private static final long TIME_WINDOW_MS = TimeUnit.MINUTES.toMillis(1);
 
     public boolean isAllowed(String ipAddress) {
+        if (ipAddress == null || "127.0.0.1".equals(ipAddress) || "0:0:0:0:0:0:0:1".equals(ipAddress) || "localhost".equalsIgnoreCase(ipAddress)) {
+            return true;
+        }
         long now = System.currentTimeMillis();
         cache.compute(ipAddress, (key, value) -> {
             if (value == null || (now - value.timestamp) > TIME_WINDOW_MS) {

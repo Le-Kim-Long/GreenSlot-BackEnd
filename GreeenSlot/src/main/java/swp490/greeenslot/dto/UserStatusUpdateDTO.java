@@ -11,6 +11,6 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserStatusUpdateDTO {
-    @NotNull(message = "Enabled flag is required")
+    @NotNull(message = "Trạng thái kích hoạt không được để trống")
     private Boolean enabled;
 }

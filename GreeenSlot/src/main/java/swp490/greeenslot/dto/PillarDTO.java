@@ -1,5 +1,7 @@
 package swp490.greeenslot.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -17,19 +19,21 @@ import java.math.BigDecimal;
 public class PillarDTO {
     private Long id;
 
-    @NotBlank(message = "Pillar code cannot be empty or whitespace")
+    @NotBlank(message = "Mã trụ không được để trống")
     private String pillarCode;
 
     private String status; // ACTIVE, MAINTENANCE
 
-    @NotNull(message = "Location ID is required")
-    @Positive(message = "Location ID must be positive")
+    @NotNull(message = "Cơ sở không được để trống")
+    @Positive(message = "Mã cơ sở không hợp lệ")
     private Long locationId;
 
     private String imageUrl;
 
     private String pillarType; // SMALL, MEDIUM, LARGE
     private String pillarTypeName;
+    @Min(value = 1, message = "Số hốc trồng phải tối thiểu là 1")
+    @Max(value = 100, message = "Số hốc trồng không được vượt quá 100")
     private Integer capacityHoles;
     private BigDecimal price;
     private Double requiredArea;

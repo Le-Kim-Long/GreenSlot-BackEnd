@@ -23,6 +23,9 @@ public class RentalHistoryDTO {
     private LocalDateTime plantedAt;
     private LocalDateTime expectedHarvestAt;
     private BigDecimal monthlyPrice;
+    private BigDecimal landPrice;
+    private BigDecimal monthlyPillarsPrice;
+    private Double slotArea;
 
     public static class PillarInfo {
         private Long id;
@@ -32,6 +35,9 @@ public class RentalHistoryDTO {
         private String cameraStatus;
         private Long treeId;
         private String treeName;
+        private Integer capacityHoles;
+        private String pillarType;
+        private BigDecimal monthlyPrice;
 
         public PillarInfo() {}
 
@@ -53,6 +59,18 @@ public class RentalHistoryDTO {
             this.treeName = treeName;
         }
 
+        public PillarInfo(Long id, String pillarCode, String status, String cameraStreamUrl, String cameraStatus, Long treeId, String treeName, Integer capacityHoles, String pillarType) {
+            this.id = id;
+            this.pillarCode = pillarCode;
+            this.status = status;
+            this.cameraStreamUrl = cameraStreamUrl;
+            this.cameraStatus = cameraStatus;
+            this.treeId = treeId;
+            this.treeName = treeName;
+            this.capacityHoles = capacityHoles;
+            this.pillarType = pillarType;
+        }
+
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
         public String getPillarCode() { return pillarCode; }
@@ -67,6 +85,12 @@ public class RentalHistoryDTO {
         public void setTreeId(Long treeId) { this.treeId = treeId; }
         public String getTreeName() { return treeName; }
         public void setTreeName(String treeName) { this.treeName = treeName; }
+        public Integer getCapacityHoles() { return capacityHoles; }
+        public void setCapacityHoles(Integer capacityHoles) { this.capacityHoles = capacityHoles; }
+        public String getPillarType() { return pillarType; }
+        public void setPillarType(String pillarType) { this.pillarType = pillarType; }
+        public BigDecimal getMonthlyPrice() { return monthlyPrice; }
+        public void setMonthlyPrice(BigDecimal monthlyPrice) { this.monthlyPrice = monthlyPrice; }
     }
 
     public static class PaymentTransactionInfo {
@@ -343,5 +367,29 @@ public class RentalHistoryDTO {
 
     public void setMonthlyPrice(BigDecimal monthlyPrice) {
         this.monthlyPrice = monthlyPrice;
+    }
+
+    public BigDecimal getLandPrice() {
+        return landPrice;
+    }
+
+    public void setLandPrice(BigDecimal landPrice) {
+        this.landPrice = landPrice;
+    }
+
+    public BigDecimal getMonthlyPillarsPrice() {
+        return monthlyPillarsPrice;
+    }
+
+    public void setMonthlyPillarsPrice(BigDecimal monthlyPillarsPrice) {
+        this.monthlyPillarsPrice = monthlyPillarsPrice;
+    }
+
+    public Double getSlotArea() {
+        return slotArea;
+    }
+
+    public void setSlotArea(Double slotArea) {
+        this.slotArea = slotArea;
     }
 }

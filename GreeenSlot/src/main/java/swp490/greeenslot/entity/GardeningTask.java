@@ -33,8 +33,12 @@ public class GardeningTask {
     @Column(length = 20)
     private ETaskStatus status;
 
-    @Column(name = "evidence_image_url")
+    @Column(name = "evidence_image_url", length = 4000)
     private String evidenceImageUrl;
+
+    @Nationalized
+    @Column(name = "staff_notes", length = 4000)
+    private String staffNotes;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "task_type", length = 30)

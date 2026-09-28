@@ -13,6 +13,7 @@ import swp490.greeenslot.repository.UserRepository;
 import swp490.greeenslot.service.StaffScheduleService;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -72,9 +73,34 @@ public class StaffScheduleServiceImpl implements StaffScheduleService {
     }
 
     private void validateScheduleDates(StaffScheduleDTO dto, Long currentScheduleId) {
-        if (dto.getScheduleDate() != null && dto.getScheduleDate().isBefore(LocalDate.now())) {
+        if (dto.getScheduleDate() == null) {
+            throw new IllegalArgumentException("Ngày trực không được để trống");
+        }
+        if (dto.getScheduleDate().isBefore(LocalDate.now())) {
             throw new IllegalArgumentException("Schedule date cannot be in the past");
         }
+        if (dto.getEndDate() == null) {
+            dto.setEndDate(dto.getScheduleDate());
+        }
+        if (dto.getEndDate().isBefore(dto.getScheduleDate())) {
+            throw new IllegalArgumentException("Ngày kết thúc phải cùng ngày hoặc sau ngày bắt đầu trực");
+        }
+
+        // Tự động gán giờ mặc định nếu client không truyền
+        if (dto.getStartTime() == null) {
+            dto.setStartTime(LocalTime.of(8, 0));
+        }
+        if (dto.getEndTime() == null) {
+            dto.setEndTime(LocalTime.of(17, 0));
+        }
+    }
+
+    /**
+     * [BẢO LƯU QUY TẮC 8 TIẾNG CŨ]
+     * Chức năng kiểm tra thời gian làm việc không vượt quá 8 tiếng/ca và 8 tiếng/ngày.
+     * Tạm thời không kích hoạt cho mô hình phân ca theo khoảng ngày, lưu lại theo yêu cầu người dùng để có thể tái sử dụng trong tương lai.
+     */
+    public void validateEightHoursRuleLegacy(StaffScheduleDTO dto, Long currentScheduleId) {
         if (dto.getStartTime() != null && dto.getEndTime() != null) {
             if (!dto.getStartTime().isBefore(dto.getEndTime())) {
                 throw new IllegalArgumentException("Start time must be before end time");
@@ -162,6 +188,7 @@ public class StaffScheduleServiceImpl implements StaffScheduleService {
                 schedule.getLocation() != null ? schedule.getLocation().getId() : null,
                 schedule.getLocation() != null ? schedule.getLocation().getName() : null,
                 schedule.getScheduleDate(),
+                schedule.getEndDate() != null ? schedule.getEndDate() : schedule.getScheduleDate(),
                 schedule.getStartTime(),
                 schedule.getEndTime(),
                 schedule.getGardenSlot() != null ? schedule.getGardenSlot().getId() : null,
@@ -187,8 +214,9 @@ public class StaffScheduleServiceImpl implements StaffScheduleService {
             gardenSlotRepository.findById(dto.getSlotId()).ifPresent(schedule::setGardenSlot);
         }
         schedule.setScheduleDate(dto.getScheduleDate());
-        schedule.setStartTime(dto.getStartTime());
-        schedule.setEndTime(dto.getEndTime());
+        schedule.setEndDate(dto.getEndDate() != null ? dto.getEndDate() : dto.getScheduleDate());
+        schedule.setStartTime(dto.getStartTime() != null ? dto.getStartTime() : LocalTime.of(8, 0));
+        schedule.setEndTime(dto.getEndTime() != null ? dto.getEndTime() : LocalTime.of(17, 0));
         schedule.setNotes(dto.getNotes());
         schedule.setIsActive(dto.getIsActive() != null ? dto.getIsActive() : true);
         return schedule;
@@ -211,6 +239,7 @@ public class StaffScheduleServiceImpl implements StaffScheduleService {
             schedule.setGardenSlot(null);
         }
         if (dto.getScheduleDate() != null) schedule.setScheduleDate(dto.getScheduleDate());
+        if (dto.getEndDate() != null) schedule.setEndDate(dto.getEndDate());
         if (dto.getStartTime() != null) schedule.setStartTime(dto.getStartTime());
         if (dto.getEndTime() != null) schedule.setEndTime(dto.getEndTime());
         if (dto.getNotes() != null) schedule.setNotes(dto.getNotes());

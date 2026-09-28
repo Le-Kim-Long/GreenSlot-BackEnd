@@ -15,13 +15,13 @@ import swp490.greeenslot.entity.EContentType;
 public class GlobalContentDTO {
     private Long id;
 
-    @NotBlank(message = "Title is required")
+    @NotBlank(message = "Tiêu đề không được để trống")
     private String title;
 
-    @NotBlank(message = "Content is required")
+    @NotBlank(message = "Nội dung không được để trống")
     private String content;
 
-    @NotNull(message = "Content type is required")
+    @NotNull(message = "Loại nội dung không được để trống")
     private EContentType contentType;
 
     private Boolean active;

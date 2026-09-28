@@ -27,6 +27,7 @@ import swp490.greeenslot.repository.SlotRentalRepository;
 import swp490.greeenslot.repository.UserRepository;
 import swp490.greeenslot.service.impl.BookingServiceImpl;
 import swp490.greeenslot.config.VNPayUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -157,6 +158,44 @@ class BookingDateValidationTest {
         Set<ConstraintViolation<BookingRequestDTO>> violations = validator.validate(dto);
 
         assertTrue(violations.isEmpty());
+    }
+
+    @Test
+    @DisplayName("DTO Deserialization: Should convert UTC timestamp ending in 'Z' to Vietnam local time (next calendar day if past midnight UTC)")
+    void testDTO_JacksonDeserialization_UtcTimestamp_ConvertsToLocalZone() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        // 23:25 UTC on Sept 10 is 06:25 AM on Sept 11 in Vietnam (UTC+7)
+        String json = "{\"slotId\":10,\"durationInMonths\":3,\"startTime\":\"2026-09-10T23:25:24.947Z\"}";
+        BookingRequestDTO dto = mapper.readValue(json, BookingRequestDTO.class);
+
+        assertNotNull(dto.getStartTime());
+        assertEquals(2026, dto.getStartTime().getYear());
+        assertEquals(9, dto.getStartTime().getMonthValue());
+        assertEquals(11, dto.getStartTime().getDayOfMonth());
+        assertEquals(6, dto.getStartTime().getHour());
+        assertEquals(25, dto.getStartTime().getMinute());
+    }
+
+    @Test
+    @DisplayName("DTO Deserialization: Should parse local ISO timestamp without timezone")
+    void testDTO_JacksonDeserialization_LocalIsoTimestamp() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        String json = "{\"slotId\":10,\"durationInMonths\":3,\"startTime\":\"2026-09-11T00:00:00\"}";
+        BookingRequestDTO dto = mapper.readValue(json, BookingRequestDTO.class);
+
+        assertNotNull(dto.getStartTime());
+        assertEquals(LocalDateTime.of(2026, 9, 11, 0, 0, 0), dto.getStartTime());
+    }
+
+    @Test
+    @DisplayName("DTO Deserialization: Should parse date-only string as start of day")
+    void testDTO_JacksonDeserialization_DateOnly() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        String json = "{\"slotId\":10,\"durationInMonths\":3,\"startTime\":\"2026-09-11\"}";
+        BookingRequestDTO dto = mapper.readValue(json, BookingRequestDTO.class);
+
+        assertNotNull(dto.getStartTime());
+        assertEquals(LocalDateTime.of(2026, 9, 11, 0, 0, 0), dto.getStartTime());
     }
 
     // ================= Service Level Validation Tests =================

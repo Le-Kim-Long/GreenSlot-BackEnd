@@ -12,8 +12,10 @@ import lombok.Setter;
 @AllArgsConstructor
 public class TaskStatusUpdateDTO {
 
-    @NotBlank(message = "Status cannot be empty or whitespace")
+    @NotBlank(message = "Trạng thái công việc không được để trống")
     private String status; // PENDING, IN_PROGRESS, COMPLETED
 
     private String evidenceImageUrl; // required only if status is COMPLETED
+    private String staffNotes;
+    private java.util.List<PillarEquipmentBindingDTO> equipmentBindings;
 }

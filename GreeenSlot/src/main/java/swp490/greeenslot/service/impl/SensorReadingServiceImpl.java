@@ -16,6 +16,7 @@ import swp490.greeenslot.repository.*;
 import swp490.greeenslot.service.SensorReadingService;
 import swp490.greeenslot.service.NotificationService;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -46,6 +47,9 @@ public class SensorReadingServiceImpl implements SensorReadingService {
 
     @Autowired
     private GardeningTaskRepository gardeningTaskRepository;
+
+    @Autowired
+    private StaffScheduleRepository staffScheduleRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -280,26 +284,55 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                         );
                     }
 
-                    // 4. Gửi thông báo cho Nhân viên chăm sóc
-                    List<User> staffList = gardeningTaskRepository.findAssignedStaffBySlotId(slot.getId());
-                    for (User staff : staffList) {
+                    // 4. Gửi thông báo cho Nhân viên chăm sóc (phụ trách ô vườn hoặc trực ca hôm nay)
+                    java.util.Map<Long, User> targetStaffMap = new java.util.HashMap<>();
+                    gardeningTaskRepository.findAssignedStaffBySlotId(slot.getId()).forEach(s -> targetStaffMap.put(s.getId(), s));
+                    if (staffScheduleRepository != null) {
+                        staffScheduleRepository.findByScheduleDate(java.time.LocalDate.now()).stream()
+                                .filter(sch -> sch.getGardenSlot() != null && sch.getGardenSlot().getId().equals(slot.getId()) && sch.getStaff() != null)
+                                .forEach(sch -> targetStaffMap.put(sch.getStaff().getId(), sch.getStaff()));
+                    }
+
+                    boolean isSoilMoistureLow = (sensorType == ESensorType.SOIL_MOISTURE && value < effectiveMin);
+                    String pillarCodeStr = pillar != null ? pillar.getPillarCode() : deviceId;
+
+                    for (User staff : targetStaffMap.values()) {
                         if (notificationService != null) {
-                            notificationService.createNotification(
-                                    staff.getId(),
-                                    "Cảnh báo chỉ số cảm biến (Cần xử lý)",
-                                    String.format("Cảnh báo: Cảm biến %s tại ô %s (%s) ghi nhận %.2f %s, ngoài ngưỡng (%.2f - %.2f). Yêu cầu kiểm tra.",
-                                            sensorType.getDescription(), slot.getSlotNumber(), treeName, value, unit, effectiveMin, effectiveMax),
-                                    "IOT_ALERT",
-                                    slot.getId(),
-                                    "/dashboard/garden-staff/alerts"
-                            );
+                            if (isSoilMoistureLow) {
+                                // THÔNG BÁO ĐÍCH DANH CẦN TƯỚI NƯỚC CHO TRỤ NÀO
+                                String wateringTitle = String.format("💧 Yêu cầu tưới nước: Trụ %s (Ô %s)", pillarCodeStr, slot.getSlotNumber());
+                                String wateringBody = String.format("Độ ẩm đất tại Trụ %s (Ô %s - %s) giảm còn %.2f%%, dưới ngưỡng an toàn %.2f%%. Vui lòng kiểm tra và kích hoạt tưới nước.",
+                                        pillarCodeStr, slot.getSlotNumber(), treeName, value, effectiveMin);
+                                String actionUrl = String.format("/dashboard/garden-staff/pump-control?slotId=%d&pillarCode=%s", slot.getId(), pillarCodeStr);
+                                notificationService.createNotification(
+                                        staff.getId(),
+                                        wateringTitle,
+                                        wateringBody,
+                                        "WATERING_REQUIRED",
+                                        slot.getId(),
+                                        actionUrl
+                                );
+                            } else {
+                                notificationService.createNotification(
+                                        staff.getId(),
+                                        "Cảnh báo chỉ số cảm biến (Cần xử lý)",
+                                        String.format("Cảnh báo: Cảm biến %s tại ô %s (%s) ghi nhận %.2f %s, ngoài ngưỡng (%.2f - %.2f). Yêu cầu kiểm tra.",
+                                                sensorType.getDescription(), slot.getSlotNumber(), treeName, value, unit, effectiveMin, effectiveMax),
+                                        "IOT_ALERT",
+                                        slot.getId(),
+                                        "/dashboard/garden-staff/alerts"
+                                );
+                            }
                         }
-                        firebaseMessagingService.sendPushNotification(
-                                staff.getId(),
-                                "Cần kiểm tra: Cảnh báo cảm biến",
-                                String.format("Ô %s (%s): Cảm biến %s bất thường (%.2f %s)",
-                                        slot.getSlotNumber(), treeName, sensorType.getDescription(), value, unit)
-                        );
+                        if (firebaseMessagingService != null) {
+                            String pushTitle = isSoilMoistureLow
+                                    ? String.format("💧 Cần tưới nước: Trụ %s (Ô %s)", pillarCodeStr, slot.getSlotNumber())
+                                    : "Cần kiểm tra: Cảnh báo cảm biến";
+                            String pushBody = isSoilMoistureLow
+                                    ? String.format("Độ ẩm đất Trụ %s (Ô %s) thấp (%.2f%% < %.2f%%). Nhấn để kích hoạt bơm.", pillarCodeStr, slot.getSlotNumber(), value, effectiveMin)
+                                    : String.format("Ô %s (%s): Cảm biến %s bất thường (%.2f %s)", slot.getSlotNumber(), treeName, sensorType.getDescription(), value, unit);
+                            firebaseMessagingService.sendPushNotification(staff.getId(), pushTitle, pushBody);
+                        }
                     }
 
                     // 5. Tự động tạo nhiệm vụ khẩn cấp cho nhân viên nếu chưa có
@@ -321,20 +354,33 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                     // 6. Tự động kích hoạt bơm xịt nước nếu độ ẩm đất < ngưỡng tối thiểu của cây
                     if (sensorType == ESensorType.SOIL_MOISTURE && value < effectiveMin && !autoSprayTriggered) {
                         String autoReason = String.format("Tự động tưới: Độ ẩm đất %.2f%% < ngưỡng tối thiểu %.2f%% của %s tại ô %s (Trụ %s)",
-                                value, effectiveMin, treePrefix, slot.getSlotNumber(), pillar.getPillarCode());
+                                value, effectiveMin, treePrefix, slot.getSlotNumber(), pillarCodeStr);
                         boolean autoSprayed = pumpService.triggerAutoSpray(autoReason);
                         if (autoSprayed) {
                             autoSprayTriggered = true;
-                            if (notificationService != null && customer != null) {
-                                notificationService.createNotification(
-                                        customer.getId(),
-                                        "Hệ thống tự động tưới cây (Smart Irrigation)",
-                                        String.format("Hệ thống IoT vừa tự động kích hoạt máy bơm xịt nước cho ô %s (%s) do độ ẩm đất giảm thấp (%.2f%% < %.2f%%).",
-                                                slot.getSlotNumber(), treeName, value, effectiveMin),
-                                        "IOT_AUTO_WATERING",
-                                        slot.getId(),
-                                        "/dashboard/customer/monitoring"
-                                );
+                            if (notificationService != null) {
+                                if (customer != null) {
+                                    notificationService.createNotification(
+                                            customer.getId(),
+                                            "Hệ thống tự động tưới cây (Smart Irrigation)",
+                                            String.format("Hệ thống IoT vừa tự động kích hoạt máy bơm xịt nước cho ô %s (%s) do độ ẩm đất giảm thấp (%.2f%% < %.2f%%).",
+                                                    slot.getSlotNumber(), treeName, value, effectiveMin),
+                                            "IOT_AUTO_WATERING",
+                                            slot.getId(),
+                                            "/dashboard/customer/monitoring"
+                                    );
+                                }
+                                for (User staff : targetStaffMap.values()) {
+                                    notificationService.createNotification(
+                                            staff.getId(),
+                                            "Hệ thống vừa tự động tưới nước",
+                                            String.format("Máy bơm Trụ %s (Ô %s - %s) vừa được hệ thống tự động kích hoạt tưới 5 giây do độ ẩm %.2f%% < %.2f%%.",
+                                                    pillarCodeStr, slot.getSlotNumber(), treeName, value, effectiveMin),
+                                            "IOT_AUTO_WATERING",
+                                            slot.getId(),
+                                            String.format("/dashboard/garden-staff/pump-control?slotId=%d&pillarCode=%s", slot.getId(), pillarCodeStr)
+                                    );
+                                }
                             }
                         }
                     }

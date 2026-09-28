@@ -6,15 +6,15 @@ import jakarta.validation.constraints.Size;
 
 public class ResetPasswordRequestDTO {
 
-    @NotBlank(message = "Reset token is required")
+    @NotBlank(message = "Mã xác thực đặt lại mật khẩu không được để trống")
     @Schema(
             description = "UUID from forgot-password response (resetToken field) or email — NOT the new password",
             example = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
     )
     private String token;
 
-    @NotBlank(message = "New password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters")
+    @NotBlank(message = "Mật khẩu mới không được để trống")
+    @Size(min = 6, message = "Mật khẩu phải có ít nhất 6 ký tự")
     @Schema(description = "New password (min 6 characters)", example = "NewPass@123")
     private String newPassword;
 

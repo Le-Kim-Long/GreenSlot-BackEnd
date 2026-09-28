@@ -9,6 +9,7 @@ import swp490.greeenslot.dto.ForgotPasswordResponseDTO;
 import swp490.greeenslot.dto.JwtResponseDTO;
 import swp490.greeenslot.dto.LoginRequestDTO;
 import swp490.greeenslot.dto.MessageResponseDTO;
+import swp490.greeenslot.dto.RegisterResponseDTO;
 import swp490.greeenslot.dto.ResetPasswordRequestDTO;
 import swp490.greeenslot.dto.SignupRequestDTO;
 import swp490.greeenslot.service.AuthService;
@@ -50,9 +51,13 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<MessageResponseDTO> register(@Valid @RequestBody SignupRequestDTO signUpRequest) {
-        authService.registerUser(signUpRequest);
-        return ResponseEntity.ok(new MessageResponseDTO("Mã OTP xác thực đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư!"));
+    public ResponseEntity<?> register(@Valid @RequestBody SignupRequestDTO signUpRequest) {
+        try {
+            RegisterResponseDTO response = authService.registerUser(signUpRequest);
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new MessageResponseDTO(e.getMessage()));
+        }
     }
 
     @PostMapping("/verify-otp")
@@ -76,8 +81,8 @@ public class AuthController {
                     .body(new MessageResponseDTO("Too many requests. Please try again later."));
         }
         try {
-            authService.resendRegistrationOtp(request.getEmail());
-            return ResponseEntity.ok(new MessageResponseDTO("Mã OTP mới đã được gửi đến email của bạn!"));
+            RegisterResponseDTO response = authService.resendRegistrationOtp(request.getEmail());
+            return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new MessageResponseDTO(e.getMessage()));
         }

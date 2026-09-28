@@ -80,6 +80,7 @@ public class BookingController {
             dto.setTotalHoles(totalHoles);
             dto.setCalculatedPillarsPrice(calculatedPillarsPrice);
             dto.setCalculatedTreesPrice(calculatedTreesPrice);
+            dto.setLandPrice(s.getPrice() != null ? s.getPrice() : BigDecimal.ZERO);
             return dto;
         }).collect(Collectors.toList());
         return ResponseEntity.ok(dtoList);
@@ -117,6 +118,33 @@ public class BookingController {
 
         BookingResponseDTO response = bookingService.extendRental(request, principal.getName(), ipAddress);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{rentalId}/add-pillars/preview")
+    @PreAuthorize("hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Preview cost and remaining area for adding pillars", description = "Calculates pro-rated cost based on remaining days of the rental contract.")
+    public ResponseEntity<AddPillarsPreviewDTO> previewAddPillars(
+            @PathVariable Long rentalId,
+            @RequestParam(defaultValue = "0") int smallCount,
+            @RequestParam(defaultValue = "0") int mediumCount,
+            @RequestParam(defaultValue = "0") int largeCount,
+            Principal principal) {
+        return ResponseEntity.ok(bookingService.previewAddPillars(rentalId, smallCount, mediumCount, largeCount, principal.getName()));
+    }
+
+    @PostMapping("/{rentalId}/add-pillars")
+    @PreAuthorize("hasRole('ROLE_CUSTOMER')")
+    @Operation(summary = "Request adding pillars to an active rental", description = "Creates PENDING payment transaction and generates VNPay payment URL.")
+    public ResponseEntity<BookingResponseDTO> addPillars(
+            @PathVariable Long rentalId,
+            @Valid @RequestBody AddPillarsRequestDTO request,
+            Principal principal,
+            HttpServletRequest httpServletRequest) {
+        String ipAddress = httpServletRequest.getHeader("X-Forwarded-For");
+        if (ipAddress == null || ipAddress.isEmpty()) {
+            ipAddress = httpServletRequest.getRemoteAddr();
+        }
+        return ResponseEntity.ok(bookingService.addPillars(rentalId, request, principal.getName(), ipAddress));
     }
 
     @GetMapping("/history")

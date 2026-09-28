@@ -7,18 +7,18 @@ import jakarta.validation.constraints.Size;
 
 public class SignupRequestDTO {
 
-    @NotBlank(message = "Username is required")
+    @NotBlank(message = "Tên đăng nhập không được để trống")
     private String username;
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Email must be valid")
+    @NotBlank(message = "Email không được để trống")
+    @Email(message = "Email không đúng định dạng")
     private String email;
 
-    @NotBlank(message = "Password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters")
+    @NotBlank(message = "Mật khẩu không được để trống")
+    @Size(min = 6, message = "Mật khẩu phải có ít nhất 6 ký tự")
     private String password;
     private String fullName;
-    @Pattern(regexp = "^(\\+84|0)(3|5|7|8|9)\\d{8}$", message = "Phone must be a valid Vietnam mobile number (e.g. 0912345678 or +84912345678)")
+    @Pattern(regexp = "^(\\+84|0)(3|5|7|8|9)\\d{8}$", message = "Số điện thoại không hợp lệ (ví dụ: 0912345678 hoặc +84912345678)")
     private String phone;
     private String address;
 

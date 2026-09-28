@@ -8,6 +8,7 @@ import swp490.greeenslot.entity.*;
 import swp490.greeenslot.repository.*;
 import swp490.greeenslot.service.GardeningTaskService;
 
+import jakarta.annotation.PostConstruct;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,6 +36,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
     @Autowired
     private PillarRepository pillarRepository;
+
+    @Autowired
+    private EquipmentRepository equipmentRepository;
 
     @Autowired
     private TreePlantingRequestRepository treePlantingRequestRepository;
@@ -176,13 +180,39 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         return gardeningTaskRepository.save(task);
     }
 
+    @PostConstruct
+    public void unassignOrphanPendingSetupTasks() {
+        try {
+            List<GardeningTask> pendingSetupTasks = gardeningTaskRepository.findAll().stream()
+                    .filter(t -> t.getStatus() == ETaskStatus.PENDING && t.getTaskName() != null && t.getTaskName().startsWith("Lắp đặt bổ sung") && t.getAssignedStaff() != null)
+                    .collect(Collectors.toList());
+            for (GardeningTask t : pendingSetupTasks) {
+                t.setAssignedStaff(null);
+                gardeningTaskRepository.save(t);
+            }
+        } catch (Exception e) {
+            // Ignore any errors during startup
+        }
+    }
+
     @Override
     @Transactional
     public GardeningTask assignStaffToTask(Long taskId, TaskAssignmentDTO request) {
-        if (request.getStaffId() == null) {
-            throw new IllegalArgumentException("Staff ID is required for task assignment");
+        // Fetch the task
+        GardeningTask task = gardeningTaskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
+
+        Long taskLocId = getSlotLocationId(task.getTargetSlot());
+        if (taskLocId != null) {
+            locationContextService.validateLocationAccess(taskLocId);
         }
-        
+
+        // Support unassigning (bỏ gán)
+        if (request.getStaffId() == null || request.getStaffId() <= 0) {
+            task.setAssignedStaff(null);
+            return gardeningTaskRepository.save(task);
+        }
+
         // Fetch target staff and check role
         User staff = userRepository.findById(request.getStaffId())
                 .orElseThrow(() -> new IllegalArgumentException("Staff user not found with ID " + request.getStaffId()));
@@ -194,9 +224,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             throw new IllegalArgumentException("User with ID " + request.getStaffId() + " does not have ROLE_GARDEN_STAFF");
         }
 
-        // Fetch the task
-        GardeningTask task = gardeningTaskRepository.findById(taskId)
-                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
+        if (taskLocId != null && staff.getLocation() != null && !taskLocId.equals(staff.getLocation().getId())) {
+            throw new IllegalArgumentException("Nhân viên được chọn không thuộc cơ sở của ô vườn này.");
+        }
 
         // Assign staff
         task.setAssignedStaff(staff);
@@ -235,99 +265,16 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
     @Override
     public List<GardeningTask> getAvailableTasks(String username) {
-        User staff = userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
-        if (staff.getLocation() == null) {
-            return List.of();
-        }
-
-        List<GardeningTask> allUnassigned = gardeningTaskRepository.findUnassignedByLocationId(staff.getLocation().getId());
-        if (allUnassigned.isEmpty()) {
-            return List.of();
-        }
-
-        // Check active shifts of this staff for today
-        LocalDate today = LocalDate.now();
-        List<StaffSchedule> todaySchedules = staffScheduleRepository.findByStaffAndDateRange(staff.getId(), today, today)
-                .stream().filter(s -> Boolean.TRUE.equals(s.getIsActive()))
-                .toList();
-
-        // Strictly require an active schedule today
-        if (todaySchedules.isEmpty()) {
-            return List.of();
-        }
-
-        // Check if staff has any whole-location shift (slot == null)
-        boolean hasLocationWideShift = todaySchedules.stream().anyMatch(s -> s.getGardenSlot() == null);
-        if (hasLocationWideShift) {
-            return allUnassigned;
-        }
-
-        // Staff is assigned to specific slot(s)
-        Set<Long> assignedSlotIds = todaySchedules.stream()
-                .map(StaffSchedule::getGardenSlot)
-                .filter(Objects::nonNull)
-                .map(GardenSlot::getId)
-                .collect(Collectors.toSet());
-
-        return allUnassigned.stream()
-                .filter(t -> t.getTargetSlot() != null && assignedSlotIds.contains(t.getTargetSlot().getId()))
-                .collect(Collectors.toList());
+        // Toàn bộ công việc bắt buộc phải do Quản lý cơ sở phân công, không còn cơ chế tự nhận việc
+        return List.of();
     }
 
     @Override
     @Transactional
     public GardeningTask claimTask(Long taskId, String username) {
-        GardeningTask task = gardeningTaskRepository.findById(taskId)
-                .orElseThrow(() -> new IllegalArgumentException("Gardening task not found with ID " + taskId));
-
-        if (task.getAssignedStaff() != null) {
-            throw new IllegalArgumentException("Task has already been claimed by another staff member");
-        }
-
-        User staff = userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
-
-        // Verify task belongs to staff location
-        Long taskLocId = getSlotLocationId(task.getTargetSlot());
-        if (taskLocId == null && task.getAssignedStaff() != null && task.getAssignedStaff().getLocation() != null) {
-            taskLocId = task.getAssignedStaff().getLocation().getId();
-        }
-        if (staff.getLocation() != null && taskLocId != null && !staff.getLocation().getId().equals(taskLocId)) {
-            throw new IllegalArgumentException("You can only claim tasks at your own location");
-        }
-
-        // Strictly verify that staff has an active shift today covering this slot
-        LocalDate today = LocalDate.now();
-        List<StaffSchedule> todaySchedules = staffScheduleRepository.findByStaffAndDateRange(staff.getId(), today, today)
-                .stream().filter(s -> Boolean.TRUE.equals(s.getIsActive()))
-                .toList();
-
-        if (todaySchedules.isEmpty()) {
-            throw new IllegalArgumentException("Bạn chưa được phân công ca trực nào trong ngày hôm nay nên không thể nhận việc.");
-        }
-
-        boolean hasLocationWideShift = todaySchedules.stream().anyMatch(s -> s.getGardenSlot() == null);
-        if (!hasLocationWideShift) {
-            if (task.getTargetSlot() == null) {
-                throw new IllegalArgumentException("Công việc này không thuộc ô vườn bạn được phân công trực.");
-            }
-            Set<Long> assignedSlotIds = todaySchedules.stream()
-                    .map(StaffSchedule::getGardenSlot)
-                    .filter(Objects::nonNull)
-                    .map(GardenSlot::getId)
-                    .collect(Collectors.toSet());
-            if (!assignedSlotIds.contains(task.getTargetSlot().getId())) {
-                String assignedNames = todaySchedules.stream()
-                        .filter(s -> s.getGardenSlot() != null)
-                        .map(s -> "Ô " + s.getGardenSlot().getSlotNumber())
-                        .collect(Collectors.joining(", "));
-                throw new IllegalArgumentException("Bạn chỉ có thể nhận công việc tại ô vườn đã được phân công trực hôm nay (" + assignedNames + ")");
-            }
-        }
-
-        task.setAssignedStaff(staff);
-        return gardeningTaskRepository.save(task);
+        throw new org.springframework.security.access.AccessDeniedException(
+                "Hệ thống chỉ cho phép Quản lý cơ sở phân công công việc. Nhân viên không thể tự nhận việc."
+        );
     }
 
     @Override
@@ -474,10 +421,122 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         }
 
         if (newStatus == ETaskStatus.PENDING_APPROVAL) {
-            if (request.getEvidenceImageUrl() == null || request.getEvidenceImageUrl().trim().isEmpty()) {
-                throw new IllegalArgumentException("Evidence image URL is required when submitting task for approval");
+            // 1. Thu thập ảnh bằng chứng & ghi chú nhân viên
+            java.util.List<String> allImages = new java.util.ArrayList<>();
+            if (request.getEvidenceImageUrl() != null && !request.getEvidenceImageUrl().trim().isEmpty()) {
+                allImages.add(request.getEvidenceImageUrl().trim());
             }
-            task.setEvidenceImageUrl(request.getEvidenceImageUrl());
+            if (request.getEquipmentBindings() != null) {
+                for (swp490.greeenslot.dto.PillarEquipmentBindingDTO b : request.getEquipmentBindings()) {
+                    if (b.getEvidenceImageUrl() != null && !b.getEvidenceImageUrl().trim().isEmpty()) {
+                        String bImg = b.getEvidenceImageUrl().trim();
+                        if (!allImages.contains(bImg)) {
+                            allImages.add(bImg);
+                        }
+                    }
+                }
+            }
+            if (allImages.isEmpty()) {
+                throw new IllegalArgumentException("Vui lòng cung cấp hình ảnh bằng chứng công việc khi nộp duyệt");
+            }
+            task.setEvidenceImageUrl(String.join(",", allImages));
+
+            if (request.getStaffNotes() != null && !request.getStaffNotes().isBlank()) {
+                task.setStaffNotes(request.getStaffNotes());
+            } else if (request.getEquipmentBindings() != null && !request.getEquipmentBindings().isEmpty()) {
+                StringBuilder notesSb = new StringBuilder();
+                for (swp490.greeenslot.dto.PillarEquipmentBindingDTO b : request.getEquipmentBindings()) {
+                    if (b.getNotes() != null && !b.getNotes().isBlank()) {
+                        if (notesSb.length() > 0) notesSb.append("\n");
+                        notesSb.append("[").append(b.getPillarCode()).append("]: ").append(b.getNotes().trim());
+                    }
+                }
+                if (notesSb.length() > 0) {
+                    task.setStaffNotes(notesSb.toString());
+                }
+            }
+
+            // 2. Process equipment bindings if provided (Staff attaching equipment to pillars)
+            if (request.getEquipmentBindings() != null && !request.getEquipmentBindings().isEmpty()) {
+                Location taskLocation = (task.getTargetSlot() != null && task.getTargetSlot().getLocation() != null)
+                        ? task.getTargetSlot().getLocation()
+                        : (task.getAssignedStaff() != null ? task.getAssignedStaff().getLocation() : null);
+
+                for (swp490.greeenslot.dto.PillarEquipmentBindingDTO binding : request.getEquipmentBindings()) {
+                    if (binding.getPillarCode() == null || binding.getPillarCode().isBlank()) {
+                        continue;
+                    }
+                    String pCode = binding.getPillarCode().trim();
+                    Pillar pillar = pillarRepository.findByPillarCode(pCode).orElse(null);
+                    if (pillar == null && task.getTargetSlot() != null) {
+                        if (task.getTargetSlot().getPillars() != null && !task.getTargetSlot().getPillars().isEmpty()) {
+                            pillar = task.getTargetSlot().getPillars().get(0);
+                        } else if (task.getTargetSlot().getPillar() != null) {
+                            pillar = task.getTargetSlot().getPillar();
+                        }
+                    }
+                    if (pillar == null) {
+                        throw new IllegalArgumentException("Không tìm thấy trụ với mã: " + pCode);
+                    }
+
+                    if (binding.getEquipmentId() != null && binding.getEquipmentId() > 0) {
+                        Equipment existingEq = equipmentRepository.findById(binding.getEquipmentId())
+                                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thiết bị ID: " + binding.getEquipmentId()));
+                        existingEq.setPillar(pillar);
+                        existingEq.setStatus(EEquipmentStatus.IN_USE);
+                        if (taskLocation != null) {
+                            existingEq.setLocation(taskLocation);
+                        }
+                        equipmentRepository.save(existingEq);
+                    } else if (binding.getNewSerialNumber() != null && !binding.getNewSerialNumber().trim().isEmpty()) {
+                        String cleanSerial = binding.getNewSerialNumber().trim().toUpperCase();
+                        Equipment eq = equipmentRepository.findBySerialNumber(cleanSerial).orElse(null);
+                        if (eq == null) {
+                            eq = new Equipment();
+                            String eqName = (binding.getNewEquipmentName() != null && !binding.getNewEquipmentName().trim().isEmpty())
+                                    ? binding.getNewEquipmentName().trim()
+                                    : "Mạch điều khiển ESP32";
+                            eq.setEquipmentName(eqName);
+                            eq.setSerialNumber(cleanSerial);
+                        }
+                        eq.setPillar(pillar);
+                        eq.setStatus(EEquipmentStatus.IN_USE);
+                        if (taskLocation != null) {
+                            eq.setLocation(taskLocation);
+                        }
+                        equipmentRepository.save(eq);
+                    }
+                }
+            }
+
+            // 3. Ràng buộc: Đối với task lắp đặt/thiết bị
+            boolean isPillarSetupTask = (task.getTaskName() != null && (
+                    task.getTaskName().toLowerCase().contains("lắp đặt") ||
+                    task.getTaskName().toLowerCase().contains("thiết bị") ||
+                    task.getTaskName().toLowerCase().contains("bổ sung trụ") ||
+                    task.getTaskName().toLowerCase().contains("chuẩn bị trụ") ||
+                    task.getTaskName().toLowerCase().contains("gắn thiết bị") ||
+                    task.getTaskName().toLowerCase().contains("gán thiết bị") ||
+                    task.getTaskName().toLowerCase().contains("iot")
+            )) && (task.getPillarCodes() != null && !task.getPillarCodes().isBlank());
+
+            if (isPillarSetupTask) {
+                String[] pCodes = task.getPillarCodes().split(",");
+                for (String codeRaw : pCodes) {
+                    String pCode = codeRaw.trim();
+                    if (pCode.isEmpty()) continue;
+                    Pillar pillar = pillarRepository.findByPillarCode(pCode).orElse(null);
+                    if (pillar != null) {
+                        List<Equipment> attachedEquipments = equipmentRepository.findByPillar(pillar);
+                        if (attachedEquipments == null || attachedEquipments.isEmpty()) {
+                            throw new IllegalArgumentException(String.format(
+                                    "Trụ %s chưa được gắn thiết bị IoT (Mạch điều khiển/Cảm biến). Vui lòng chọn thiết bị từ kho hoặc nhập mã Serial của thiết bị đã lắp trước khi nộp duyệt.",
+                                    pCode
+                            ));
+                        }
+                    }
+                }
+            }
             
             // Clear previous rejection reason if any
             if (task.getStatus() == ETaskStatus.REJECTED) {
@@ -713,7 +772,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         }
 
         // Lưu lại lịch sử thu hoạch TRƯỚC khi xóa dữ liệu cây khỏi rental
-        harvestHistoryService.recordHarvest(rental, "STAFF", task.getAssignedStaff());
+        harvestHistoryService.recordHarvest(rental, "STAFF", task.getAssignedStaff(), task.getPillarCodes());
 
         // Thu hoạch xong -> ô đất trở lại trạng thái "chưa trồng", sẵn sàng cho yêu cầu trồng cây mới
         rental.setTree(null);

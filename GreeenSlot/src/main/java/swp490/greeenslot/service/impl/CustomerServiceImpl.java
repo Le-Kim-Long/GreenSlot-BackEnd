@@ -7,6 +7,7 @@ import swp490.greeenslot.dto.*;
 import swp490.greeenslot.entity.*;
 import swp490.greeenslot.repository.*;
 import swp490.greeenslot.service.CustomerService;
+import swp490.greeenslot.service.HarvestHistoryService;
 import swp490.greeenslot.service.NotificationService;
 
 import java.math.BigDecimal;
@@ -27,6 +28,7 @@ public class CustomerServiceImpl implements CustomerService {
     private final SlotRentalRepository slotRentalRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final HarvestHistoryService harvestHistoryService;
 
     @Override
     public List<AvailableSlotDTO> getAvailableSlots() {
@@ -252,15 +254,19 @@ public class CustomerServiceImpl implements CustomerService {
         for (Pillar p : rentedPillars) {
             pillarCodes.add(p.getPillarCode());
             Tree pTree = p.getDefaultTree() != null ? p.getDefaultTree() : rental.getTree();
-            pillarInfos.add(new RentalHistoryDTO.PillarInfo(
+            RentalHistoryDTO.PillarInfo pInfo = new RentalHistoryDTO.PillarInfo(
                     p.getId(),
                     p.getPillarCode(),
                     p.getStatus() != null ? p.getStatus().name() : "ACTIVE",
                     p.getCameraStreamUrl(),
                     p.getCameraStatus(),
                     pTree != null ? pTree.getId() : null,
-                    pTree != null ? pTree.getTreeName() : null
-            ));
+                    pTree != null ? pTree.getTreeName() : null,
+                    p.getEffectiveHoles(),
+                    p.getEffectivePillarType() != null ? p.getEffectivePillarType().name() : "SMALL"
+            );
+            pInfo.setMonthlyPrice(p.getEffectivePrice());
+            pillarInfos.add(pInfo);
         }
         String primaryPillarCode = !pillarCodes.isEmpty() ? String.join(", ", pillarCodes) : (slot != null && slot.getPillar() != null ? slot.getPillar().getPillarCode() : "N/A");
 
@@ -286,8 +292,23 @@ public class CustomerServiceImpl implements CustomerService {
                 rental.getPlantedAt(),
                 expectedHarvestAt
         );
+        BigDecimal landPrice = (slot != null && slot.getPrice() != null && slot.getPrice().compareTo(BigDecimal.ZERO) > 0)
+                ? slot.getPrice()
+                : BigDecimal.ZERO;
+        BigDecimal monthlyPillarsPrice = rentedPillars != null
+                ? rentedPillars.stream().map(Pillar::getEffectivePrice).reduce(BigDecimal.ZERO, BigDecimal::add)
+                : BigDecimal.ZERO;
+        BigDecimal totalMonthlyPrice = landPrice.add(monthlyPillarsPrice);
+        if (totalMonthlyPrice.compareTo(BigDecimal.ZERO) <= 0 && slot != null && slot.getPrice() != null && slot.getPrice().compareTo(BigDecimal.ZERO) > 0) {
+            totalMonthlyPrice = slot.getPrice();
+        }
+
         dto.setPillars(pillarInfos);
         dto.setPillarCodes(pillarCodes);
+        dto.setLandPrice(landPrice);
+        dto.setMonthlyPillarsPrice(monthlyPillarsPrice);
+        dto.setMonthlyPrice(totalMonthlyPrice);
+        dto.setSlotArea(slot != null ? slot.getArea() : null);
         return dto;
     }
 
@@ -314,19 +335,36 @@ public class CustomerServiceImpl implements CustomerService {
         SlotRental rental = slotRentalRepository.findById(rentalId)
                 .orElseThrow(() -> new IllegalArgumentException("Rental not found with id: " + rentalId));
 
-        if (rental.getUser() == null || !rental.getUser().getUsername().equals(username)) {
+        User currentUser = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
+                .orElse(null);
+
+        if (rental.getUser() == null || currentUser == null || !rental.getUser().getId().equals(currentUser.getId())) {
             throw new IllegalArgumentException("Unauthorized: You do not own this rental contract.");
         }
 
         rental.setHarvestDecision(decision);
 
         if ("SELF".equals(decision)) {
+            // Lưu lại lịch sử thu hoạch TRƯỚC khi xóa dữ liệu cây khỏi rental
+            if (harvestHistoryService != null) {
+                harvestHistoryService.recordHarvest(rental, "SELF", null);
+            }
             // Khách tự thu hoạch -> reset cây trên ô đất
             resetHarvestedTree(rental);
         }
         slotRentalRepository.save(rental);
 
         if (rental.getGardenSlot() != null) {
+            String slotNumber = rental.getGardenSlot().getSlotNumber();
+            List<Pillar> rentedPillars = rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()
+                    ? rental.getRentedPillars()
+                    : (rental.getGardenSlot().getPillars() != null ? rental.getGardenSlot().getPillars() : (rental.getGardenSlot().getPillar() != null ? List.of(rental.getGardenSlot().getPillar()) : List.of()));
+            String pillarCodes = rentedPillars.stream()
+                    .map(p -> p.getPillarCode() != null ? p.getPillarCode() : ("Trụ " + p.getId()))
+                    .collect(Collectors.joining(", "));
+            String treeName = rental.getTree() != null ? rental.getTree().getTreeName() : "cây trồng";
+
             List<GardeningTask> harvestTasks = gardeningTaskRepository
                     .findByTargetSlotIdAndTaskTypeOrderByCreatedAtDesc(rental.getGardenSlot().getId(), ETaskType.HARVEST);
             GardeningTask task = harvestTasks.stream()
@@ -334,17 +372,37 @@ public class CustomerServiceImpl implements CustomerService {
                     .findFirst()
                     .orElse(null);
 
-            if (task != null) {
-                if ("SELF".equals(decision)) {
+            if ("SELF".equals(decision)) {
+                if (task != null) {
                     task.setStatus(ETaskStatus.CANCELLED);
                     gardeningTaskRepository.save(task);
+                }
+            } else {
+                // STAFF choice: create or update task to PENDING for execution
+                if (task != null) {
+                    task.setTaskName("Thu hoạch: " + treeName + " - Ô " + slotNumber + (pillarCodes != null ? " (" + (pillarCodes.startsWith("Trụ") ? pillarCodes : ("Trụ " + pillarCodes)) + ")" : ""));
+                    task.setDescription("Khách hàng đã yêu cầu nhân viên hỗ trợ thu hoạch cây " + treeName + " tại ô " + slotNumber + ". Tiến hành thu hoạch và nộp ảnh bằng chứng để Quản lý duyệt.");
+                    task.setStatus(ETaskStatus.PENDING);
+                    gardeningTaskRepository.save(task);
+                } else {
+                    GardeningTask execTask = new GardeningTask();
+                    execTask.setTaskName("Thu hoạch: " + treeName + " - Ô " + slotNumber + (pillarCodes != null ? " (" + (pillarCodes.startsWith("Trụ") ? pillarCodes : ("Trụ " + pillarCodes)) + ")" : ""));
+                    execTask.setDescription("Khách hàng đã yêu cầu nhân viên hỗ trợ thu hoạch cây " + treeName + " tại ô " + slotNumber + ". Tiến hành thu hoạch và nộp ảnh bằng chứng để Quản lý duyệt.");
+                    execTask.setStatus(ETaskStatus.PENDING);
+                    execTask.setTaskType(ETaskType.HARVEST);
+                    execTask.setTargetSlot(rental.getGardenSlot());
+                    execTask.setRequestedBy(rental.getUser());
+                    execTask.setAssignedStaff(null);
+                    execTask.setPillarCodes(pillarCodes);
+                    execTask.setTreeName(treeName);
+                    execTask.setCreatedAt(LocalDateTime.now());
+                    gardeningTaskRepository.save(execTask);
                 }
             }
 
             // Notify location managers and staff about customer's harvest decision
             if (notificationService != null) {
                 String customerName = rental.getUser().getFullName() != null ? rental.getUser().getFullName() : username;
-                String slotNumber = rental.getGardenSlot().getSlotNumber();
                 String decisionText = "SELF".equals(decision) ? "Tự thu hoạch" : "Nhân viên hỗ trợ thu hoạch";
                 String title = "Khách hàng đã chọn phương thức thu hoạch";
                 String message = String.format("Khách hàng %s tại ô %s đã chọn phương thức thu hoạch: %s.",

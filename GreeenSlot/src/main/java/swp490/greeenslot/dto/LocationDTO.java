@@ -15,18 +15,18 @@ import lombok.Setter;
 public class LocationDTO {
     private Long id;
 
-    @NotBlank(message = "Location name cannot be empty or whitespace")
+    @NotBlank(message = "Tên cơ sở không được để trống")
     private String name;
 
-    @NotBlank(message = "Location address cannot be empty or whitespace")
+    @NotBlank(message = "Địa chỉ cơ sở không được để trống")
     private String address;
 
     private String contactPhone;
 
     private String status;
 
-    @NotNull(message = "Area is required")
-    @Positive(message = "Area must be positive")
+    @NotNull(message = "Diện tích cơ sở không được để trống")
+    @Positive(message = "Diện tích cơ sở phải lớn hơn 0")
     private Double area;
 
     private String imageUrl;

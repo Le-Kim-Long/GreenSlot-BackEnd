@@ -66,6 +66,9 @@ public class Pillar {
     private String imageUrl;
 
     public EPillarType getEffectivePillarType() {
+        if (this.capacityHoles != null && this.capacityHoles > 0) {
+            return EPillarType.fromHoles(this.capacityHoles);
+        }
         return this.pillarType != null ? this.pillarType : EPillarType.MEDIUM;
     }
 

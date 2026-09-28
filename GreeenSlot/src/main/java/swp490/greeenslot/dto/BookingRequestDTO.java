@@ -5,6 +5,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import swp490.greeenslot.config.FlexibleLocalDateTimeDeserializer;
 import java.time.LocalDateTime;
 
 public class BookingRequestDTO {
@@ -16,6 +18,7 @@ public class BookingRequestDTO {
     @Max(value = 120, message = "Duration cannot exceed 120 months")
     private int durationInMonths;
 
+    @JsonDeserialize(using = FlexibleLocalDateTimeDeserializer.class)
     private LocalDateTime startTime;
 
     private Boolean isMobile;

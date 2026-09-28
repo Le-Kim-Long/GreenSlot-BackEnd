@@ -601,7 +601,10 @@ public class TreePlantingServiceImpl implements TreePlantingService {
                 request.getAmount(),
                 request.getPaymentUrl(),
                 request.getTargetPillar() != null ? request.getTargetPillar().getId() : null,
-                request.getTargetPillar() != null ? request.getTargetPillar().getPillarCode() : null
+                request.getTargetPillar() != null ? request.getTargetPillar().getPillarCode() : null,
+                request.getTargetPillar() != null ? request.getTargetPillar().getEffectiveHoles() : null,
+                request.getTargetPillar() != null && request.getTargetPillar().getEffectivePillarType() != null ?
+                    request.getTargetPillar().getEffectivePillarType().name() : null
         );
     }
 

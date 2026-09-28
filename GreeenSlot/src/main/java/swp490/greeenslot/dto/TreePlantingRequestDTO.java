@@ -32,4 +32,6 @@ public class TreePlantingRequestDTO {
     private String paymentUrl;
     private Long targetPillarId;
     private String targetPillarCode;
+    private Integer targetPillarHoles;
+    private String targetPillarType;
 }
