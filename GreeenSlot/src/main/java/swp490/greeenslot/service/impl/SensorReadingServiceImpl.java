@@ -246,10 +246,7 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                         firebaseMessagingService.sendPushNotificationToLocation(pillar.getLocation().getId(), managerTitle, managerBody, "ROLE_MANAGER");
 
                         if (notificationService != null) {
-                            List<User> managers = userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, pillar.getLocation().getId());
-                            if (managers.isEmpty()) {
-                                managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
-                            }
+                            List<User> managers = userRepository.findManagersForLocation(ERole.ROLE_LOCATION_MANAGER, pillar.getLocation().getId());
                             for (User manager : managers) {
                                 notificationService.createNotification(
                                         manager.getId(),
@@ -407,11 +404,8 @@ public class SensorReadingServiceImpl implements SensorReadingService {
             if (notificationService != null) {
                 Long locId = (pillar != null && pillar.getLocation() != null) ? pillar.getLocation().getId() : null;
                 List<User> managers = locId != null
-                        ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId)
-                        : userRepository.findByRoleName(ERole.ROLE_MANAGER);
-                if (managers.isEmpty()) {
-                    managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
-                }
+                        ? userRepository.findManagersForLocation(ERole.ROLE_LOCATION_MANAGER, locId)
+                        : userRepository.findByRoleNames(List.of(ERole.ROLE_LOCATION_MANAGER, ERole.ROLE_MANAGER, ERole.ROLE_ADMIN));
                 for (User manager : managers) {
                     notificationService.createNotification(
                             manager.getId(),

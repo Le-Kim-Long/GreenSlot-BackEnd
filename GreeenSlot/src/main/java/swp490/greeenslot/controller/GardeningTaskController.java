@@ -47,7 +47,7 @@ public class GardeningTaskController {
     }
 
     @PostMapping("/tasks/create")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Create a new task", description = "Allows the manager to create a new MAINTENANCE or CLEANING task. Task ID is auto-generated.")
     public ResponseEntity<GardeningTaskResponseDTO> createTask(
             @Valid @RequestBody TaskAssignmentDTO request) {
@@ -57,7 +57,7 @@ public class GardeningTaskController {
     }
 
     @RequestMapping(value = { "/tasks/{taskId}/assign" }, method = { RequestMethod.PATCH, RequestMethod.PUT, RequestMethod.POST })
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Assign staff to existing task", description = "Allows Location Manager to assign a garden staff member to an existing task by ID.")
     public ResponseEntity<GardeningTaskResponseDTO> assignStaffToTask(
             @PathVariable Long taskId,
@@ -165,8 +165,8 @@ public class GardeningTaskController {
     }
 
     @PostMapping("/tasks/{id}/review")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER')")
-    @Operation(summary = "Review task evidence", description = "Allows a Location Manager to approve or reject a task submitted by staff.")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
+    @Operation(summary = "Review task evidence", description = "Allows a Location Manager or Manager to approve or reject a task submitted by staff.")
     public ResponseEntity<GardeningTaskResponseDTO> reviewTaskEvidence(
             @PathVariable Long id,
             @Valid @RequestBody TaskReviewRequestDTO request) {

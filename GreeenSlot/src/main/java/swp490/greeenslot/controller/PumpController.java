@@ -70,7 +70,7 @@ public class PumpController {
     }
 
     @PutMapping("/auto-mode")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
     @Operation(summary = "Bật/Tắt chế độ tự động tưới nước khi độ ẩm thấp")
     public ResponseEntity<PumpStatusDTO> setAutoMode(@RequestParam boolean enabled) {
         pumpService.setAutoMode(enabled);
@@ -78,7 +78,7 @@ public class PumpController {
     }
 
     @GetMapping("/my-assigned-pumps")
-    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Lấy danh sách máy bơm các trụ thuộc ô vườn mà nhân viên được phân công")
     public ResponseEntity<List<AssignedSlotPumpsDTO>> getMyAssignedPumps() {
         User currentUser = locationContextService.getCurrentUser();
@@ -148,7 +148,7 @@ public class PumpController {
     }
 
     @PostMapping("/pillars/{pillarId}/status")
-    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Bật/Tắt máy bơm của một trụ cụ thể (Bật hẹn giờ 5s tự ngắt)")
     public ResponseEntity<PumpStatusDTO> updatePillarPumpStatus(
             @PathVariable Long pillarId,
@@ -161,7 +161,7 @@ public class PumpController {
     }
 
     @PutMapping("/pillars/{pillarId}/auto-mode")
-    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Bật/Tắt chế độ tự động cho một trụ cụ thể")
     public ResponseEntity<PumpStatusDTO> setPillarAutoMode(
             @PathVariable Long pillarId,
@@ -172,7 +172,7 @@ public class PumpController {
     }
 
     @PostMapping("/slots/{slotId}/trigger-all")
-    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Kích hoạt tưới toàn bộ trụ trong một ô vườn (chạy 5s tự ngắt)")
     public ResponseEntity<Map<String, Object>> triggerAllPumpsInSlot(@PathVariable Long slotId) {
         List<Pillar> pillars = pillarRepository.findByGardenSlotId(slotId);
@@ -186,7 +186,7 @@ public class PumpController {
     }
 
     @PostMapping("/slots/{slotId}/turn-off-all")
-    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Tắt toàn bộ máy bơm trong một ô vườn")
     public ResponseEntity<Map<String, Object>> turnOffAllPumpsInSlot(@PathVariable Long slotId) {
         List<Pillar> pillars = pillarRepository.findByGardenSlotId(slotId);

@@ -72,13 +72,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
     private List<User> findLocationManagers(GardenSlot slot) {
         Long locationId = getSlotLocationId(slot);
-        List<User> managers = locationId != null
-                ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locationId)
-                : List.of();
-        if (managers.isEmpty()) {
-            managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
-        }
-        return managers;
+        return locationId != null
+                ? userRepository.findManagersForLocation(ERole.ROLE_LOCATION_MANAGER, locationId)
+                : userRepository.findByRoleNames(List.of(ERole.ROLE_LOCATION_MANAGER, ERole.ROLE_MANAGER, ERole.ROLE_ADMIN));
     }
 
     @Override

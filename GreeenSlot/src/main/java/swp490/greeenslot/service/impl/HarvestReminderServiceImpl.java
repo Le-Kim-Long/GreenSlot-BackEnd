@@ -145,14 +145,8 @@ public class HarvestReminderServiceImpl implements HarvestReminderService {
                     : (rental.getGardenSlot().getPillar() != null && rental.getGardenSlot().getPillar().getLocation() != null
                         ? rental.getGardenSlot().getPillar().getLocation().getId() : null);
             List<User> managers = locationId != null
-                    ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locationId)
-                    : List.of();
-            if (managers.isEmpty()) {
-                managers = userRepository.findByRoleName(ERole.ROLE_LOCATION_MANAGER);
-            }
-            if (managers.isEmpty()) {
-                managers = userRepository.findByRoleName(ERole.ROLE_ADMIN);
-            }
+                    ? userRepository.findManagersForLocation(ERole.ROLE_LOCATION_MANAGER, locationId)
+                    : userRepository.findByRoleNames(List.of(ERole.ROLE_LOCATION_MANAGER, ERole.ROLE_MANAGER, ERole.ROLE_ADMIN));
 
             String title = "Cây đã đến ngày thu hoạch: Ô " + slotNumber + " (" + pillarText + ")";
             String message = String.format("Cây %s tại ô đất %s (%s) đã đến kỳ thu hoạch (%d ngày sinh trưởng). Vui lòng vào phân công nhân viên thu hoạch.",

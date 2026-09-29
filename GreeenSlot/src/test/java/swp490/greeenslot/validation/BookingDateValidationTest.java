@@ -396,10 +396,8 @@ class BookingDateValidationTest {
             return p;
         });
 
-        when(userRepository.findByRoleNameAndLocation(swp490.greeenslot.entity.ERole.ROLE_LOCATION_MANAGER, 5L))
+        when(userRepository.findManagersForLocation(swp490.greeenslot.entity.ERole.ROLE_LOCATION_MANAGER, 5L))
                 .thenReturn(List.of(manager));
-        when(userRepository.findByRoleNameAndLocation(swp490.greeenslot.entity.ERole.ROLE_GARDEN_STAFF, 5L))
-                .thenReturn(Collections.emptyList());
 
         SlotRental savedRental = new SlotRental();
         savedRental.setId(500L);

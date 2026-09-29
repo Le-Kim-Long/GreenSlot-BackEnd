@@ -72,7 +72,7 @@ public class LocationController {
     }
 
     @PutMapping("/{id}/operating-hours")
-    @PreAuthorize("hasAnyRole('ROLE_LOCATION_MANAGER', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyRole('ROLE_LOCATION_MANAGER', 'ROLE_MANAGER', 'ROLE_ADMIN')")
     @Operation(summary = "Update location operating hours")
     public ResponseEntity<LocationOperatingHoursDTO> updateOperatingHours(
             @PathVariable Long id,
