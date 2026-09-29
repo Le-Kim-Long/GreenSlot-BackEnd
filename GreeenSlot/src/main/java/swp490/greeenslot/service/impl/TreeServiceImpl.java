@@ -125,16 +125,16 @@ public class TreeServiceImpl implements TreeService {
                 ));
             }
         }
-        if (dto.getLightMin() != null && (dto.getLightMin() < 0 || dto.getLightMin() > 24)) {
-            throw new IllegalArgumentException("Thời gian chiếu sáng tối thiểu phải nằm trong khoảng từ 0 đến 24 giờ.");
+        if (dto.getLightMin() != null && (dto.getLightMin() < 0 || dto.getLightMin() > 100000)) {
+            throw new IllegalArgumentException("Cường độ ánh sáng tối thiểu phải nằm trong khoảng từ 0 đến 100.000 Lux.");
         }
-        if (dto.getLightMax() != null && (dto.getLightMax() < 0 || dto.getLightMax() > 24)) {
-            throw new IllegalArgumentException("Thời gian chiếu sáng tối đa phải nằm trong khoảng từ 0 đến 24 giờ.");
+        if (dto.getLightMax() != null && (dto.getLightMax() < 0 || dto.getLightMax() > 100000)) {
+            throw new IllegalArgumentException("Cường độ ánh sáng tối đa phải nằm trong khoảng từ 0 đến 100.000 Lux.");
         }
         if (dto.getLightMin() != null && dto.getLightMax() != null) {
             if (dto.getLightMax() <= dto.getLightMin()) {
                 throw new IllegalArgumentException(String.format(
-                    "Thời gian chiếu sáng tối đa (%.1f giờ) phải lớn hơn thời gian chiếu sáng tối thiểu (%.1f giờ).",
+                    "Cường độ ánh sáng tối đa (%.0f Lux) phải lớn hơn cường độ ánh sáng tối thiểu (%.0f Lux).",
                     dto.getLightMax(), dto.getLightMin()
                 ));
             }

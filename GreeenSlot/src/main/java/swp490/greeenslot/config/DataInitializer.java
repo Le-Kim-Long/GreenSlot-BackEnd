@@ -291,8 +291,8 @@ public class DataInitializer {
                 veg1.setPriceLarge(BigDecimal.valueOf(40000));
                 veg1.setSoilMoistureMin(60.0);
                 veg1.setSoilMoistureMax(85.0);
-                veg1.setLightMin(6.0);
-                veg1.setLightMax(12.0);
+                veg1.setLightMin(1000.0);
+                veg1.setLightMax(30000.0);
                 veg1.setPhMin(5.8);
                 veg1.setPhMax(6.5);
                 veg1.setCompensationPercentage(50);
@@ -313,8 +313,8 @@ public class DataInitializer {
                 veg2.setPriceLarge(BigDecimal.valueOf(70000));
                 veg2.setSoilMoistureMin(60.0);
                 veg2.setSoilMoistureMax(80.0);
-                veg2.setLightMin(7.0);
-                veg2.setLightMax(14.0);
+                veg2.setLightMin(1200.0);
+                veg2.setLightMax(35000.0);
                 veg2.setPhMin(6.0);
                 veg2.setPhMax(7.0);
                 veg2.setCompensationPercentage(50);
@@ -335,8 +335,8 @@ public class DataInitializer {
                 veg3.setPriceLarge(BigDecimal.valueOf(100000));
                 veg3.setSoilMoistureMin(55.0);
                 veg3.setSoilMoistureMax(75.0);
-                veg3.setLightMin(8.0);
-                veg3.setLightMax(16.0);
+                veg3.setLightMin(1500.0);
+                veg3.setLightMax(40000.0);
                 veg3.setPhMin(6.0);
                 veg3.setPhMax(6.8);
                 veg3.setCompensationPercentage(60);
@@ -357,8 +357,8 @@ public class DataInitializer {
                 veg4.setPriceLarge(BigDecimal.valueOf(160000));
                 veg4.setSoilMoistureMin(65.0);
                 veg4.setSoilMoistureMax(85.0);
-                veg4.setLightMin(6.0);
-                veg4.setLightMax(12.0);
+                veg4.setLightMin(1000.0);
+                veg4.setLightMax(30000.0);
                 veg4.setPhMin(5.5);
                 veg4.setPhMax(6.5);
                 veg4.setCompensationPercentage(70);
@@ -378,8 +378,8 @@ public class DataInitializer {
                 tree1.setPrice(BigDecimal.valueOf(500000));
                 tree1.setSoilMoistureMin(30.0);
                 tree1.setSoilMoistureMax(70.0);
-                tree1.setLightMin(6.0);
-                tree1.setLightMax(10.0);
+                tree1.setLightMin(1000.0);
+                tree1.setLightMax(30000.0);
                 tree1.setPhMin(5.5);
                 tree1.setPhMax(7.0);
                 tree1.setCompensationPercentage(50);
@@ -396,8 +396,8 @@ public class DataInitializer {
                 tree2.setPrice(BigDecimal.valueOf(800000));
                 tree2.setSoilMoistureMin(40.0);
                 tree2.setSoilMoistureMax(80.0);
-                tree2.setLightMin(5.0);
-                tree2.setLightMax(8.0);
+                tree2.setLightMin(800.0);
+                tree2.setLightMax(25000.0);
                 tree2.setPhMin(6.0);
                 tree2.setPhMax(7.5);
                 tree2.setCompensationPercentage(60);
@@ -406,6 +406,16 @@ public class DataInitializer {
                 treeRepository.save(tree2);
 
                 System.out.println("[DataInitializer] Created sample Trees.");
+            }
+
+            // Tự động chuyển đổi dữ liệu cũ (nếu có cây đang lưu đơn vị Giờ <= 24) sang đơn vị Lux
+            java.util.List<Tree> existingTrees = treeRepository.findAll();
+            for (Tree t : existingTrees) {
+                if (t.getLightMax() != null && t.getLightMax() <= 24.0) {
+                    t.setLightMin(1000.0);
+                    t.setLightMax(30000.0);
+                    treeRepository.save(t);
+                }
             }
 
             // 5. Khởi tạo dữ liệu mẫu cho Equipment
