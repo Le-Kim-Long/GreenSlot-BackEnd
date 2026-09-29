@@ -580,6 +580,25 @@ public class TreePlantingServiceImpl implements TreePlantingService {
     }
 
     private TreePlantingRequestDTO mapToDTO(TreePlantingRequest request) {
+        boolean isPaid = false;
+        if (request.getStatus() == EPlantingRequestStatus.APPROVED || request.getStatus() == EPlantingRequestStatus.COMPLETED) {
+            isPaid = true;
+        } else if (request.getRental() != null && paymentTransactionRepository != null) {
+            try {
+                List<PaymentTransaction> txns = paymentTransactionRepository.findByRentalIdOrderByPaymentDateDesc(request.getRental().getId());
+                if (txns != null) {
+                    String prefix = "PLANT_" + request.getId() + "_";
+                    isPaid = txns.stream().anyMatch(t ->
+                        t.getVnpTxnRef() != null &&
+                        t.getVnpTxnRef().startsWith(prefix) &&
+                        t.getStatus() == EPaymentStatus.SUCCESS
+                    );
+                }
+            } catch (Exception e) {
+                // Ignore and keep false
+            }
+        }
+
         return new TreePlantingRequestDTO(
                 request.getId(),
                 request.getRental() != null ? request.getRental().getId() : null,
@@ -604,7 +623,8 @@ public class TreePlantingServiceImpl implements TreePlantingService {
                 request.getTargetPillar() != null ? request.getTargetPillar().getPillarCode() : null,
                 request.getTargetPillar() != null ? request.getTargetPillar().getEffectiveHoles() : null,
                 request.getTargetPillar() != null && request.getTargetPillar().getEffectivePillarType() != null ?
-                    request.getTargetPillar().getEffectivePillarType().name() : null
+                    request.getTargetPillar().getEffectivePillarType().name() : null,
+                isPaid
         );
     }
 

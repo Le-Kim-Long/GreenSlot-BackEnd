@@ -34,4 +34,18 @@ public class TreePlantingRequestDTO {
     private String targetPillarCode;
     private Integer targetPillarHoles;
     private String targetPillarType;
+    private Boolean isPaid = false;
+
+    public TreePlantingRequestDTO(Long id, Long rentalId, String slotNumber, Long locationId,
+                                String locationName, Long newTreeId, String newTreeName,
+                                Long requestedById, String requestedByName, String status,
+                                String reason, String notes, LocalDateTime requestedAt,
+                                LocalDateTime processedAt, Long processedById, String processedByName,
+                                java.math.BigDecimal amount, String paymentUrl, Long targetPillarId,
+                                String targetPillarCode, Integer targetPillarHoles, String targetPillarType) {
+        this(id, rentalId, slotNumber, locationId, locationName, newTreeId, newTreeName,
+             requestedById, requestedByName, status, reason, notes, requestedAt,
+             processedAt, processedById, processedByName, amount, paymentUrl,
+             targetPillarId, targetPillarCode, targetPillarHoles, targetPillarType, false);
+    }
 }
