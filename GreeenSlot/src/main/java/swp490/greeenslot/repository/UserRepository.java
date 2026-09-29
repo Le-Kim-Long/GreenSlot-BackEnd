@@ -23,8 +23,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
         @org.springframework.data.repository.query.Param("roleName") swp490.greeenslot.entity.ERole roleName
     );
 
+    @org.springframework.data.jpa.repository.Query("SELECT u FROM User u JOIN u.roles r WHERE r.name IN :roleNames")
+    java.util.List<User> findByRoleNames(
+        @org.springframework.data.repository.query.Param("roleNames") java.util.Collection<swp490.greeenslot.entity.ERole> roleNames
+    );
+
     @org.springframework.data.jpa.repository.Query("SELECT u FROM User u JOIN u.roles r WHERE r.name = :roleName AND u.location.id = :locationId")
     java.util.List<User> findByRoleNameAndLocation(
+        @org.springframework.data.repository.query.Param("roleName") swp490.greeenslot.entity.ERole roleName,
+        @org.springframework.data.repository.query.Param("locationId") Long locationId
+    );
+
+    @org.springframework.data.jpa.repository.Query("SELECT u FROM User u JOIN u.roles r WHERE (r.name = :roleName AND u.location.id = :locationId) OR r.name = 'ROLE_MANAGER' OR r.name = 'ROLE_ADMIN'")
+    java.util.List<User> findManagersForLocation(
         @org.springframework.data.repository.query.Param("roleName") swp490.greeenslot.entity.ERole roleName,
         @org.springframework.data.repository.query.Param("locationId") Long locationId
     );

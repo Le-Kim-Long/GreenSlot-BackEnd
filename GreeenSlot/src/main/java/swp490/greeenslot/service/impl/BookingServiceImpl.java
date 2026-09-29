@@ -377,14 +377,8 @@ public class BookingServiceImpl implements BookingService {
 
             // 2. Notify Location Manager(s) of this location
             List<User> managers = (slot.getLocation() != null)
-                ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, slot.getLocation().getId())
-                : Collections.emptyList();
-            if (managers.isEmpty()) {
-                managers = userRepository.findByRoleName(ERole.ROLE_LOCATION_MANAGER);
-            }
-            if (managers.isEmpty()) {
-                managers = userRepository.findByRoleName(ERole.ROLE_ADMIN);
-            }
+                ? userRepository.findManagersForLocation(ERole.ROLE_LOCATION_MANAGER, slot.getLocation().getId())
+                : userRepository.findByRoleNames(List.of(ERole.ROLE_LOCATION_MANAGER, ERole.ROLE_MANAGER, ERole.ROLE_ADMIN));
 
             for (User mgr : managers) {
                 notificationService.createNotification(

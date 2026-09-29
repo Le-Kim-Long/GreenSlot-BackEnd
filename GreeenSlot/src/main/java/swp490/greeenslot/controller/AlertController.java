@@ -90,7 +90,7 @@ public class AlertController {
     }
 
     @PostMapping("/{alertId}/escalate")
-    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Escalate an alert to manager/admin", description = "Escalates an alert to a specific manager or admin user")
     public ResponseEntity<AlertDTO> escalateAlert(
             @PathVariable Long alertId,

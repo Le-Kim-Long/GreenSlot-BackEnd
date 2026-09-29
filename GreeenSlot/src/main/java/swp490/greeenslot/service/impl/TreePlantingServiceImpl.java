@@ -283,11 +283,8 @@ public class TreePlantingServiceImpl implements TreePlantingService {
 
             Long locId = getRequestLocationId(savedRequest);
             List<User> managers = locId != null
-                    ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId)
-                    : List.of();
-            if (managers.isEmpty()) {
-                managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
-            }
+                    ? userRepository.findManagersForLocation(ERole.ROLE_LOCATION_MANAGER, locId)
+                    : userRepository.findByRoleNames(List.of(ERole.ROLE_LOCATION_MANAGER, ERole.ROLE_MANAGER, ERole.ROLE_ADMIN));
             String title = "Yêu cầu trồng cây mới: Ô " + slotNumber;
             String message = String.format("Khách hàng %s yêu cầu trồng giống %s tại ô %s (%s, Cơ sở: %s)%s.",
                     user.getFullName() != null ? user.getFullName() : username,
@@ -441,14 +438,8 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             if (notificationService != null) {
                 Long locId = getRequestLocationId(request);
                 List<User> managers = locId != null
-                        ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId)
-                        : List.of();
-                if (managers.isEmpty()) {
-                    managers = userRepository.findByRoleName(ERole.ROLE_LOCATION_MANAGER);
-                }
-                if (managers.isEmpty()) {
-                    managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
-                }
+                        ? userRepository.findManagersForLocation(ERole.ROLE_LOCATION_MANAGER, locId)
+                        : userRepository.findByRoleNames(List.of(ERole.ROLE_LOCATION_MANAGER, ERole.ROLE_MANAGER, ERole.ROLE_ADMIN));
                 String mgrTitle = "Cần phân công nhân viên chăm sóc: Ô " + slotNumber;
                 String mgrMessage = String.format("Cây %s vừa được duyệt trồng tại ô %s (%s, Cơ sở: %s). Vui lòng vào phân công nhân viên phụ trách chăm sóc.",
                         treeName, slotNumber, pillarDesc, locName != null ? locName : "N/A");

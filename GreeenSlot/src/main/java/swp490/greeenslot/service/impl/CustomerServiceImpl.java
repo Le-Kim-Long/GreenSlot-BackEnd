@@ -415,11 +415,11 @@ public class CustomerServiceImpl implements CustomerService {
 
                 List<User> recipients = new ArrayList<>();
                 if (locationId != null) {
-                    recipients.addAll(userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locationId));
+                    recipients.addAll(userRepository.findManagersForLocation(ERole.ROLE_LOCATION_MANAGER, locationId));
                     recipients.addAll(userRepository.findByRoleNameAndLocation(ERole.ROLE_GARDEN_STAFF, locationId));
                 }
                 if (recipients.isEmpty()) {
-                    recipients.addAll(userRepository.findByRoleName(ERole.ROLE_MANAGER));
+                    recipients.addAll(userRepository.findByRoleNames(List.of(ERole.ROLE_LOCATION_MANAGER, ERole.ROLE_MANAGER, ERole.ROLE_ADMIN)));
                     recipients.addAll(userRepository.findByRoleName(ERole.ROLE_GARDEN_STAFF));
                 }
 

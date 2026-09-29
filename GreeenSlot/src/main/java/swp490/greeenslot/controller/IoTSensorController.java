@@ -320,9 +320,9 @@ public class IoTSensorController {
     // --- TASK 1: SENSOR THRESHOLD CRUD ---
 
     @PostMapping("/sensors/thresholds")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Create sensor threshold boundary",
-            description = "Allows location managers or administrators to define min/max threshold values for a sensor type on a specific device.")
+            description = "Allows location managers, managers, or administrators to define min/max threshold values for a sensor type on a specific device.")
     public ResponseEntity<SensorThreshold> createThreshold(@Valid @RequestBody SensorThreshold threshold) {
         // Validate sensor type
         try {
@@ -343,14 +343,14 @@ public class IoTSensorController {
     }
 
     @GetMapping("/sensors/thresholds")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Get all sensor thresholds", description = "Retrieves all sensor threshold boundaries.")
     public ResponseEntity<List<SensorThreshold>> getAllThresholds() {
         return ResponseEntity.ok(sensorThresholdRepository.findAll());
     }
 
     @GetMapping("/sensors/thresholds/{id}")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Get sensor threshold details", description = "Retrieves details of a specific threshold.")
     public ResponseEntity<SensorThreshold> getThresholdById(@PathVariable Long id) {
         SensorThreshold threshold = sensorThresholdRepository.findById(id)
@@ -359,7 +359,7 @@ public class IoTSensorController {
     }
 
     @PutMapping("/sensors/thresholds/{id}")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Update sensor threshold boundaries", description = "Updates min/max boundaries for a threshold.")
     public ResponseEntity<SensorThreshold> updateThreshold(
             @PathVariable Long id,
@@ -374,7 +374,7 @@ public class IoTSensorController {
     }
 
     @DeleteMapping("/sensors/thresholds/{id}")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Delete sensor threshold boundary", description = "Deletes a threshold boundary configuration.")
     public ResponseEntity<Map<String, String>> deleteThreshold(@PathVariable Long id) {
         SensorThreshold threshold = sensorThresholdRepository.findById(id)
@@ -433,7 +433,7 @@ public class IoTSensorController {
     }
 
     @GetMapping("/camera/{slotId}/status")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Get camera status", description = "Returns camera status and last heartbeat time")
     public ResponseEntity<Map<String, Object>> getCameraStatus(@PathVariable Long slotId) {
         GardenSlot slot = gardenSlotRepository.findById(slotId)
@@ -513,7 +513,7 @@ public class IoTSensorController {
     }
 
     @GetMapping("/device/{slotId}/status")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
     @Operation(summary = "Get device status", description = "Returns the current status of the IoT device")
     public ResponseEntity<Map<String, Object>> getDeviceStatus(@PathVariable Long slotId) {
         
@@ -540,7 +540,7 @@ public class IoTSensorController {
     }
 
     @PostMapping("/camera/{slotId}/control")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Control camera (pan/tilt)", description = "Send pan/tilt commands to camera")
     public ResponseEntity<Map<String, String>> controlCamera(
             @PathVariable Long slotId,
@@ -567,7 +567,7 @@ public class IoTSensorController {
 
 
     @PostMapping("/device/{slotId}/plant")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
     @Operation(summary = "Trigger tree planting", description = "Trigger the automated planting mechanism for a specific slot")
     public ResponseEntity<Map<String, String>> triggerPlanting(
             @PathVariable Long slotId,
@@ -591,7 +591,7 @@ public class IoTSensorController {
     }
 
     @PostMapping("/camera/{slotId}/record")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN') or hasRole('ROLE_GARDEN_STAFF')")
     @Operation(summary = "Record video from camera", description = "Starts video recording and saves to Firebase Storage")
     public ResponseEntity<Map<String, String>> recordVideo(
             @PathVariable Long slotId,
