@@ -158,7 +158,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         try {
             type = ETaskType.valueOf(request.getTaskType().toUpperCase());
         } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid task type. Must be MAINTENANCE or CLEANING");
+            throw new IllegalArgumentException("Invalid task type. Valid types are: MAINTENANCE, CLEANING, PLANTING, INSPECTION");
         }
 
         if (type == ETaskType.SERVICE_REQUEST) {
