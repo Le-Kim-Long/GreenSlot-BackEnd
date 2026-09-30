@@ -152,6 +152,9 @@ public class EquipmentServiceImpl implements EquipmentService {
     }
 
     private void validateEquipmentDates(EquipmentDTO dto) {
+        if (dto.getQuantity() != null && dto.getQuantity() < 0) {
+            throw new IllegalArgumentException("Số lượng thiết bị không được là số âm.");
+        }
         LocalDateTime now = LocalDateTime.now();
         if (dto.getPurchaseDate() != null && dto.getPurchaseDate().isAfter(now)) {
             throw new IllegalArgumentException("Purchase date cannot be in the future");
@@ -193,6 +196,26 @@ public class EquipmentServiceImpl implements EquipmentService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional
+    public EquipmentDTO updateStock(Long id, Integer additionalQuantity) {
+        if (additionalQuantity == null || additionalQuantity <= 0) {
+            throw new IllegalArgumentException("Số lượng thiết bị nhập thêm phải lớn hơn 0.");
+        }
+        Equipment equipment = equipmentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Equipment not found with id: " + id));
+        Long locId = getEquipmentLocationId(equipment);
+        locationContextService.validateLocationAccess(locId);
+
+        int current = equipment.getQuantity() != null ? equipment.getQuantity() : 0;
+        equipment.setQuantity(current + additionalQuantity);
+        if (equipment.getQuantity() > 0 && equipment.getPillar() == null && equipment.getStatus() == EEquipmentStatus.IN_USE) {
+            equipment.setStatus(EEquipmentStatus.AVAILABLE);
+        }
+        Equipment saved = equipmentRepository.save(equipment);
+        return mapToDTO(saved);
+    }
+
     private EquipmentDTO mapToDTO(Equipment equipment) {
         Long locId = null;
         String locName = null;
@@ -204,20 +227,21 @@ public class EquipmentServiceImpl implements EquipmentService {
             locName = equipment.getPillar().getLocation().getName();
         }
 
-        return new EquipmentDTO(
-                equipment.getId(),
-                equipment.getEquipmentName(),
-                equipment.getSerialNumber(),
-                equipment.getDescription(),
-                equipment.getStatus() != null ? equipment.getStatus().name() : null,
-                equipment.getPillar() != null ? equipment.getPillar().getId() : null,
-                equipment.getPillar() != null ? equipment.getPillar().getPillarCode() : null,
-                locId,
-                locName,
-                equipment.getPurchaseDate(),
-                equipment.getLastMaintenanceDate(),
-                equipment.getImageUrl()
-        );
+        EquipmentDTO dto = new EquipmentDTO();
+        dto.setId(equipment.getId());
+        dto.setEquipmentName(equipment.getEquipmentName());
+        dto.setSerialNumber(equipment.getSerialNumber());
+        dto.setDescription(equipment.getDescription());
+        dto.setStatus(equipment.getStatus() != null ? equipment.getStatus().name() : null);
+        dto.setPillarId(equipment.getPillar() != null ? equipment.getPillar().getId() : null);
+        dto.setPillarCode(equipment.getPillar() != null ? equipment.getPillar().getPillarCode() : null);
+        dto.setLocationId(locId);
+        dto.setLocationName(locName);
+        dto.setPurchaseDate(equipment.getPurchaseDate());
+        dto.setLastMaintenanceDate(equipment.getLastMaintenanceDate());
+        dto.setImageUrl(equipment.getImageUrl());
+        dto.setQuantity(equipment.getQuantity() != null ? equipment.getQuantity() : 1);
+        return dto;
     }
 
     private Equipment mapToEntity(EquipmentDTO dto) {
@@ -236,6 +260,7 @@ public class EquipmentServiceImpl implements EquipmentService {
         equipment.setPurchaseDate(dto.getPurchaseDate());
         equipment.setLastMaintenanceDate(dto.getLastMaintenanceDate());
         equipment.setImageUrl(dto.getImageUrl());
+        equipment.setQuantity(dto.getQuantity() != null ? dto.getQuantity() : 1);
         return equipment;
     }
 
@@ -254,5 +279,6 @@ public class EquipmentServiceImpl implements EquipmentService {
         if (dto.getPurchaseDate() != null) equipment.setPurchaseDate(dto.getPurchaseDate());
         if (dto.getLastMaintenanceDate() != null) equipment.setLastMaintenanceDate(dto.getLastMaintenanceDate());
         if (dto.getImageUrl() != null) equipment.setImageUrl(dto.getImageUrl());
+        if (dto.getQuantity() != null) equipment.setQuantity(dto.getQuantity());
     }
 }

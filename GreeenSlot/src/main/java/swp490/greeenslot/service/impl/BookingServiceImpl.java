@@ -281,6 +281,27 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
+        // Validate stock quantity for all selected trees across chosen pillars
+        java.util.Map<Long, Integer> requiredTreeCounts = new java.util.HashMap<>();
+        for (int i = 0; i < selectedPillars.size(); i++) {
+            Tree treeForPillar = (i < resolvedTrees.size() && resolvedTrees.get(i) != null) ? resolvedTrees.get(i) : selectedTree;
+            if (treeForPillar != null) {
+                requiredTreeCounts.merge(treeForPillar.getId(), 1, Integer::sum);
+            }
+        }
+        for (java.util.Map.Entry<Long, Integer> entry : requiredTreeCounts.entrySet()) {
+            Tree treeObj = treeRepository.findById(entry.getKey()).orElse(null);
+            if (treeObj != null) {
+                int availableQty = treeObj.getQuantity() != null ? treeObj.getQuantity() : 0;
+                if (availableQty < entry.getValue()) {
+                    throw new IllegalArgumentException(String.format(
+                        "Giống cây trồng '%s' hiện chỉ còn %d cây trong kho, không đủ đáp ứng cho %d trụ đã chọn.",
+                        treeObj.getTreeName(), availableQty, entry.getValue()
+                    ));
+                }
+            }
+        }
+
         // Calculate amount:
         // Calculate amount:
         // Monthly rent = Land rental price + sum of selected pillars' monthly prices
@@ -726,6 +747,15 @@ public class BookingServiceImpl implements BookingService {
                     for (Pillar p : rental.getRentedPillars()) {
                         p.setStatus(EPillarStatus.RENTED);
                         pillarRepository.save(p);
+
+                        // Trừ số lượng giống cây trồng tương ứng trong kho
+                        Tree treeOfPillar = p.getDefaultTree() != null ? p.getDefaultTree() : rental.getTree();
+                        if (treeOfPillar != null) {
+                            Tree freshTree = treeRepository.findById(treeOfPillar.getId()).orElse(treeOfPillar);
+                            int curQty = freshTree.getQuantity() != null ? freshTree.getQuantity() : 0;
+                            freshTree.setQuantity(Math.max(0, curQty - 1));
+                            treeRepository.save(freshTree);
+                        }
                     }
                 }
 

@@ -111,6 +111,9 @@ public class TreeServiceImpl implements TreeService {
         if (dto.getPrice() != null && dto.getPrice().compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException("Đơn giá phôi giống không được là số âm.");
         }
+        if (dto.getQuantity() != null && dto.getQuantity() < 0) {
+            throw new IllegalArgumentException("Số lượng giống cây trồng trong kho không được là số âm.");
+        }
         if (dto.getSoilMoistureMin() != null && (dto.getSoilMoistureMin() < 0 || dto.getSoilMoistureMin() > 100)) {
             throw new IllegalArgumentException("Độ ẩm đất tối thiểu phải nằm trong khoảng từ 0% đến 100%.");
         }
@@ -203,6 +206,20 @@ public class TreeServiceImpl implements TreeService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional
+    public TreeDTO updateStock(Long id, Integer additionalQuantity) {
+        if (additionalQuantity == null || additionalQuantity <= 0) {
+            throw new IllegalArgumentException("Số lượng giống cây trồng nhập thêm phải lớn hơn 0.");
+        }
+        Tree tree = treeRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Tree not found with id: " + id));
+        int currentQty = tree.getQuantity() != null ? tree.getQuantity() : 0;
+        tree.setQuantity(currentQty + additionalQuantity);
+        Tree saved = treeRepository.save(tree);
+        return mapToDTO(saved);
+    }
+
     private TreeDTO mapToDTO(Tree tree) {
         TreeDTO dto = new TreeDTO();
         dto.setId(tree.getId());
@@ -224,6 +241,7 @@ public class TreeServiceImpl implements TreeService {
         dto.setPhMax(tree.getPhMax());
         dto.setCompensationPercentage(tree.getCompensationPercentage());
         dto.setCareInstructions(tree.getCareInstructions());
+        dto.setQuantity(tree.getQuantity() != null ? tree.getQuantity() : 0);
         dto.setIsActive(tree.getIsActive());
         return dto;
     }
@@ -249,6 +267,7 @@ public class TreeServiceImpl implements TreeService {
         tree.setPhMax(dto.getPhMax());
         tree.setCompensationPercentage(dto.getCompensationPercentage());
         tree.setCareInstructions(dto.getCareInstructions());
+        tree.setQuantity(dto.getQuantity() != null ? dto.getQuantity() : 100);
         return tree;
     }
 
@@ -276,6 +295,7 @@ public class TreeServiceImpl implements TreeService {
         if (dto.getPhMax() != null) tree.setPhMax(dto.getPhMax());
         if (dto.getCompensationPercentage() != null) tree.setCompensationPercentage(dto.getCompensationPercentage());
         if (dto.getCareInstructions() != null) tree.setCareInstructions(dto.getCareInstructions());
+        if (dto.getQuantity() != null) tree.setQuantity(dto.getQuantity());
         if (dto.getIsActive() != null) tree.setIsActive(dto.getIsActive());
     }
 

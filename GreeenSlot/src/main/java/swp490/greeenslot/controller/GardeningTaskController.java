@@ -250,7 +250,8 @@ public class GardeningTaskController {
                         e.getLocation() != null ? e.getLocation().getName() : null,
                         e.getPurchaseDate(),
                         e.getLastMaintenanceDate(),
-                        e.getImageUrl()
+                        e.getImageUrl(),
+                        e.getQuantity() != null ? e.getQuantity() : 1
                 )).collect(Collectors.toList());
                 iotStatus = "READY";
                 iotRecommendation = "Trụ đã có " + equipmentList.size() + " thiết bị. Vui lòng kiểm tra nguồn điện, kết nối WiFi và tín hiệu hoạt động.";

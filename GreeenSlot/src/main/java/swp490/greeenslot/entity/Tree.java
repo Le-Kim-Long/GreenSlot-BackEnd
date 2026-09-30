@@ -119,6 +119,9 @@ public class Tree {
     @Column(name = "care_instructions", length = 4000)
     private String careInstructions;
 
+    @Column(name = "quantity", nullable = false)
+    private Integer quantity = 100;
+
     @Column(name = "is_active")
     private Boolean isActive = true;
 }

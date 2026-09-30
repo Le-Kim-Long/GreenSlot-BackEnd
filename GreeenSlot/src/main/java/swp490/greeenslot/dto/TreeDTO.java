@@ -32,5 +32,6 @@ public class TreeDTO {
     private Double phMax;
     private Integer compensationPercentage;
     private String careInstructions;
+    private Integer quantity;
     private Boolean isActive;
 }

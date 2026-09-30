@@ -19,4 +19,6 @@ public interface EquipmentService {
     List<EquipmentDTO> getEquipmentByPillar(Long pillarId);
     
     List<EquipmentDTO> getEquipmentByStatus(String status);
+    
+    EquipmentDTO updateStock(Long id, Integer additionalQuantity);
 }

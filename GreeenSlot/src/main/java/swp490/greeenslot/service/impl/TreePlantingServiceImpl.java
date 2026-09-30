@@ -229,6 +229,16 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             }
         }
 
+        // Kiểm tra tồn kho của giống cây trồng mới
+        int neededQty = (targetPillar != null) ? 1 : (!rentedPillars.isEmpty() ? rentedPillars.size() : 1);
+        int availableQty = newTree.getQuantity() != null ? newTree.getQuantity() : 0;
+        if (availableQty < neededQty) {
+            throw new IllegalArgumentException(String.format(
+                "Giống cây trồng '%s' hiện chỉ còn %d cây trong kho, không đủ đáp ứng số lượng cần (%d cây).",
+                newTree.getTreeName(), availableQty, neededQty
+            ));
+        }
+
         java.math.BigDecimal totalTreeCost = java.math.BigDecimal.ZERO;
         if (targetPillar != null) {
             totalTreeCost = newTree.getEffectivePriceForPillar(targetPillar);
@@ -333,6 +343,22 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         // Duyệt xong thì cây yêu cầu mới thực sự được trồng vào ô đất của rental này
         SlotRental rental = request.getRental();
         Tree newTree = request.getNewTree();
+
+        // Trừ tồn kho giống cây trồng tương ứng
+        if (newTree != null) {
+            int deductQty = (request.getTargetPillar() != null) ? 1 :
+                (rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty() ? rental.getRentedPillars().size() : 1);
+            Tree freshTree = treeRepository.findById(newTree.getId()).orElse(newTree);
+            int curQty = freshTree.getQuantity() != null ? freshTree.getQuantity() : 0;
+            if (curQty < deductQty) {
+                throw new IllegalArgumentException(String.format(
+                    "Giống cây trồng '%s' trong kho hiện chỉ còn %d cây, không đủ %d cây để hoàn tất duyệt đổi giống.",
+                    freshTree.getTreeName(), curQty, deductQty
+                ));
+            }
+            freshTree.setQuantity(curQty - deductQty);
+            treeRepository.save(freshTree);
+        }
         
         if (request.getTargetPillar() != null) {
             // Gán giống cây đích danh cho Trụ mục tiêu

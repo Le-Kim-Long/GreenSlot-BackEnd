@@ -18,4 +18,6 @@ public interface TreeService {
     void forceDeleteTree(Long id);
     
     List<TreeDTO> getActiveTrees();
+
+    TreeDTO updateStock(Long id, Integer additionalQuantity);
 }

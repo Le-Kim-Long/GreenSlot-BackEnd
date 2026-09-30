@@ -485,15 +485,49 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                     if (binding.getEquipmentId() != null && binding.getEquipmentId() > 0) {
                         Equipment existingEq = equipmentRepository.findById(binding.getEquipmentId())
                                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thiết bị ID: " + binding.getEquipmentId()));
-                        existingEq.setPillar(pillar);
-                        existingEq.setStatus(EEquipmentStatus.IN_USE);
-                        if (taskLocation != null) {
-                            existingEq.setLocation(taskLocation);
+                        
+                        int takeQty = (binding.getQuantity() != null && binding.getQuantity() > 0) ? binding.getQuantity() : 1;
+                        int currentStock = existingEq.getQuantity() != null ? existingEq.getQuantity() : 1;
+                        if (currentStock < takeQty) {
+                            throw new IllegalArgumentException(String.format(
+                                "Thiết bị '%s' trong kho chỉ còn %d cái, không đủ số lượng lấy ra (%d cái).",
+                                existingEq.getEquipmentName(), currentStock, takeQty
+                            ));
                         }
-                        equipmentRepository.save(existingEq);
+
+                        if (currentStock > takeQty) {
+                            // Giảm số lượng tồn kho còn lại của lô thiết bị
+                            existingEq.setQuantity(currentStock - takeQty);
+                            equipmentRepository.save(existingEq);
+
+                            // Tạo bản ghi thiết bị đã gắn vào trụ
+                            Equipment deployedEq = new Equipment();
+                            deployedEq.setEquipmentName(existingEq.getEquipmentName());
+                            deployedEq.setSerialNumber(binding.getNewSerialNumber() != null && !binding.getNewSerialNumber().isBlank() 
+                                    ? binding.getNewSerialNumber().trim().toUpperCase() : existingEq.getSerialNumber());
+                            deployedEq.setDescription(existingEq.getDescription());
+                            deployedEq.setStatus(EEquipmentStatus.IN_USE);
+                            deployedEq.setPillar(pillar);
+                            deployedEq.setLocation(taskLocation != null ? taskLocation : existingEq.getLocation());
+                            deployedEq.setQuantity(takeQty);
+                            deployedEq.setPurchaseDate(existingEq.getPurchaseDate());
+                            deployedEq.setLastMaintenanceDate(LocalDateTime.now());
+                            deployedEq.setImageUrl(existingEq.getImageUrl());
+                            equipmentRepository.save(deployedEq);
+                        } else {
+                            // Lấy hết toàn bộ số lượng của thiết bị này trong kho để gắn vào trụ
+                            existingEq.setPillar(pillar);
+                            existingEq.setStatus(EEquipmentStatus.IN_USE);
+                            existingEq.setQuantity(takeQty);
+                            if (taskLocation != null) {
+                                existingEq.setLocation(taskLocation);
+                            }
+                            equipmentRepository.save(existingEq);
+                        }
                     } else if (binding.getNewSerialNumber() != null && !binding.getNewSerialNumber().trim().isEmpty()) {
                         String cleanSerial = binding.getNewSerialNumber().trim().toUpperCase();
                         Equipment eq = equipmentRepository.findBySerialNumber(cleanSerial).orElse(null);
+                        int newQty = (binding.getQuantity() != null && binding.getQuantity() > 0) ? binding.getQuantity() : 1;
                         if (eq == null) {
                             eq = new Equipment();
                             String eqName = (binding.getNewEquipmentName() != null && !binding.getNewEquipmentName().trim().isEmpty())
@@ -502,6 +536,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                             eq.setEquipmentName(eqName);
                             eq.setSerialNumber(cleanSerial);
                         }
+                        eq.setQuantity(newQty);
                         eq.setPillar(pillar);
                         eq.setStatus(EEquipmentStatus.IN_USE);
                         if (taskLocation != null) {

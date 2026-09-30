@@ -53,4 +53,7 @@ public class Equipment {
 
     @Column(name = "image_url")
     private String imageUrl;
+
+    @Column(name = "quantity", nullable = false)
+    private Integer quantity = 1;
 }
