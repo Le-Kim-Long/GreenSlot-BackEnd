@@ -42,6 +42,12 @@ class EquipmentValidationTest {
     @Mock
     private PillarRepository pillarRepository;
 
+    @Mock
+    private swp490.greeenslot.service.LocationContextService locationContextService;
+
+    @Mock
+    private swp490.greeenslot.repository.LocationRepository locationRepository;
+
     @InjectMocks
     private EquipmentServiceImpl equipmentService;
 
