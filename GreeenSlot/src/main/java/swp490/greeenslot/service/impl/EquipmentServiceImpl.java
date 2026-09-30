@@ -1,5 +1,6 @@
 package swp490.greeenslot.service.impl;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,8 +17,10 @@ import swp490.greeenslot.service.EquipmentService;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class EquipmentServiceImpl implements EquipmentService {
 
@@ -81,7 +84,7 @@ public class EquipmentServiceImpl implements EquipmentService {
                     String prefix = eq.getSerialNumber() != null && !eq.getSerialNumber().isBlank()
                             ? eq.getSerialNumber().replaceAll("-\\d+$", "")
                             : eq.getEquipmentName().replaceAll("\\s+", "-").toUpperCase();
-                    newW.setSerialNumber(prefix + "-KHO-" + (System.currentTimeMillis() % 10000));
+                    newW.setSerialNumber(prefix + "-KHO-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase());
                     newW.setDescription(eq.getDescription());
                     newW.setStatus(EEquipmentStatus.AVAILABLE);
                     newW.setPillar(null);
@@ -93,7 +96,8 @@ public class EquipmentServiceImpl implements EquipmentService {
                     equipmentRepository.save(newW);
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.error("Lỗi chuẩn hóa thiết bị phân bổ dư thừa: {}", e.getMessage(), e);
         }
     }
 
@@ -307,7 +311,7 @@ public class EquipmentServiceImpl implements EquipmentService {
             String prefix = equipment.getSerialNumber() != null && !equipment.getSerialNumber().isBlank()
                     ? equipment.getSerialNumber().replaceAll("-\\d+$", "")
                     : equipment.getEquipmentName().replaceAll("\\s+", "-").toUpperCase();
-            newWarehouseEq.setSerialNumber(prefix + "-KHO-" + (System.currentTimeMillis() % 10000));
+            newWarehouseEq.setSerialNumber(prefix + "-KHO-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase());
             newWarehouseEq.setDescription(equipment.getDescription());
             newWarehouseEq.setStatus(EEquipmentStatus.AVAILABLE);
             newWarehouseEq.setPillar(null);
