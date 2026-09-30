@@ -209,17 +209,24 @@ public class GardeningTaskController {
         boolean isEarly = Boolean.TRUE.equals(task.getIsEarlyHarvest()) || (task.getTaskName() != null && task.getTaskName().contains("sớm"));
         String customerName = task.getRequestedBy() != null ? task.getRequestedBy().getFullName() : null;
 
-        // 1. Tìm Pillar liên quan
-        Pillar targetPillar = null;
+        // 1. Tìm danh sách các Pillar liên quan đến task
+        List<Pillar> relatedPillars = new ArrayList<>();
         if (pillarCodes != null && !pillarCodes.isBlank()) {
-            String firstCode = pillarCodes.contains(",") ? pillarCodes.split(",")[0].trim() : pillarCodes.trim();
-            targetPillar = pillarRepository.findByPillarCode(firstCode).orElse(null);
+            String[] codes = pillarCodes.split(",");
+            for (String code : codes) {
+                pillarRepository.findByPillarCode(code.trim()).ifPresent(p -> {
+                    if (!relatedPillars.contains(p)) relatedPillars.add(p);
+                });
+            }
         }
-        if (targetPillar == null && task.getTargetSlot() != null) {
+        if (relatedPillars.isEmpty() && task.getTargetSlot() != null) {
             if (task.getTargetSlot().getPillar() != null) {
-                targetPillar = task.getTargetSlot().getPillar();
-            } else if (task.getTargetSlot().getPillars() != null && !task.getTargetSlot().getPillars().isEmpty()) {
-                targetPillar = task.getTargetSlot().getPillars().get(0);
+                relatedPillars.add(task.getTargetSlot().getPillar());
+            }
+            if (task.getTargetSlot().getPillars() != null) {
+                for (Pillar p : task.getTargetSlot().getPillars()) {
+                    if (!relatedPillars.contains(p)) relatedPillars.add(p);
+                }
             }
         }
 
@@ -231,14 +238,23 @@ public class GardeningTaskController {
         String iotStatus = "NONE";
         String iotRecommendation = null;
 
-        if (targetPillar != null) {
-            cameraStatus = targetPillar.getCameraStatus();
-            cameraStreamUrl = targetPillar.getCameraStreamUrl();
-            deviceStatus = targetPillar.getDeviceStatus();
+        if (!relatedPillars.isEmpty()) {
+            java.util.Map<Long, Equipment> uniqueEquipments = new java.util.LinkedHashMap<>();
+            for (Pillar p : relatedPillars) {
+                if (cameraStatus == null && p.getCameraStatus() != null) cameraStatus = p.getCameraStatus();
+                if (cameraStreamUrl == null && p.getCameraStreamUrl() != null) cameraStreamUrl = p.getCameraStreamUrl();
+                if (deviceStatus == null && p.getDeviceStatus() != null) deviceStatus = p.getDeviceStatus();
 
-            List<Equipment> equipmentList = equipmentRepository.findByPillar(targetPillar);
-            if (equipmentList != null && !equipmentList.isEmpty()) {
-                equipmentDTOs = equipmentList.stream().map(e -> new EquipmentDTO(
+                List<Equipment> attached = equipmentRepository.findByPillar(p);
+                if (attached != null) {
+                    for (Equipment eq : attached) {
+                        uniqueEquipments.put(eq.getId(), eq);
+                    }
+                }
+            }
+
+            if (!uniqueEquipments.isEmpty()) {
+                equipmentDTOs = uniqueEquipments.values().stream().map(e -> new EquipmentDTO(
                         e.getId(),
                         e.getEquipmentName(),
                         e.getSerialNumber(),
@@ -254,7 +270,7 @@ public class GardeningTaskController {
                         e.getQuantity() != null ? e.getQuantity() : 1
                 )).collect(Collectors.toList());
                 iotStatus = "READY";
-                iotRecommendation = "Trụ đã có " + equipmentList.size() + " thiết bị. Vui lòng kiểm tra nguồn điện, kết nối WiFi và tín hiệu hoạt động.";
+                iotRecommendation = "Trụ/Ô đã có " + uniqueEquipments.size() + " thiết bị. Vui lòng kiểm tra nguồn điện, kết nối WiFi và tín hiệu hoạt động.";
             } else {
                 iotStatus = "NEEDS_SETUP";
                 iotRecommendation = "Trụ chưa có thiết bị IoT nào được gắn. Vui lòng nhận bộ thiết bị tiêu chuẩn (Mạch ESP32 + Cảm biến độ ẩm/pH + Camera) từ kho cơ sở để lắp đặt.";

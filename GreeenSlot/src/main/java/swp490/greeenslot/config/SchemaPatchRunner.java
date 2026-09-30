@@ -35,6 +35,54 @@ public class SchemaPatchRunner implements CommandLineRunner {
         // cannot be rolled back by SQL Server when a pillar becomes RENTED.
         dropAllCheckConstraints("dbo.pillars");
         patchNationalizedColumns();
+        patchQuantityColumns();
+    }
+
+    /**
+     * Ensures quantity column exists in equipment and trees tables across PostgreSQL and SQL Server.
+     */
+    private void patchQuantityColumns() {
+        String sqlPostgres =
+                "DO $$ BEGIN " +
+                "  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='equipment' AND column_name='quantity') THEN " +
+                "    ALTER TABLE equipment ADD COLUMN quantity INT DEFAULT 1; " +
+                "  END IF; " +
+                "  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='trees' AND column_name='quantity') THEN " +
+                "    ALTER TABLE trees ADD COLUMN quantity INT DEFAULT 100; " +
+                "  END IF; " +
+                "  UPDATE equipment SET quantity = 1 WHERE quantity IS NULL; " +
+                "  UPDATE trees SET quantity = 100 WHERE quantity IS NULL; " +
+                "END $$;";
+
+        String sqlSqlServer =
+                "BEGIN TRY\n" +
+                "    IF COL_LENGTH('dbo.equipment', 'quantity') IS NULL\n" +
+                "    BEGIN\n" +
+                "        ALTER TABLE dbo.equipment ADD quantity INT NOT NULL DEFAULT 1;\n" +
+                "    END\n" +
+                "    IF COL_LENGTH('dbo.trees', 'quantity') IS NULL\n" +
+                "    BEGIN\n" +
+                "        ALTER TABLE dbo.trees ADD quantity INT NOT NULL DEFAULT 100;\n" +
+                "    END\n" +
+                "    UPDATE dbo.equipment SET quantity = 1 WHERE quantity IS NULL;\n" +
+                "    UPDATE dbo.trees SET quantity = 100 WHERE quantity IS NULL;\n" +
+                "END TRY\n" +
+                "BEGIN CATCH\n" +
+                "END CATCH;";
+
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            String dbProductName = conn.getMetaData().getDatabaseProductName().toLowerCase();
+            if (dbProductName.contains("postgres")) {
+                stmt.execute(sqlPostgres);
+                logger.info("Schema patch checked: quantity columns ensured on PostgreSQL (equipment & trees).");
+            } else {
+                stmt.execute(sqlSqlServer);
+                logger.info("Schema patch checked: quantity columns ensured on SQL Server (equipment & trees).");
+            }
+        } catch (Exception e) {
+            logger.warn("Schema patch skipped for quantity columns: {}", e.getMessage());
+        }
     }
 
     /**

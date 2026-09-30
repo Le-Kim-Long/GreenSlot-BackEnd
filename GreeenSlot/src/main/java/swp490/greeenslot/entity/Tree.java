@@ -119,7 +119,7 @@ public class Tree {
     @Column(name = "care_instructions", length = 4000)
     private String careInstructions;
 
-    @Column(name = "quantity", nullable = false)
+    @Column(name = "quantity", nullable = false, columnDefinition = "INT DEFAULT 100")
     private Integer quantity = 100;
 
     @Column(name = "is_active")
