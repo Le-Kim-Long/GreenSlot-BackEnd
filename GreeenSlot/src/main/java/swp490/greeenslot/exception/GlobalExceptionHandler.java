@@ -47,6 +47,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(new MessageResponseDTO("Mật khẩu không chính xác. Vui lòng kiểm tra lại."));
     }
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<MessageResponseDTO> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex) {
+        logger.warn("Access denied exception: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new MessageResponseDTO(
+                ex.getMessage() != null && !ex.getMessage().isBlank()
+                        ? ex.getMessage()
+                        : "Bạn không có quyền thực hiện thao tác này."
+        ));
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<MessageResponseDTO> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         logger.error("Database constraint violation: {}", ex.getMessage(), ex);

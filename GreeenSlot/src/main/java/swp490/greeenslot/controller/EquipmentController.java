@@ -22,49 +22,49 @@ public class EquipmentController {
     private EquipmentService equipmentService;
 
     @GetMapping
-    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Get all equipment")
     public ResponseEntity<List<EquipmentDTO>> getAllEquipment() {
         return ResponseEntity.ok(equipmentService.getAllEquipment());
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Get equipment by ID")
     public ResponseEntity<EquipmentDTO> getEquipmentById(@PathVariable Long id) {
         return ResponseEntity.ok(equipmentService.getEquipmentById(id));
     }
 
     @GetMapping("/pillar/{pillarId}")
-    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Get equipment by pillar")
     public ResponseEntity<List<EquipmentDTO>> getEquipmentByPillar(@PathVariable Long pillarId) {
         return ResponseEntity.ok(equipmentService.getEquipmentByPillar(pillarId));
     }
 
     @GetMapping("/status/{status}")
-    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Get equipment by status")
     public ResponseEntity<List<EquipmentDTO>> getEquipmentByStatus(@PathVariable String status) {
         return ResponseEntity.ok(equipmentService.getEquipmentByStatus(status));
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Create new equipment")
     public ResponseEntity<EquipmentDTO> createEquipment(@Valid @RequestBody EquipmentDTO dto) {
         return ResponseEntity.ok(equipmentService.createEquipment(dto));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Update equipment")
     public ResponseEntity<EquipmentDTO> updateEquipment(@PathVariable Long id, @Valid @RequestBody EquipmentDTO dto) {
         return ResponseEntity.ok(equipmentService.updateEquipment(id, dto));
     }
 
     @PatchMapping("/{id}/stock")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Add equipment stock quantity")
     public ResponseEntity<EquipmentDTO> updateStock(
             @PathVariable Long id,
@@ -73,7 +73,7 @@ public class EquipmentController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Delete equipment")
     public ResponseEntity<Void> deleteEquipment(@PathVariable Long id) {
         equipmentService.deleteEquipment(id);

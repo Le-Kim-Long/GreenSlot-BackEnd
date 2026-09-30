@@ -547,32 +547,34 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                 }
             }
 
-            // 3. Ràng buộc: Đối với task lắp đặt/thiết bị
+            // 3. Ràng buộc: Đối với task lắp đặt bổ sung trụ / gắn thiết bị mới
             boolean isPillarSetupTask = (task.getTaskName() != null && (
-                    task.getTaskName().toLowerCase().contains("lắp đặt") ||
-                    task.getTaskName().toLowerCase().contains("thiết bị") ||
+                    task.getTaskName().toLowerCase().contains("lắp đặt bổ sung") ||
+                    task.getTaskName().toLowerCase().contains("lắp đặt trụ") ||
                     task.getTaskName().toLowerCase().contains("bổ sung trụ") ||
-                    task.getTaskName().toLowerCase().contains("chuẩn bị trụ") ||
                     task.getTaskName().toLowerCase().contains("gắn thiết bị") ||
-                    task.getTaskName().toLowerCase().contains("gán thiết bị") ||
-                    task.getTaskName().toLowerCase().contains("iot")
+                    task.getTaskName().toLowerCase().contains("gán thiết bị")
             )) && (task.getPillarCodes() != null && !task.getPillarCodes().isBlank());
 
             if (isPillarSetupTask) {
                 String[] pCodes = task.getPillarCodes().split(",");
+                boolean hasAnyEquipment = false;
                 for (String codeRaw : pCodes) {
                     String pCode = codeRaw.trim();
                     if (pCode.isEmpty()) continue;
                     Pillar pillar = pillarRepository.findByPillarCode(pCode).orElse(null);
                     if (pillar != null) {
                         List<Equipment> attachedEquipments = equipmentRepository.findByPillar(pillar);
-                        if (attachedEquipments == null || attachedEquipments.isEmpty()) {
-                            throw new IllegalArgumentException(String.format(
-                                    "Trụ %s chưa được gắn thiết bị IoT (Mạch điều khiển/Cảm biến). Vui lòng chọn thiết bị từ kho hoặc nhập mã Serial của thiết bị đã lắp trước khi nộp duyệt.",
-                                    pCode
-                            ));
+                        if (attachedEquipments != null && !attachedEquipments.isEmpty()) {
+                            hasAnyEquipment = true;
+                            break;
                         }
                     }
+                }
+                if (!hasAnyEquipment) {
+                    throw new IllegalArgumentException(
+                            "Nhiệm vụ này yêu cầu gắn thiết bị IoT (Mạch điều khiển/Cảm biến). Vui lòng chọn thiết bị từ kho hoặc nhập mã Serial của thiết bị đã lắp trước khi nộp duyệt."
+                    );
                 }
             }
             

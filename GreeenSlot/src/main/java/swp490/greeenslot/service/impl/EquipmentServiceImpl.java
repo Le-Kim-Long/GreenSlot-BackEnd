@@ -8,6 +8,7 @@ import swp490.greeenslot.entity.EEquipmentStatus;
 import swp490.greeenslot.entity.Equipment;
 import swp490.greeenslot.entity.Location;
 import swp490.greeenslot.entity.Pillar;
+import swp490.greeenslot.entity.User;
 import swp490.greeenslot.repository.EquipmentRepository;
 import swp490.greeenslot.repository.LocationRepository;
 import swp490.greeenslot.repository.PillarRepository;
@@ -47,7 +48,7 @@ public class EquipmentServiceImpl implements EquipmentService {
     private boolean isEquipmentAccessible(Equipment equipment, Long locationId) {
         if (locationId == null) return true;
         Long locId = getEquipmentLocationId(equipment);
-        return locId != null && locId.equals(locationId);
+        return locId == null || locId.equals(locationId);
     }
 
     @Override
@@ -64,7 +65,9 @@ public class EquipmentServiceImpl implements EquipmentService {
         Equipment equipment = equipmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Equipment not found with id: " + id));
         Long locId = getEquipmentLocationId(equipment);
-        locationContextService.validateLocationAccess(locId);
+        if (locId != null) {
+            locationContextService.validateLocationAccess(locId);
+        }
         return mapToDTO(equipment);
     }
 
@@ -113,7 +116,10 @@ public class EquipmentServiceImpl implements EquipmentService {
         if (currentLocId != null) {
             locationContextService.validateLocationAccess(currentLocId);
         } else if (locationContextService.isLocationManager()) {
-            locationContextService.validateLocationAccess(null); // Deny if user is location manager and equipment has no location
+            User currentUser = locationContextService.getCurrentUser();
+            if (currentUser != null && currentUser.getLocation() != null) {
+                existingEquipment.setLocation(currentUser.getLocation());
+            }
         }
 
         Long targetLocationId = dto.getLocationId() != null 
@@ -170,7 +176,9 @@ public class EquipmentServiceImpl implements EquipmentService {
         Equipment equipment = equipmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Equipment not found with id: " + id));
         Long locId = getEquipmentLocationId(equipment);
-        locationContextService.validateLocationAccess(locId);
+        if (locId != null) {
+            locationContextService.validateLocationAccess(locId);
+        }
         equipmentRepository.delete(equipment);
     }
 
@@ -205,7 +213,14 @@ public class EquipmentServiceImpl implements EquipmentService {
         Equipment equipment = equipmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Equipment not found with id: " + id));
         Long locId = getEquipmentLocationId(equipment);
-        locationContextService.validateLocationAccess(locId);
+        if (locId != null) {
+            locationContextService.validateLocationAccess(locId);
+        } else if (locationContextService.isLocationManager()) {
+            User currentUser = locationContextService.getCurrentUser();
+            if (currentUser != null && currentUser.getLocation() != null) {
+                equipment.setLocation(currentUser.getLocation());
+            }
+        }
 
         int current = equipment.getQuantity() != null ? equipment.getQuantity() : 0;
         equipment.setQuantity(current + additionalQuantity);
