@@ -4,5 +4,7 @@ public enum ETaskType {
     SERVICE_REQUEST,
     MAINTENANCE,
     CLEANING,
-    HARVEST
+    HARVEST,
+    PLANTING,
+    INSPECTION
 }
