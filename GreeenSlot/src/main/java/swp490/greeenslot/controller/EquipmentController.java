@@ -63,6 +63,15 @@ public class EquipmentController {
         return ResponseEntity.ok(equipmentService.updateEquipment(id, dto));
     }
 
+    @PatchMapping("/{id}/stock")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Add equipment stock quantity")
+    public ResponseEntity<EquipmentDTO> updateStock(
+            @PathVariable Long id,
+            @RequestParam("additionalQuantity") Integer additionalQuantity) {
+        return ResponseEntity.ok(equipmentService.updateStock(id, additionalQuantity));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
     @Operation(summary = "Delete equipment")

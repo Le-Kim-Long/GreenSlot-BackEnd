@@ -16,4 +16,5 @@ public class PillarEquipmentBindingDTO {
     private String newSerialNumber;
     private String evidenceImageUrl;
     private String notes;
+    private Integer quantity;
 }
