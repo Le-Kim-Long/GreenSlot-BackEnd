@@ -1345,6 +1345,12 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public void recordHarvestDecision(Long rentalId, String decision, String username) {
+        recordHarvestDecision(rentalId, decision, null, username);
+    }
+
+    @Override
+    @Transactional
+    public void recordHarvestDecision(Long rentalId, String decision, String pillarCode, String username) {
         if (!"SELF".equals(decision) && !"STAFF".equals(decision)) {
             throw new IllegalArgumentException("Decision must be either SELF or STAFF");
         }
@@ -1374,10 +1380,20 @@ public class BookingServiceImpl implements BookingService {
                 .orElse(null);
 
         String targetPillarCodes = null;
-        if (task != null && task.getPillarCodes() != null && !task.getPillarCodes().isBlank()) {
-            targetPillarCodes = task.getPillarCodes();
+        if (pillarCode != null && !pillarCode.isBlank()) {
+            targetPillarCodes = pillarCode.trim();
+        } else if (task != null && task.getPillarCodes() != null && !task.getPillarCodes().isBlank()) {
+            targetPillarCodes = task.getPillarCodes().trim();
         } else if (rental.getHarvestPillarCode() != null && !rental.getHarvestPillarCode().isBlank()) {
-            targetPillarCodes = rental.getHarvestPillarCode();
+            targetPillarCodes = rental.getHarvestPillarCode().trim();
+        } else {
+            GardeningTask earlyTask = harvestTasks.stream()
+                    .filter(t -> Boolean.TRUE.equals(t.getIsEarlyHarvest()) || (t.getTaskName() != null && t.getTaskName().contains("thu hoạch sớm")))
+                    .findFirst()
+                    .orElse(null);
+            if (earlyTask != null && earlyTask.getPillarCodes() != null && !earlyTask.getPillarCodes().isBlank()) {
+                targetPillarCodes = earlyTask.getPillarCodes().trim();
+            }
         }
 
         if ("SELF".equals(decision)) {

@@ -354,10 +354,20 @@ public class CustomerServiceImpl implements CustomerService {
                 .orElse(null);
 
         String targetPillarCodes = null;
-        if (task != null && task.getPillarCodes() != null && !task.getPillarCodes().isBlank()) {
-            targetPillarCodes = task.getPillarCodes();
+        if (request != null && request.getPillarCode() != null && !request.getPillarCode().isBlank()) {
+            targetPillarCodes = request.getPillarCode().trim();
+        } else if (task != null && task.getPillarCodes() != null && !task.getPillarCodes().isBlank()) {
+            targetPillarCodes = task.getPillarCodes().trim();
         } else if (rental.getHarvestPillarCode() != null && !rental.getHarvestPillarCode().isBlank()) {
-            targetPillarCodes = rental.getHarvestPillarCode();
+            targetPillarCodes = rental.getHarvestPillarCode().trim();
+        } else {
+            GardeningTask earlyTask = harvestTasks.stream()
+                    .filter(t -> Boolean.TRUE.equals(t.getIsEarlyHarvest()) || (t.getTaskName() != null && t.getTaskName().contains("thu hoạch sớm")))
+                    .findFirst()
+                    .orElse(null);
+            if (earlyTask != null && earlyTask.getPillarCodes() != null && !earlyTask.getPillarCodes().isBlank()) {
+                targetPillarCodes = earlyTask.getPillarCodes().trim();
+            }
         }
 
         if ("SELF".equals(decision)) {

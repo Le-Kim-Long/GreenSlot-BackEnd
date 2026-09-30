@@ -25,4 +25,7 @@ public class HarvestDecisionRequestDTO {
 
     @Schema(description = "Optional customer notes or instructions", example = "Please harvest carefully in morning hours")
     private String notes;
+
+    @Schema(description = "Optional specific pillar code to harvest", example = "P-S-Q01-01-S1")
+    private String pillarCode;
 }

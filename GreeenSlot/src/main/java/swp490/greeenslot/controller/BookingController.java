@@ -174,7 +174,9 @@ public class BookingController {
             @PathVariable Long rentalId,
             @RequestBody java.util.Map<String, String> body,
             Principal principal) {
-        bookingService.recordHarvestDecision(rentalId, body.get("decision"), principal.getName());
+        String decision = body.get("decision");
+        String pillarCode = body.get("pillarCode");
+        bookingService.recordHarvestDecision(rentalId, decision, pillarCode, principal.getName());
         java.util.Map<String, String> response = new java.util.HashMap<>();
         response.put("message", "Harvest decision recorded");
         return ResponseEntity.ok(response);

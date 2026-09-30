@@ -304,6 +304,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
         rental.setHarvestNotifiedAt(LocalDateTime.now());
         rental.setHarvestDecision(null);
+        rental.setHarvestPillarCode(task.getPillarCodes());
+        rental.setHarvestEvidenceImageUrl(task.getEvidenceImageUrl());
+        rental.setHarvestStaffNotes(task.getStaffNotes());
         slotRentalRepository.save(rental);
 
         String staffName = task.getAssignedStaff() != null && task.getAssignedStaff().getFullName() != null 
@@ -701,7 +704,10 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         if (activeRentals.isEmpty()) {
             return;
         }
-        SlotRental rental = activeRentals.get(0);
+        SlotRental rental = activeRentals.stream()
+                .filter(r -> task.getRequestedBy() != null && r.getUser() != null && r.getUser().getId().equals(task.getRequestedBy().getId()))
+                .findFirst()
+                .orElse(activeRentals.get(0));
         if (rental.getUser() == null) {
             return;
         }
@@ -748,7 +754,10 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         if (activeRentals.isEmpty()) {
             return;
         }
-        SlotRental rental = activeRentals.get(0);
+        SlotRental rental = activeRentals.stream()
+                .filter(r -> task.getRequestedBy() != null && r.getUser() != null && r.getUser().getId().equals(task.getRequestedBy().getId()))
+                .findFirst()
+                .orElse(activeRentals.get(0));
         if (rental.getUser() == null) {
             return;
         }
