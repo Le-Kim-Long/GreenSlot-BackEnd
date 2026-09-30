@@ -18,5 +18,9 @@ public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
     
     List<Equipment> findByPillarAndStatus(Pillar pillar, EEquipmentStatus status);
 
+    List<Equipment> findByPillarIsNull();
+
+    List<Equipment> findByPillarIsNotNull();
+
     Optional<Equipment> findBySerialNumber(String serialNumber);
 }

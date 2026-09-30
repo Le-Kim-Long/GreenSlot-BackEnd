@@ -51,8 +51,56 @@ public class EquipmentServiceImpl implements EquipmentService {
         return locId == null || locId.equals(locationId);
     }
 
+    @Transactional
+    public void normalizeDeployedEquipments() {
+        try {
+            List<Equipment> deployedWithExcess = equipmentRepository.findByPillarIsNotNull().stream()
+                    .filter(e -> e.getQuantity() != null && e.getQuantity() > 1)
+                    .collect(Collectors.toList());
+
+            for (Equipment eq : deployedWithExcess) {
+                int excess = eq.getQuantity() - 1;
+                eq.setQuantity(1);
+                equipmentRepository.save(eq);
+
+                Location loc = eq.getLocation() != null ? eq.getLocation() : (eq.getPillar() != null ? eq.getPillar().getLocation() : null);
+                Equipment warehouseEq = equipmentRepository.findByPillarIsNull().stream()
+                        .filter(w -> w.getEquipmentName().equalsIgnoreCase(eq.getEquipmentName())
+                                && (loc == null || (w.getLocation() != null && w.getLocation().getId().equals(loc.getId()))))
+                        .findFirst()
+                        .orElse(null);
+
+                if (warehouseEq != null) {
+                    int cur = warehouseEq.getQuantity() != null ? warehouseEq.getQuantity() : 0;
+                    warehouseEq.setQuantity(cur + excess);
+                    warehouseEq.setStatus(EEquipmentStatus.AVAILABLE);
+                    equipmentRepository.save(warehouseEq);
+                } else {
+                    Equipment newW = new Equipment();
+                    newW.setEquipmentName(eq.getEquipmentName());
+                    String prefix = eq.getSerialNumber() != null && !eq.getSerialNumber().isBlank()
+                            ? eq.getSerialNumber().replaceAll("-\\d+$", "")
+                            : eq.getEquipmentName().replaceAll("\\s+", "-").toUpperCase();
+                    newW.setSerialNumber(prefix + "-KHO-" + (System.currentTimeMillis() % 10000));
+                    newW.setDescription(eq.getDescription());
+                    newW.setStatus(EEquipmentStatus.AVAILABLE);
+                    newW.setPillar(null);
+                    newW.setLocation(loc);
+                    newW.setQuantity(excess);
+                    newW.setPurchaseDate(eq.getPurchaseDate() != null ? eq.getPurchaseDate() : LocalDateTime.now());
+                    newW.setLastMaintenanceDate(LocalDateTime.now());
+                    newW.setImageUrl(eq.getImageUrl());
+                    equipmentRepository.save(newW);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
     @Override
+    @Transactional
     public List<EquipmentDTO> getAllEquipment() {
+        normalizeDeployedEquipments();
         Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         return equipmentRepository.findAll().stream()
                 .filter(e -> isEquipmentAccessible(e, targetLocationId))
@@ -78,7 +126,7 @@ public class EquipmentServiceImpl implements EquipmentService {
 
         Long targetLocationId = locationContextService.resolveTargetLocationId(dto.getLocationId());
         Location location = null;
-        if (targetLocationId != null) {
+        if (targetLocationId != null && targetLocationId > 0) {
             locationContextService.validateLocationAccess(targetLocationId);
             location = locationRepository.findById(targetLocationId)
                     .orElseThrow(() -> new RuntimeException("Location not found with id: " + targetLocationId));
@@ -222,13 +270,55 @@ public class EquipmentServiceImpl implements EquipmentService {
             }
         }
 
-        int current = equipment.getQuantity() != null ? equipment.getQuantity() : 0;
-        equipment.setQuantity(current + additionalQuantity);
-        if (equipment.getQuantity() > 0 && equipment.getPillar() == null && equipment.getStatus() == EEquipmentStatus.IN_USE) {
+        // Trường hợp 1: Thiết bị đang trong kho (chưa gán vào trụ: pillar == null)
+        if (equipment.getPillar() == null) {
+            int current = equipment.getQuantity() != null ? equipment.getQuantity() : 0;
+            equipment.setQuantity(current + additionalQuantity);
             equipment.setStatus(EEquipmentStatus.AVAILABLE);
+            Equipment saved = equipmentRepository.save(equipment);
+            return mapToDTO(saved);
         }
-        Equipment saved = equipmentRepository.save(equipment);
-        return mapToDTO(saved);
+
+        // Trường hợp 2: Thiết bị đã gắn vào trụ (pillar != null)
+        // Trụ chỉ giữ đúng 1 thiết bị đang dùng, số lượng nhập thêm (+N) phải được đưa vào KHO sẵn sàng của cơ sở
+        equipment.setQuantity(1);
+        equipment.setStatus(EEquipmentStatus.IN_USE);
+        equipmentRepository.save(equipment);
+
+        Location targetLocation = equipment.getLocation() != null 
+                ? equipment.getLocation() 
+                : (equipment.getPillar() != null ? equipment.getPillar().getLocation() : null);
+
+        Equipment warehouseEq = equipmentRepository.findByPillarIsNull().stream()
+                .filter(w -> w.getEquipmentName().equalsIgnoreCase(equipment.getEquipmentName())
+                        && (targetLocation == null || (w.getLocation() != null && w.getLocation().getId().equals(targetLocation.getId()))))
+                .findFirst()
+                .orElse(null);
+
+        if (warehouseEq != null) {
+            int currentWarehouse = warehouseEq.getQuantity() != null ? warehouseEq.getQuantity() : 0;
+            warehouseEq.setQuantity(currentWarehouse + additionalQuantity);
+            warehouseEq.setStatus(EEquipmentStatus.AVAILABLE);
+            Equipment savedWarehouse = equipmentRepository.save(warehouseEq);
+            return mapToDTO(savedWarehouse);
+        } else {
+            Equipment newWarehouseEq = new Equipment();
+            newWarehouseEq.setEquipmentName(equipment.getEquipmentName());
+            String prefix = equipment.getSerialNumber() != null && !equipment.getSerialNumber().isBlank()
+                    ? equipment.getSerialNumber().replaceAll("-\\d+$", "")
+                    : equipment.getEquipmentName().replaceAll("\\s+", "-").toUpperCase();
+            newWarehouseEq.setSerialNumber(prefix + "-KHO-" + (System.currentTimeMillis() % 10000));
+            newWarehouseEq.setDescription(equipment.getDescription());
+            newWarehouseEq.setStatus(EEquipmentStatus.AVAILABLE);
+            newWarehouseEq.setPillar(null);
+            newWarehouseEq.setLocation(targetLocation);
+            newWarehouseEq.setQuantity(additionalQuantity);
+            newWarehouseEq.setPurchaseDate(equipment.getPurchaseDate() != null ? equipment.getPurchaseDate() : LocalDateTime.now());
+            newWarehouseEq.setLastMaintenanceDate(LocalDateTime.now());
+            newWarehouseEq.setImageUrl(equipment.getImageUrl());
+            Equipment savedNewWarehouse = equipmentRepository.save(newWarehouseEq);
+            return mapToDTO(savedNewWarehouse);
+        }
     }
 
     private EquipmentDTO mapToDTO(Equipment equipment) {
