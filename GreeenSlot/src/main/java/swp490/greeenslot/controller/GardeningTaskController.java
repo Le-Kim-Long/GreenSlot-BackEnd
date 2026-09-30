@@ -278,11 +278,14 @@ public class GardeningTaskController {
         }
 
         String cleanDescription = task.getDescription();
-        boolean isPillarSetupTask = task.getTaskName() != null && (
-                task.getTaskName().toLowerCase().contains("lắp đặt bổ sung") ||
-                task.getTaskName().toLowerCase().contains("lắp đặt trụ") ||
-                task.getTaskName().toLowerCase().contains("bổ sung trụ")
-        );
+        String tNameLow = task.getTaskName() != null ? task.getTaskName().toLowerCase() : "";
+        String tDescLow = task.getDescription() != null ? task.getDescription().toLowerCase() : "";
+        boolean isPillarSetupTask = tNameLow.contains("lắp") || tNameLow.contains("lap") ||
+                tNameLow.contains("bổ sung") || tNameLow.contains("bo sung") ||
+                tNameLow.contains("thiết bị") || tNameLow.contains("thiet bi") ||
+                tNameLow.contains("iot") || tNameLow.contains("cảm biến") ||
+                tNameLow.contains("gắn") || tNameLow.contains("gán") ||
+                tDescLow.contains("lắp") || tDescLow.contains("thiết bị") || tDescLow.contains("iot");
         if (!isPillarSetupTask && cleanDescription != null && cleanDescription.contains("[HƯỚNG DẪN THIẾT BỊ IOT]")) {
             cleanDescription = cleanDescription.split("\\[HƯỚNG DẪN THIẾT BỊ IOT\\]")[0].trim();
         }

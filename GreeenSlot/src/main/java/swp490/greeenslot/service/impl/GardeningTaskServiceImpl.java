@@ -499,8 +499,13 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                             // Tạo bản ghi thiết bị đã gắn vào trụ
                             Equipment deployedEq = new Equipment();
                             deployedEq.setEquipmentName(existingEq.getEquipmentName());
-                            deployedEq.setSerialNumber(binding.getNewSerialNumber() != null && !binding.getNewSerialNumber().isBlank() 
-                                    ? binding.getNewSerialNumber().trim().toUpperCase() : existingEq.getSerialNumber());
+                            String deployedSerial = binding.getNewSerialNumber() != null && !binding.getNewSerialNumber().isBlank() 
+                                    ? binding.getNewSerialNumber().trim().toUpperCase() 
+                                    : (existingEq.getSerialNumber() != null ? existingEq.getSerialNumber() + "-" + pCode : "EQ-" + pCode + "-" + (System.currentTimeMillis() % 10000));
+                            if (equipmentRepository.findBySerialNumber(deployedSerial).isPresent()) {
+                                deployedSerial = deployedSerial + "-" + java.util.UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+                            }
+                            deployedEq.setSerialNumber(deployedSerial);
                             deployedEq.setDescription(existingEq.getDescription());
                             deployedEq.setStatus(EEquipmentStatus.IN_USE);
                             deployedEq.setPillar(pillar);
@@ -544,13 +549,16 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             }
 
             // 3. Ràng buộc: Đối với task lắp đặt bổ sung trụ / gắn thiết bị mới
-            boolean isPillarSetupTask = (task.getTaskName() != null && (
-                    task.getTaskName().toLowerCase().contains("lắp đặt bổ sung") ||
-                    task.getTaskName().toLowerCase().contains("lắp đặt trụ") ||
-                    task.getTaskName().toLowerCase().contains("bổ sung trụ") ||
-                    task.getTaskName().toLowerCase().contains("gắn thiết bị") ||
-                    task.getTaskName().toLowerCase().contains("gán thiết bị")
-            )) && (task.getPillarCodes() != null && !task.getPillarCodes().isBlank());
+            String tName = task.getTaskName() != null ? task.getTaskName().toLowerCase() : "";
+            String tDesc = task.getDescription() != null ? task.getDescription().toLowerCase() : "";
+            boolean isPillarSetupTask = (task.getPillarCodes() != null && !task.getPillarCodes().isBlank()) && (
+                    tName.contains("lắp") || tName.contains("lap") ||
+                    tName.contains("bổ sung") || tName.contains("bo sung") ||
+                    tName.contains("thiết bị") || tName.contains("thiet bi") ||
+                    tName.contains("iot") || tName.contains("cảm biến") ||
+                    tName.contains("gắn") || tName.contains("gán") ||
+                    tDesc.contains("lắp") || tDesc.contains("thiết bị") || tDesc.contains("iot")
+            );
 
             if (isPillarSetupTask) {
                 String[] pCodes = task.getPillarCodes().split(",");
