@@ -124,8 +124,10 @@ public class GardeningTaskController {
         Long rentalId = Long.valueOf(rentalIdObj.toString());
         Long pillarId = body.get("pillarId") != null ? Long.valueOf(body.get("pillarId").toString()) : null;
         String pillarCode = body.get("pillarCode") != null ? body.get("pillarCode").toString() : null;
+        String evidenceImageUrl = body.get("evidenceImageUrl") != null ? body.get("evidenceImageUrl").toString() : null;
+        String staffNotes = body.get("staffNotes") != null ? body.get("staffNotes").toString() : null;
 
-        GardeningTask task = gardeningTaskService.notifyEarlyHarvest(rentalId, pillarId, pillarCode, principal.getName());
+        GardeningTask task = gardeningTaskService.notifyEarlyHarvest(rentalId, pillarId, pillarCode, evidenceImageUrl, staffNotes, principal.getName());
         return ResponseEntity.ok(mapToDTO(task));
     }
 

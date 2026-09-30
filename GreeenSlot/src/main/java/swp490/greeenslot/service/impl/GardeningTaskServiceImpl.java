@@ -656,12 +656,15 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
             // Xử lý công việc thu hoạch
             if (task.getTaskType() == ETaskType.HARVEST && task.getTargetSlot() != null) {
-                if (task.getEvidenceImageUrl() != null && !task.getEvidenceImageUrl().trim().isEmpty()) {
-                    // TH1: Nhân viên đã hoàn tất thu hoạch và nộp ảnh bằng chứng -> Báo kết quả thu hoạch hoàn tất cho khách
-                    notifyCustomerHarvestDone(task);
-                } else {
-                    // TH2: Quản lý phê duyệt Đề xuất thu hoạch sớm -> Lúc này MỚI kích hoạt thông báo cho khách hàng chọn cách thu hoạch
+                boolean isEarlyProposal = Boolean.TRUE.equals(task.getIsEarlyHarvest())
+                        || (task.getTaskName() != null && task.getTaskName().contains("Đề xuất thu hoạch sớm"));
+
+                if (isEarlyProposal) {
+                    // TH1: Quản lý phê duyệt Đề xuất thu hoạch sớm -> Kích hoạt thông báo cho khách hàng chọn cách thu hoạch
                     notifyCustomerHarvestChoiceAfterApproval(task);
+                } else if (task.getEvidenceImageUrl() != null && !task.getEvidenceImageUrl().trim().isEmpty()) {
+                    // TH2: Nhân viên đã hoàn tất thu hoạch và nộp ảnh bằng chứng -> Báo kết quả thu hoạch hoàn tất cho khách
+                    notifyCustomerHarvestDone(task);
                 }
             }
         } else if ("REJECT".equalsIgnoreCase(request.getAction())) {
@@ -942,12 +945,18 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
     @Override
     @Transactional
     public GardeningTask notifyEarlyHarvest(Long rentalId, String username) {
-        return notifyEarlyHarvest(rentalId, null, null, username);
+        return notifyEarlyHarvest(rentalId, null, null, null, null, username);
     }
 
     @Override
     @Transactional
     public GardeningTask notifyEarlyHarvest(Long rentalId, Long pillarId, String pillarCode, String username) {
+        return notifyEarlyHarvest(rentalId, pillarId, pillarCode, null, null, username);
+    }
+
+    @Override
+    @Transactional
+    public GardeningTask notifyEarlyHarvest(Long rentalId, Long pillarId, String pillarCode, String evidenceImageUrl, String staffNotes, String username) {
         User staff = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
 
@@ -1023,6 +1032,8 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         task.setPillarCodes(effectivePillarCode);
         task.setTreeName(treeName);
         task.setIsEarlyHarvest(true);
+        task.setEvidenceImageUrl(evidenceImageUrl != null && !evidenceImageUrl.isBlank() ? evidenceImageUrl.trim() : null);
+        task.setStaffNotes(staffNotes != null && !staffNotes.isBlank() ? staffNotes.trim() : null);
         task.setCreatedAt(LocalDateTime.now());
         GardeningTask savedTask = gardeningTaskRepository.save(task);
 
