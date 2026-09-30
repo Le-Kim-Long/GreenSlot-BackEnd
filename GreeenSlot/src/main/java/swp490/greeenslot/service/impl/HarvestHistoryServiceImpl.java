@@ -129,6 +129,83 @@ public class HarvestHistoryServiceImpl implements HarvestHistoryService {
         }
     }
 
+    @jakarta.annotation.PostConstruct
+    public void autoMigrateAndSplitCommaSeparatedHistories() {
+        try {
+            List<HarvestHistory> all = harvestHistoryRepository.findAll();
+            for (HarvestHistory h : all) {
+                String raw = h.getPillarCodes();
+                if (raw != null && raw.contains(",")) {
+                    List<String> codes = java.util.Arrays.stream(raw.split(","))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .distinct()
+                            .collect(java.util.stream.Collectors.toList());
+                    if (codes.size() > 1) {
+                        h.setPillarCodes(codes.get(0));
+                        harvestHistoryRepository.save(h);
+
+                        for (int i = 1; i < codes.size(); i++) {
+                            HarvestHistory extra = cloneHistory(h, codes.get(i));
+                            harvestHistoryRepository.save(extra);
+                        }
+                    } else if (codes.size() == 1) {
+                        h.setPillarCodes(codes.get(0));
+                        harvestHistoryRepository.save(h);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Ignore any startup migration exceptions
+        }
+    }
+
+    private HarvestHistory cloneHistory(HarvestHistory original, String singlePillarCode) {
+        HarvestHistory copy = new HarvestHistory();
+        copy.setRentalId(original.getRentalId());
+        copy.setLocationId(original.getLocationId());
+        copy.setLocationName(original.getLocationName());
+        copy.setSlotId(original.getSlotId());
+        copy.setSlotNumber(original.getSlotNumber());
+        copy.setTreeId(original.getTreeId());
+        copy.setTreeName(original.getTreeName());
+        copy.setCustomerId(original.getCustomerId());
+        copy.setCustomerName(original.getCustomerName());
+        copy.setHarvestMethod(original.getHarvestMethod());
+        copy.setStaffId(original.getStaffId());
+        copy.setStaffName(original.getStaffName());
+        copy.setPlantedAt(original.getPlantedAt());
+        copy.setHarvestedAt(original.getHarvestedAt());
+        copy.setPillarCodes(singlePillarCode);
+        copy.setHarvestDays(original.getHarvestDays());
+        copy.setDaysGrown(original.getDaysGrown());
+        copy.setIsEarlyHarvest(original.getIsEarlyHarvest());
+        copy.setPillarHarvestCount(original.getPillarHarvestCount());
+        return copy;
+    }
+
+    private List<HarvestHistory> splitAndNormalizeHistory(List<HarvestHistory> list) {
+        if (list == null || list.isEmpty()) return new java.util.ArrayList<>();
+        List<HarvestHistory> result = new java.util.ArrayList<>();
+        for (HarvestHistory h : list) {
+            String rawCodes = h.getPillarCodes();
+            if (rawCodes != null && rawCodes.contains(",")) {
+                List<String> codes = java.util.Arrays.stream(rawCodes.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .distinct()
+                        .collect(java.util.stream.Collectors.toList());
+                for (String code : codes) {
+                    HarvestHistory copy = cloneHistory(h, code);
+                    result.add(copy);
+                }
+            } else {
+                result.add(h);
+            }
+        }
+        return result;
+    }
+
     private void enrichHarvestCounts(List<HarvestHistory> list) {
         if (list == null || list.isEmpty()) return;
         java.util.Map<String, java.util.List<HarvestHistory>> grouped = new java.util.HashMap<>();
@@ -140,11 +217,25 @@ public class HarvestHistoryServiceImpl implements HarvestHistoryService {
             group.sort(java.util.Comparator.comparing(HarvestHistory::getHarvestedAt, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
             for (int i = 0; i < group.size(); i++) {
                 HarvestHistory h = group.get(i);
-                if (h.getPillarHarvestCount() == null || h.getPillarHarvestCount() <= 0) {
-                    h.setPillarHarvestCount(i + 1);
-                }
+                h.setPillarHarvestCount(i + 1);
             }
         }
+        // Sắp xếp lại danh sách: mới nhất lên đầu
+        list.sort((a, b) -> {
+            LocalDateTime tA = a.getHarvestedAt() != null ? a.getHarvestedAt() : a.getPlantedAt();
+            LocalDateTime tB = b.getHarvestedAt() != null ? b.getHarvestedAt() : b.getPlantedAt();
+            if (tA != null && tB != null) {
+                int cmp = tB.compareTo(tA);
+                if (cmp != 0) return cmp;
+            } else if (tA == null && tB != null) {
+                return 1;
+            } else if (tA != null && tB == null) {
+                return -1;
+            }
+            Long idA = a.getId() != null ? a.getId() : 0L;
+            Long idB = b.getId() != null ? b.getId() : 0L;
+            return idB.compareTo(idA);
+        });
     }
 
     @Override
@@ -153,8 +244,9 @@ public class HarvestHistoryServiceImpl implements HarvestHistoryService {
                 .or(() -> userRepository.findByEmail(username))
                 .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
         List<HarvestHistory> history = harvestHistoryRepository.findByCustomerIdOrderByHarvestedAtDesc(user.getId());
-        enrichHarvestCounts(history);
-        return history;
+        List<HarvestHistory> normalized = splitAndNormalizeHistory(history);
+        enrichHarvestCounts(normalized);
+        return normalized;
     }
 
     @Override
@@ -166,7 +258,8 @@ public class HarvestHistoryServiceImpl implements HarvestHistoryService {
         } else {
             history = harvestHistoryRepository.findByLocationIdOrderByHarvestedAtDesc(targetLocationId);
         }
-        enrichHarvestCounts(history);
-        return history;
+        List<HarvestHistory> normalized = splitAndNormalizeHistory(history);
+        enrichHarvestCounts(normalized);
+        return normalized;
     }
 }
