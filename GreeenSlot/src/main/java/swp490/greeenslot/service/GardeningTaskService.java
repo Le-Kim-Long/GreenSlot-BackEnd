@@ -35,4 +35,6 @@ public interface GardeningTaskService {
     GardeningTask notifyEarlyHarvest(Long rentalId, String username);
 
     GardeningTask notifyEarlyHarvest(Long rentalId, Long pillarId, String pillarCode, String username);
+
+    GardeningTask notifyEarlyHarvest(Long rentalId, Long pillarId, String pillarCode, String evidenceImageUrl, String staffNotes, String username);
 }
