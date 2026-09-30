@@ -708,6 +708,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
         rental.setHarvestNotifiedAt(LocalDateTime.now());
         rental.setHarvestDecision(null);
+        rental.setHarvestPillarCode(task.getPillarCodes());
+        rental.setHarvestEvidenceImageUrl(task.getEvidenceImageUrl());
+        rental.setHarvestStaffNotes(task.getStaffNotes());
         slotRentalRepository.save(rental);
 
         String staffName = task.getAssignedStaff() != null ? task.getAssignedStaff().getFullName() : "Nhân viên làm vườn";
@@ -726,7 +729,8 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                     message,
                     "HARVEST_CHOICE",
                     rental.getId(),
-                    "/dashboard/customer/rentals"
+                    "/dashboard/customer/rentals",
+                    task.getEvidenceImageUrl()
             );
         }
 
@@ -762,7 +766,8 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                     message,
                     "HARVEST_DONE",
                     rental.getId(),
-                    "/dashboard/customer/harvest-history"
+                    "/dashboard/customer/harvest-history",
+                    task.getEvidenceImageUrl()
             );
         }
 
@@ -785,6 +790,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         rental.setHarvestReminderSent(false);
         rental.setHarvestNotifiedAt(null);
         rental.setHarvestDecision(null);
+        rental.setHarvestPillarCode(null);
+        rental.setHarvestEvidenceImageUrl(null);
+        rental.setHarvestStaffNotes(null);
         slotRentalRepository.save(rental);
     }
 

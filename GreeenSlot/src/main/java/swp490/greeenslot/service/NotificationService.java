@@ -9,6 +9,7 @@ public interface NotificationService {
     Notification markAsRead(Long notificationId, String username);
     Notification createNotification(Long userId, String title, String message, String type);
     Notification createNotification(Long userId, String title, String message, String type, Long referenceId, String actionUrl);
+    Notification createNotification(Long userId, String title, String message, String type, Long referenceId, String actionUrl, String imageUrl);
     long getUnreadCount(String username);
     long getUnreadCount(Long userId);
     int markAllAsRead(String username);

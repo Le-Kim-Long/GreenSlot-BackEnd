@@ -65,6 +65,17 @@ public class SlotRental {
     @Column(name = "harvest_decision", length = 20)
     private String harvestDecision;
 
+    @Nationalized
+    @Column(name = "harvest_pillar_code", length = 255)
+    private String harvestPillarCode;
+
+    @Column(name = "harvest_evidence_image_url", length = 1000)
+    private String harvestEvidenceImageUrl;
+
+    @Nationalized
+    @Column(name = "harvest_staff_notes", length = 4000)
+    private String harvestStaffNotes;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "rental_pillars",
