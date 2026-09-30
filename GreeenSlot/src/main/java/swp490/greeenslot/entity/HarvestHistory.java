@@ -87,4 +87,7 @@ public class HarvestHistory {
 
     @Column(name = "is_early_harvest")
     private Boolean isEarlyHarvest = false;
+
+    @Column(name = "pillar_harvest_count")
+    private Integer pillarHarvestCount;
 }

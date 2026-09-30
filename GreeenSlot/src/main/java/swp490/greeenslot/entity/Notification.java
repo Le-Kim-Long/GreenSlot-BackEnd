@@ -45,6 +45,9 @@ public class Notification {
     @Column(name = "action_url", length = 500)
     private String actionUrl;
 
+    @Column(name = "image_url", length = 1000)
+    private String imageUrl;
+
     @Column(name = "is_read", nullable = false)
     private boolean isRead = false;
 

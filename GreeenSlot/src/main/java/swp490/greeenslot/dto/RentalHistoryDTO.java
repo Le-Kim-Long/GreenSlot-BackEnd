@@ -20,6 +20,9 @@ public class RentalHistoryDTO {
     private String treeName;
     private LocalDateTime harvestNotifiedAt;
     private String harvestDecision;
+    private String harvestPillarCode;
+    private String harvestEvidenceImageUrl;
+    private String harvestStaffNotes;
     private LocalDateTime plantedAt;
     private LocalDateTime expectedHarvestAt;
     private BigDecimal monthlyPrice;
@@ -391,5 +394,29 @@ public class RentalHistoryDTO {
 
     public void setSlotArea(Double slotArea) {
         this.slotArea = slotArea;
+    }
+
+    public String getHarvestPillarCode() {
+        return harvestPillarCode;
+    }
+
+    public void setHarvestPillarCode(String harvestPillarCode) {
+        this.harvestPillarCode = harvestPillarCode;
+    }
+
+    public String getHarvestEvidenceImageUrl() {
+        return harvestEvidenceImageUrl;
+    }
+
+    public void setHarvestEvidenceImageUrl(String harvestEvidenceImageUrl) {
+        this.harvestEvidenceImageUrl = harvestEvidenceImageUrl;
+    }
+
+    public String getHarvestStaffNotes() {
+        return harvestStaffNotes;
+    }
+
+    public void setHarvestStaffNotes(String harvestStaffNotes) {
+        this.harvestStaffNotes = harvestStaffNotes;
     }
 }

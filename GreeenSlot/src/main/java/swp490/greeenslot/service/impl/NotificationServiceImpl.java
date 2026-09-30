@@ -55,6 +55,12 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional
     public Notification createNotification(Long userId, String title, String message, String type, Long referenceId, String actionUrl) {
+        return createNotification(userId, title, message, type, referenceId, actionUrl, null);
+    }
+
+    @Override
+    @Transactional
+    public Notification createNotification(Long userId, String title, String message, String type, Long referenceId, String actionUrl, String imageUrl) {
         if (userId == null) {
             throw new IllegalArgumentException("Cannot create notification: userId is required.");
         }
@@ -77,6 +83,7 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setType(type);
         notification.setReferenceId(referenceId);
         notification.setActionUrl(actionUrl);
+        notification.setImageUrl(imageUrl);
         notification.setRead(false);
         notification.setCreatedAt(LocalDateTime.now());
 
