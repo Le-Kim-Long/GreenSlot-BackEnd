@@ -10,6 +10,9 @@ import org.springframework.web.bind.annotation.*;
 import swp490.greeenslot.dto.ActiveRentalDTO;
 import swp490.greeenslot.dto.AlertDTO;
 import swp490.greeenslot.dto.DashboardMetricsDTO;
+import swp490.greeenslot.entity.ESlotStatus;
+import swp490.greeenslot.entity.GardenSlot;
+import swp490.greeenslot.repository.GardenSlotRepository;
 import swp490.greeenslot.service.AlertService;
 import swp490.greeenslot.service.BusinessManagementService;
 
@@ -28,6 +31,9 @@ public class DashboardController {
 
     @Autowired
     private AlertService alertService;
+
+    @Autowired
+    private GardenSlotRepository gardenSlotRepository;
 
     @Autowired
     private swp490.greeenslot.service.LocationContextService locationContextService;
@@ -79,6 +85,19 @@ public class DashboardController {
         metrics.setPendingAlerts((long) locationAlerts.size());
         metrics.setActiveRentalsList(locationRentals);
         metrics.setRecentAlerts(locationAlerts);
+
+        // Populate physical slot metrics for this location
+        List<GardenSlot> allSlots = gardenSlotRepository.findAll();
+        List<GardenSlot> locationSlots = allSlots.stream()
+                .filter(s -> (s.getLocation() != null && locationId.equals(s.getLocation().getId()))
+                        || (s.getPillars() != null && s.getPillars().stream().anyMatch(p -> p.getLocation() != null && locationId.equals(p.getLocation().getId()))))
+                .toList();
+        long totalSlots = locationSlots.size();
+        long availableSlots = locationSlots.stream()
+                .filter(s -> s.getStatus() == ESlotStatus.AVAILABLE)
+                .count();
+        metrics.setTotalSlots(totalSlots);
+        metrics.setAvailableSlots(availableSlots);
         
         return ResponseEntity.ok(metrics);
     }
