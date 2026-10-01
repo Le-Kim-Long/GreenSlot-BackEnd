@@ -72,6 +72,9 @@ public class BookingServiceImpl implements BookingService {
     @Autowired
     private swp490.greeenslot.repository.EquipmentRepository equipmentRepository;
 
+    @Autowired(required = false)
+    private swp490.greeenslot.repository.StaffScheduleRepository staffScheduleRepository;
+
     @Override
     @Transactional(readOnly = true)
     public List<GardenSlot> getAvailableSlots(Long locationId) {
@@ -1525,19 +1528,67 @@ public class BookingServiceImpl implements BookingService {
             slotRentalRepository.save(rental);
 
             // 4. Nếu có task STAFF đang treo thì hủy task
+            Set<Long> notifiedStaffIds = new HashSet<>();
             if (task != null) {
                 task.setStatus(ETaskStatus.CANCELLED);
                 gardeningTaskRepository.save(task);
 
                 if (task.getAssignedStaff() != null && notificationService != null) {
+                    notifiedStaffIds.add(task.getAssignedStaff().getId());
                     notificationService.createNotification(
                             task.getAssignedStaff().getId(),
-                            "Khách đã tự thu hoạch",
-                            "Khách hàng ở ô " + slotNumber + " (" + pillarLabel + ") đã chọn tự thu hoạch, bạn không cần xử lý công việc này nữa.",
+                            "Khách đã tự thu hoạch: Ô " + slotNumber,
+                            "Khách hàng ở ô " + slotNumber + " (" + pillarLabel + ") đã chọn tự thu hoạch, công việc thu hoạch đã được hủy. Bạn không cần xử lý công việc này nữa.",
                             "HARVEST_SELF",
-                            task.getId(),
+                            rental.getId(),
                             "/dashboard/garden-staff"
                     );
+                }
+            }
+
+            // 5. Luôn thông báo cho Quản lý cơ sở (Location Manager) biết khách tự thu hoạch
+            if (notificationService != null) {
+                String customerName = rental.getUser() != null ? (rental.getUser().getFullName() != null && !rental.getUser().getFullName().isBlank() ? rental.getUser().getFullName().trim() : rental.getUser().getUsername()) : "Khách hàng";
+                String noteSuffix = customerNotesText != null ? (" Ghi chú của khách: " + customerNotesText + ".") : "";
+                Long locationId = rental.getGardenSlot() != null && rental.getGardenSlot().getLocation() != null ? rental.getGardenSlot().getLocation().getId() : null;
+                List<User> managers = locationId != null 
+                        ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locationId) 
+                        : userRepository.findByRoleName(ERole.ROLE_LOCATION_MANAGER);
+                if (managers.isEmpty()) {
+                    managers = userRepository.findByRoleName(ERole.ROLE_ADMIN);
+                }
+                for (User m : managers) {
+                    notificationService.createNotification(
+                            m.getId(),
+                            "Khách tự thu hoạch: Ô " + slotNumber,
+                            "Khách hàng " + customerName + " đã xác nhận tự thu hoạch cây " + treeName + " tại ô " + slotNumber + " (" + pillarLabel + ")." + noteSuffix + " Vui lòng đón tiếp và hỗ trợ dụng cụ cho khách khi tới vườn.",
+                            "HARVEST_SELF_NOTICE",
+                            rental.getId(),
+                            "/dashboard/staff/harvest-history"
+                    );
+                }
+
+                // 6. Thông báo cho nhân viên làm vườn đang có ca trực hôm nay tại ô/cơ sở đó
+                if (staffScheduleRepository != null && rental.getGardenSlot() != null) {
+                    List<StaffSchedule> activeToday = staffScheduleRepository.findActiveSchedulesOnDate(java.time.LocalDate.now());
+                    Long slotId = rental.getGardenSlot().getId();
+                    for (StaffSchedule sch : activeToday) {
+                        if (sch.getStaff() != null && !notifiedStaffIds.contains(sch.getStaff().getId())) {
+                            boolean matchSlot = sch.getGardenSlot() != null && sch.getGardenSlot().getId().equals(slotId);
+                            boolean matchLoc = sch.getLocation() != null && sch.getLocation().getId().equals(locationId);
+                            if (matchSlot || matchLoc) {
+                                notifiedStaffIds.add(sch.getStaff().getId());
+                                notificationService.createNotification(
+                                        sch.getStaff().getId(),
+                                        "Khách tự thu hoạch: Ô " + slotNumber,
+                                        "Khách hàng " + customerName + " ở ô " + slotNumber + " (" + pillarLabel + ") tự thu hoạch hôm nay." + noteSuffix + " Bạn chú ý đón tiếp và hỗ trợ dụng cụ cho khách nhé.",
+                                        "HARVEST_SELF",
+                                        rental.getId(),
+                                        "/dashboard/garden-staff"
+                                );
+                            }
+                        }
+                    }
                 }
             }
         } else {
