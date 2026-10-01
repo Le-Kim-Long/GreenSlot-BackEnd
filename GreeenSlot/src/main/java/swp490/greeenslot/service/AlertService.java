@@ -32,4 +32,6 @@ public interface AlertService {
     List<AlertDTO> getAlertsBySlot(Long slotId);
 
     AlertDTO escalateAlert(Long alertId, Long escalateToUserId, String reason);
+
+    int batchProcessAlerts(List<Long> alertIds, String status, String comment, String username);
 }

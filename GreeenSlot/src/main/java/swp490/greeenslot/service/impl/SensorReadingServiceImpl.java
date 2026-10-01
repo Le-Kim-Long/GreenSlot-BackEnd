@@ -402,30 +402,35 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                     createEmergencyTask(slot, pillar, pillarCodeStr, sensorType, value, unit, effectiveMin, effectiveMax, treeName, assignedStaff);
                 }
 
-                // 5. Gửi thông báo cho Quản lý chi nhánh
-                if (locId != null) {
-                    String managerTitle = "Cảnh báo chỉ số cảm biến cây trồng";
-                    String managerBody = String.format("Ô %s (%s - Trụ %s): Cảm biến %s vượt ngưỡng. Giá trị: %.2f %s (Ngưỡng: %.2f - %.2f)",
-                            slotNumberStr, treeName, pillarCodeStr, sensorType.getDescription(), value, unit, effectiveMin, effectiveMax);
+                // 5. Gửi thông báo cho Quản lý chi nhánh (Location Manager) và Quản lý chung (Manager)
+                String managerTitle = "Cảnh báo chỉ số cảm biến cây trồng";
+                String managerBody = String.format("Ô %s (%s - Trụ %s): Cảm biến %s vượt ngưỡng. Giá trị: %.2f %s (Ngưỡng: %.2f - %.2f)",
+                        slotNumberStr, treeName, pillarCodeStr, sensorType.getDescription(), value, unit, effectiveMin, effectiveMax);
 
+                if (locId != null && firebaseMessagingService != null) {
                     firebaseMessagingService.sendPushNotificationToLocation(locId, managerTitle, managerBody, "ROLE_LOCATION_MANAGER");
                     firebaseMessagingService.sendPushNotificationToLocation(locId, managerTitle, managerBody, "ROLE_MANAGER");
+                }
 
+                java.util.Set<User> managersToNotify = new java.util.LinkedHashSet<>();
+                if (locId != null) {
+                    managersToNotify.addAll(userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId));
+                }
+                managersToNotify.addAll(userRepository.findByRoleName(ERole.ROLE_MANAGER));
+
+                for (User manager : managersToNotify) {
                     if (notificationService != null) {
-                        List<User> managers = userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId);
-                        if (managers.isEmpty()) {
-                            managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
-                        }
-                        for (User manager : managers) {
-                            notificationService.createNotification(
-                                    manager.getId(),
-                                    managerTitle,
-                                    managerBody,
-                                    "IOT_ALERT",
-                                    savedAlert != null ? savedAlert.getId() : null,
-                                    "/dashboard/staff/alert-processing"
-                            );
-                        }
+                        notificationService.createNotification(
+                                manager.getId(),
+                                managerTitle,
+                                managerBody,
+                                "IOT_ALERT",
+                                savedAlert != null ? savedAlert.getId() : null,
+                                "/dashboard/staff/alert-processing"
+                        );
+                    }
+                    if (firebaseMessagingService != null && locId == null) {
+                        firebaseMessagingService.sendPushNotification(manager.getId(), managerTitle, managerBody);
                     }
                 }
 
@@ -556,13 +561,14 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                     sendStaffAlertNotifications(targetStaffMap, pillarCode, slot, "Chưa thuê", sensorType, value, unit, defaultMin, defaultMax);
                 }
 
-                // Gửi thông báo cho Quản lý
-                if (notificationService != null && locId != null) {
-                    List<User> managers = userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId);
-                    if (managers.isEmpty()) {
-                        managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
+                // Gửi thông báo cho Quản lý chi nhánh và Quản lý chung
+                if (notificationService != null) {
+                    java.util.Set<User> managersToNotify = new java.util.LinkedHashSet<>();
+                    if (locId != null) {
+                        managersToNotify.addAll(userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId));
                     }
-                    for (User manager : managers) {
+                    managersToNotify.addAll(userRepository.findByRoleName(ERole.ROLE_MANAGER));
+                    for (User manager : managersToNotify) {
                         notificationService.createNotification(
                                 manager.getId(),
                                 "Cảnh báo chỉ số cảm biến (" + sensorType.getDescription() + ")",
@@ -631,7 +637,7 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                                     sensorType.getDescription(), slotNumber, treeName, value, unit, effectiveMin, effectiveMax),
                             "IOT_ALERT",
                             slotId,
-                            "/dashboard/garden-staff/tasks"
+                            "/dashboard/garden-staff"
                     );
                 }
             }

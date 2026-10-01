@@ -128,7 +128,8 @@ public class AlertServiceImpl implements AlertService {
         }
         
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
+                .or(() -> userRepository.findByEmail(username))
+                .orElseThrow(() -> new RuntimeException("User not found with username/email: " + username));
         
         EAlertStatus newAlertStatus = EAlertStatus.valueOf(request.getStatus().toUpperCase());
 
@@ -167,6 +168,65 @@ public class AlertServiceImpl implements AlertService {
         alertRepository.save(alert);
 
         return mapToLogDTO(savedLog);
+    }
+
+    @Override
+    @Transactional
+    public int batchProcessAlerts(List<Long> alertIds, String status, String comment, String username) {
+        User user = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
+                .orElseThrow(() -> new RuntimeException("User not found with username/email: " + username));
+        
+        EAlertStatus newAlertStatus = (status != null && !status.isBlank()) 
+                ? EAlertStatus.valueOf(status.toUpperCase()) 
+                : EAlertStatus.RESOLVED;
+
+        Long targetLocationId = locationContextService != null ? locationContextService.resolveTargetLocationId(null) : null;
+        
+        List<Alert> targets;
+        if (alertIds != null && !alertIds.isEmpty()) {
+            targets = alertRepository.findAllById(alertIds).stream()
+                    .filter(a -> isAlertAccessible(a, targetLocationId))
+                    .toList();
+        } else {
+            targets = alertRepository.findByStatusOrderByCreatedAtDesc(EAlertStatus.PENDING).stream()
+                    .filter(a -> isAlertAccessible(a, targetLocationId))
+                    .toList();
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        String safeComment = (comment != null && !comment.isBlank()) ? comment.trim() : "Đã xử lý hàng loạt";
+
+        for (Alert alert : targets) {
+            AlertProcessingLog log = new AlertProcessingLog();
+            log.setAlert(alert);
+            log.setProcessedBy(user);
+            log.setStatus(toProcessingStatus(newAlertStatus));
+            log.setComment(safeComment);
+            alertProcessingLogRepository.save(log);
+
+            alert.setStatus(newAlertStatus);
+            if (newAlertStatus == EAlertStatus.RESOLVED) {
+                alert.setResolvedAt(now);
+                if (alert.getGardenSlot() != null && gardeningTaskRepository != null) {
+                    List<GardeningTask> pendingAlertTasks = gardeningTaskRepository.findByTargetSlotIdAndTaskTypeOrderByCreatedAtDesc(
+                            alert.getGardenSlot().getId(), ETaskType.MAINTENANCE);
+                    for (GardeningTask t : pendingAlertTasks) {
+                        if (t.getStatus() != ETaskStatus.COMPLETED && t.getStatus() != ETaskStatus.CANCELLED) {
+                            if (t.getTaskName() != null && (t.getTaskName().contains("cảnh báo") || t.getTaskName().contains("Cảnh báo"))) {
+                                t.setStatus(ETaskStatus.COMPLETED);
+                                if (t.getStaffNotes() == null || t.getStaffNotes().isBlank()) {
+                                    t.setStaffNotes("Đã xử lý cảnh báo IoT (Hàng loạt): " + safeComment);
+                                }
+                                gardeningTaskRepository.save(t);
+                            }
+                        }
+                    }
+                }
+            }
+            alertRepository.save(alert);
+        }
+        return targets.size();
     }
 
     // Log xử lý (AlertProcessingLog) dùng enum riêng EAlertProcessingStatus (PROCESSED/NOT_PROCESSED/FAILED),
