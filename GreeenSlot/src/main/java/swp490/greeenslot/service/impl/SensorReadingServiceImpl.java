@@ -64,6 +64,9 @@ public class SensorReadingServiceImpl implements SensorReadingService {
     private swp490.greeenslot.service.AlertService alertService;
 
     @Autowired
+    private swp490.greeenslot.repository.AlertRepository alertRepository;
+
+    @Autowired
     private swp490.greeenslot.service.PumpService pumpService;
 
     @Value("${greeenslot.iot.api-key:GreenSlot-IoT-Dev-Key}")
@@ -220,12 +223,42 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                 if (value < effectiveMin || value > effectiveMax) {
                     String treeName = tree != null ? tree.getTreeName() : "Chưa xác định";
                     String treePrefix = tree != null ? ("cây " + tree.getTreeName() + " tại ") : "";
+                    String pillarCodeStr = pillar != null ? pillar.getPillarCode() : deviceId;
 
-                    // 1. Tạo bản ghi Alert gắn chặt với CÂY TRỒNG, Ô ĐẤT và TRỤ IOT
+                    // 0. Cooldown / Anti-Spam Check (30 phút):
+                    // Kiểm tra xem trụ này / ô này đã có Alert nào đang PENDING / IN_PROGRESS hoặc được tạo trong vòng 30 phút gần nhất không
+                    LocalDateTime cooldownCutoff = LocalDateTime.now().minusMinutes(30);
+                    List<Alert> recentAlerts = alertRepository.findActiveOrRecentAlerts(
+                            pillar != null ? pillar.getId() : null,
+                            slot.getId(),
+                            sensorType.name(),
+                            List.of(EAlertStatus.PENDING, EAlertStatus.IN_PROGRESS),
+                            cooldownCutoff
+                    );
+
+                    if (!recentAlerts.isEmpty()) {
+                        // Đang trong thời gian cooldown: Chỉ cập nhật actualValue mới nhất, KHÔNG tạo alert/task trùng lặp, KHÔNG spam thông báo
+                        Alert existingAlert = recentAlerts.get(0);
+                        existingAlert.setActualValue(value);
+                        alertRepository.save(existingAlert);
+
+                        // Vẫn hỗ trợ tự động tưới nước nếu độ ẩm đất < ngưỡng tối thiểu (đảm bảo an toàn cho cây trồng)
+                        if (sensorType == ESensorType.SOIL_MOISTURE && value < effectiveMin && !autoSprayTriggered) {
+                            String autoReason = String.format("Tự động tưới: Độ ẩm đất %.2f%% < ngưỡng tối thiểu %.2f%% của %s tại ô %s (Trụ %s)",
+                                    value, effectiveMin, treePrefix, slot.getSlotNumber(), pillarCodeStr);
+                            boolean autoSprayed = pumpService.triggerAutoSpray(autoReason);
+                            if (autoSprayed) {
+                                autoSprayTriggered = true;
+                            }
+                        }
+                        continue;
+                    }
+
+                    // 1. Tạo bản ghi Alert mới gắn chặt với CÂY TRỒNG, Ô ĐẤT và TRỤ IOT
                     swp490.greeenslot.entity.Alert alert = new swp490.greeenslot.entity.Alert();
                     alert.setAlertType(sensorType.name());
                     alert.setDescription(String.format("Cảm biến %s cho %sô %s (Trụ %s) ghi nhận giá trị %.2f %s, nằm ngoài ngưỡng sinh trưởng (%.2f - %.2f)",
-                            sensorType.getDescription(), treePrefix, slot.getSlotNumber(), pillar.getPillarCode(), value, unit, effectiveMin, effectiveMax));
+                            sensorType.getDescription(), treePrefix, slot.getSlotNumber(), pillarCodeStr, value, unit, effectiveMin, effectiveMax));
                     alert.setStatus(swp490.greeenslot.entity.EAlertStatus.PENDING);
                     alert.setThresholdValue((effectiveMin + effectiveMax) / 2.0);
                     alert.setActualValue(value);
@@ -236,11 +269,59 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                     alert.setCreatedAt(LocalDateTime.now());
                     Alert savedAlert = alertService.createAlert(alert);
 
-                    // 2. Gửi thông báo cho Quản lý chi nhánh
-                    if (pillar.getLocation() != null) {
+                    // 2. Xác định nhân viên trực ca / phụ trách để giao Task và gửi thông báo
+                    java.util.Map<Long, User> targetStaffMap = new java.util.HashMap<>();
+                    gardeningTaskRepository.findAssignedStaffBySlotId(slot.getId()).forEach(s -> targetStaffMap.put(s.getId(), s));
+                    User assignedStaff = null;
+                    if (staffScheduleRepository != null) {
+                        List<StaffSchedule> todaySchedules = staffScheduleRepository.findByScheduleDate(java.time.LocalDate.now());
+                        for (StaffSchedule sch : todaySchedules) {
+                            if (sch.getGardenSlot() != null && sch.getGardenSlot().getId().equals(slot.getId()) && sch.getStaff() != null) {
+                                targetStaffMap.put(sch.getStaff().getId(), sch.getStaff());
+                                if (assignedStaff == null) assignedStaff = sch.getStaff();
+                            }
+                        }
+                        if (assignedStaff == null && slot.getLocation() != null) {
+                            Long locId = slot.getLocation().getId();
+                            assignedStaff = todaySchedules.stream()
+                                    .filter(sch -> sch.getLocation() != null && sch.getLocation().getId().equals(locId) && sch.getStaff() != null)
+                                    .map(StaffSchedule::getStaff)
+                                    .findFirst()
+                                    .orElse(null);
+                        }
+                    }
+                    if (assignedStaff == null && !targetStaffMap.isEmpty()) {
+                        assignedStaff = targetStaffMap.values().iterator().next();
+                    }
+                    if (assignedStaff == null && slot.getLocation() != null) {
+                        List<User> locationStaff = userRepository.findByRoleNameAndLocation(ERole.ROLE_GARDEN_STAFF, slot.getLocation().getId());
+                        if (!locationStaff.isEmpty()) {
+                            assignedStaff = locationStaff.get(0);
+                        }
+                    }
+                    if (assignedStaff != null) {
+                        targetStaffMap.put(assignedStaff.getId(), assignedStaff);
+                    }
+
+                    // 3. Tự động tạo nhiệm vụ khẩn cấp cho nhân viên
+                    String emergencyTaskName = String.format("Khẩn cấp: Xử lý cảnh báo %s - Trụ %s", sensorType.getDescription(), pillarCodeStr);
+                    swp490.greeenslot.entity.GardeningTask emergencyTask = new swp490.greeenslot.entity.GardeningTask();
+                    emergencyTask.setTaskName(emergencyTaskName);
+                    emergencyTask.setDescription(String.format("Kiểm tra khẩn cấp ô %s (Trụ %s, %s). Cảm biến %s ghi nhận %.2f %s (Ngưỡng: %.2f - %.2f). Yêu cầu kiểm tra xử lý.",
+                            slot.getSlotNumber(), pillarCodeStr, treeName, sensorType.getDescription(), value, unit, effectiveMin, effectiveMax));
+                    emergencyTask.setStatus(swp490.greeenslot.entity.ETaskStatus.PENDING);
+                    emergencyTask.setTaskType(swp490.greeenslot.entity.ETaskType.MAINTENANCE);
+                    emergencyTask.setTargetSlot(slot);
+                    emergencyTask.setPillarCodes(pillarCodeStr);
+                    emergencyTask.setAssignedStaff(assignedStaff);
+                    emergencyTask.setCreatedAt(LocalDateTime.now());
+                    gardeningTaskRepository.save(emergencyTask);
+
+                    // 4. Gửi thông báo cho Quản lý chi nhánh
+                    if (pillar != null && pillar.getLocation() != null) {
                         String managerTitle = "Cảnh báo chỉ số cảm biến cây trồng";
                         String managerBody = String.format("Ô %s (%s - Trụ %s): Cảm biến %s vượt ngưỡng. Giá trị: %.2f %s (Ngưỡng: %.2f - %.2f)",
-                                slot.getSlotNumber(), treeName, pillar.getPillarCode(), sensorType.getDescription(), value, unit, effectiveMin, effectiveMax);
+                                slot.getSlotNumber(), treeName, pillarCodeStr, sensorType.getDescription(), value, unit, effectiveMin, effectiveMax);
 
                         firebaseMessagingService.sendPushNotificationToLocation(pillar.getLocation().getId(), managerTitle, managerBody, "ROLE_LOCATION_MANAGER");
                         firebaseMessagingService.sendPushNotificationToLocation(pillar.getLocation().getId(), managerTitle, managerBody, "ROLE_MANAGER");
@@ -260,7 +341,7 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                         }
                     }
 
-                    // 3. Gửi thông báo cho Khách hàng sở hữu cây
+                    // 5. Gửi thông báo cho Khách hàng sở hữu cây
                     if (customer != null) {
                         if (notificationService != null) {
                             notificationService.createNotification(
@@ -281,18 +362,8 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                         );
                     }
 
-                    // 4. Gửi thông báo cho Nhân viên chăm sóc (phụ trách ô vườn hoặc trực ca hôm nay)
-                    java.util.Map<Long, User> targetStaffMap = new java.util.HashMap<>();
-                    gardeningTaskRepository.findAssignedStaffBySlotId(slot.getId()).forEach(s -> targetStaffMap.put(s.getId(), s));
-                    if (staffScheduleRepository != null) {
-                        staffScheduleRepository.findByScheduleDate(java.time.LocalDate.now()).stream()
-                                .filter(sch -> sch.getGardenSlot() != null && sch.getGardenSlot().getId().equals(slot.getId()) && sch.getStaff() != null)
-                                .forEach(sch -> targetStaffMap.put(sch.getStaff().getId(), sch.getStaff()));
-                    }
-
+                    // 6. Gửi thông báo cho Nhân viên chăm sóc
                     boolean isSoilMoistureLow = (sensorType == ESensorType.SOIL_MOISTURE && value < effectiveMin);
-                    String pillarCodeStr = pillar != null ? pillar.getPillarCode() : deviceId;
-
                     for (User staff : targetStaffMap.values()) {
                         if (notificationService != null) {
                             if (isSoilMoistureLow) {
@@ -313,11 +384,11 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                                 notificationService.createNotification(
                                         staff.getId(),
                                         "Cảnh báo chỉ số cảm biến (Cần xử lý)",
-                                        String.format("Cảnh báo: Cảm biến %s tại ô %s (%s) ghi nhận %.2f %s, ngoài ngưỡng (%.2f - %.2f). Yêu cầu kiểm tra.",
+                                        String.format("Cảnh báo: Cảm biến %s tại ô %s (%s) ghi nhận %.2f %s, ngoài ngưỡng (%.2f - %.2f). Đã tự động tạo task khẩn cấp.",
                                                 sensorType.getDescription(), slot.getSlotNumber(), treeName, value, unit, effectiveMin, effectiveMax),
                                         "IOT_ALERT",
                                         slot.getId(),
-                                        "/dashboard/garden-staff/alerts"
+                                        "/dashboard/garden-staff/tasks"
                                 );
                             }
                         }
@@ -330,22 +401,6 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                                     : String.format("Ô %s (%s): Cảm biến %s bất thường (%.2f %s)", slot.getSlotNumber(), treeName, sensorType.getDescription(), value, unit);
                             firebaseMessagingService.sendPushNotification(staff.getId(), pushTitle, pushBody);
                         }
-                    }
-
-                    // 5. Tự động tạo nhiệm vụ khẩn cấp cho nhân viên nếu chưa có
-                    String emergencyTaskName = "Khẩn cấp: Cảnh báo cảm biến - " + sensorType.getDescription();
-                    boolean taskExists = gardeningTaskRepository.existsByTargetSlotIdAndTaskNameAndStatus(
-                            slot.getId(), emergencyTaskName, swp490.greeenslot.entity.ETaskStatus.PENDING);
-                    if (!taskExists) {
-                        swp490.greeenslot.entity.GardeningTask emergencyTask = new swp490.greeenslot.entity.GardeningTask();
-                        emergencyTask.setTaskName(emergencyTaskName);
-                        emergencyTask.setDescription(String.format("Kiểm tra khẩn cấp ô %s (%s). Cảm biến %s ghi nhận %.2f %s (Ngưỡng: %.2f - %.2f).",
-                                slot.getSlotNumber(), treeName, sensorType.getDescription(), value, unit, effectiveMin, effectiveMax));
-                        emergencyTask.setStatus(swp490.greeenslot.entity.ETaskStatus.PENDING);
-                        emergencyTask.setTaskType(swp490.greeenslot.entity.ETaskType.MAINTENANCE);
-                        emergencyTask.setTargetSlot(slot);
-                        emergencyTask.setCreatedAt(LocalDateTime.now());
-                        gardeningTaskRepository.save(emergencyTask);
                     }
 
                     // 6. Tự động kích hoạt bơm xịt nước nếu độ ẩm đất < ngưỡng tối thiểu của cây

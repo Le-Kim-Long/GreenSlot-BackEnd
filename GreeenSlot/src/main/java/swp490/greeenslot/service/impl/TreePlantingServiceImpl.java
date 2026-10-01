@@ -142,30 +142,20 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             throw new IllegalArgumentException("Cannot request planting: Slot rental has already expired.");
         }
 
-        // 3b. Kiểm tra cây đang trồng và yêu cầu theo trụ
+        // 3b. Kiểm tra cây đang trồng và yêu cầu gieo trồng
+        // Khách hàng bắt buộc phải thu hoạch (hoặc hoàn tất thủ tục thu hoạch sớm) hết các trụ trong ô trước khi đăng ký giống cây mới
+        if (rental.getTree() != null) {
+            String currentTreeName = rental.getTree().getTreeName();
+            throw new IllegalArgumentException(String.format(
+                    "Không thể gửi yêu cầu gieo trồng mới: Ô vườn này hiện vẫn còn cây trồng (%s) chưa thu hoạch xong. " +
+                    "Vui lòng thu hoạch hoặc hoàn tất thủ tục thu hoạch sớm toàn bộ các trụ canh tác trước khi đăng ký giống cây mới.",
+                    currentTreeName));
+        }
+
         List<TreePlantingRequest> existingReqs = treePlantingRequestRepository.findByRental(rental);
-        
-        if (dto.getTargetPillarId() != null && dto.getTargetPillarId() > 0) {
-            // Nếu chọn cụ thể 1 trụ: kiểm tra xem trụ đó đã có yêu cầu PENDING chưa
-            boolean isPillarPending = existingReqs.stream().anyMatch(r -> 
-                r.getStatus() == EPlantingRequestStatus.PENDING && 
-                r.getTargetPillar() != null && 
-                r.getTargetPillar().getId().equals(dto.getTargetPillarId())
-            );
-            if (isPillarPending) {
-                throw new IllegalArgumentException("Trụ này hiện đã có yêu cầu trồng cây đang chờ duyệt.");
-            }
-        } else {
-            // Yêu cầu áp dụng cho toàn bộ các trụ trong ô:
-            // Chỉ cho phép khi hợp đồng chưa có cây đang canh tác
-            if (rental.getTree() != null) {
-                throw new IllegalArgumentException("Cannot request planting for all pillars: This slot already has an active tree planted. " +
-                        "Please select a specific empty pillar or wait until current crop is harvested.");
-            }
-            boolean hasPending = existingReqs.stream().anyMatch(r -> r.getStatus() == EPlantingRequestStatus.PENDING);
-            if (hasPending) {
-                throw new IllegalArgumentException("Hợp đồng này hiện đã có yêu cầu trồng cây đang chờ xử lý.");
-            }
+        boolean hasPending = existingReqs.stream().anyMatch(r -> r.getStatus() == EPlantingRequestStatus.PENDING);
+        if (hasPending) {
+            throw new IllegalArgumentException("Hợp đồng này hiện đã có yêu cầu trồng cây đang chờ duyệt.");
         }
 
         // 4. Check tree exists and is active

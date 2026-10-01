@@ -32,11 +32,16 @@ public class HarvestHistoryServiceImpl implements HarvestHistoryService {
 
     @Override
     public void recordHarvest(SlotRental rental, String method, User staff) {
-        recordHarvest(rental, method, staff, null);
+        recordHarvest(rental, method, staff, null, null, null);
     }
 
     @Override
     public void recordHarvest(SlotRental rental, String method, User staff, String pillarCodes) {
+        recordHarvest(rental, method, staff, pillarCodes, null, null);
+    }
+
+    @Override
+    public void recordHarvest(SlotRental rental, String method, User staff, String pillarCodes, String evidenceImageUrl, String staffNotes) {
         if (rental == null) {
             return;
         }
@@ -124,6 +129,8 @@ public class HarvestHistoryServiceImpl implements HarvestHistoryService {
             history.setHarvestDays(harvestDays);
             history.setDaysGrown(daysGrown);
             history.setIsEarlyHarvest(isEarly);
+            history.setEvidenceImageUrl(evidenceImageUrl);
+            history.setStaffNotes(staffNotes);
 
             harvestHistoryRepository.save(history);
         }
@@ -181,6 +188,8 @@ public class HarvestHistoryServiceImpl implements HarvestHistoryService {
         copy.setDaysGrown(original.getDaysGrown());
         copy.setIsEarlyHarvest(original.getIsEarlyHarvest());
         copy.setPillarHarvestCount(original.getPillarHarvestCount());
+        copy.setEvidenceImageUrl(original.getEvidenceImageUrl());
+        copy.setStaffNotes(original.getStaffNotes());
         return copy;
     }
 

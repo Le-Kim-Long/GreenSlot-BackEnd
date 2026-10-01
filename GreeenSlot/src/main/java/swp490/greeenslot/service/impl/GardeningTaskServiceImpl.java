@@ -58,6 +58,12 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
     @Autowired
     private swp490.greeenslot.service.HarvestHistoryService harvestHistoryService;
 
+    @Autowired(required = false)
+    private AlertRepository alertRepository;
+
+    @Autowired(required = false)
+    private AlertProcessingLogRepository alertProcessingLogRepository;
+
     private Long getSlotLocationId(GardenSlot slot) {
         if (slot != null) {
             if (slot.getLocation() != null) {
@@ -715,6 +721,31 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                     notifyCustomerHarvestDone(task);
                 }
             }
+
+            // Tự động đóng cảnh báo IoT nếu đây là task xử lý cảnh báo
+            if (task.getTargetSlot() != null && task.getTaskType() == ETaskType.MAINTENANCE
+                    && task.getTaskName() != null && (task.getTaskName().contains("cảnh báo") || task.getTaskName().contains("Cảnh báo"))
+                    && alertRepository != null) {
+                List<Alert> pendingAlerts = alertRepository.findByGardenSlotId(task.getTargetSlot().getId());
+                for (Alert al : pendingAlerts) {
+                    if (al.getStatus() == EAlertStatus.PENDING || al.getStatus() == EAlertStatus.IN_PROGRESS) {
+                        al.setStatus(EAlertStatus.RESOLVED);
+                        al.setResolvedAt(LocalDateTime.now());
+                        alertRepository.save(al);
+
+                        if (alertProcessingLogRepository != null) {
+                            AlertProcessingLog pLog = new AlertProcessingLog();
+                            pLog.setAlert(al);
+                            pLog.setProcessedBy(task.getAssignedStaff());
+                            pLog.setStatus(EAlertProcessingStatus.PROCESSED);
+                            pLog.setComment("Đã xử lý thông qua hoàn tất nhiệm vụ: " + task.getTaskName());
+                            pLog.setEvidenceImageUrl(task.getEvidenceImageUrl());
+                            pLog.setProcessedAt(LocalDateTime.now());
+                            alertProcessingLogRepository.save(pLog);
+                        }
+                    }
+                }
+            }
         } else if ("REJECT".equalsIgnoreCase(request.getAction())) {
             if (request.getRejectionReason() == null || request.getRejectionReason().trim().isEmpty()) {
                 throw new IllegalArgumentException("Rejection reason is required when rejecting a task evidence");
@@ -896,7 +927,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         }
 
         // Lưu lại lịch sử thu hoạch TRƯỚC khi xóa dữ liệu cây khỏi rental
-        harvestHistoryService.recordHarvest(rental, "STAFF", task.getAssignedStaff(), task.getPillarCodes());
+        harvestHistoryService.recordHarvest(rental, "STAFF", task.getAssignedStaff(), task.getPillarCodes(), task.getEvidenceImageUrl(), task.getStaffNotes());
 
         // Thu hoạch xong -> ô đất trở lại trạng thái "chưa trồng", sẵn sàng cho yêu cầu trồng cây mới
         rental.setTree(null);

@@ -90,4 +90,11 @@ public class HarvestHistory {
 
     @Column(name = "pillar_harvest_count")
     private Integer pillarHarvestCount;
+
+    @Column(name = "evidence_image_url", length = 2000)
+    private String evidenceImageUrl;
+
+    @Nationalized
+    @Column(name = "staff_notes", length = 2000)
+    private String staffNotes;
 }
