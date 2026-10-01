@@ -24,16 +24,24 @@ public interface SlotRentalRepository extends JpaRepository<SlotRental, Long> {
 
     @Query("SELECT DISTINCT r FROM SlotRental r " +
            "JOIN FETCH r.gardenSlot s " +
-           "JOIN FETCH s.location l " +
+           "LEFT JOIN FETCH s.location l " +
            "LEFT JOIN FETCH s.pillars p " +
-           "WHERE r.user.username = :username " +
+           "WHERE (LOWER(r.user.username) = LOWER(:username) OR LOWER(r.user.email) = LOWER(:username)) " +
            "ORDER BY r.startTime DESC")
     List<SlotRental> findByUserUsernameWithSlotAndPillarAndLocation(@Param("username") String username);
+
+    @Query("SELECT DISTINCT r FROM SlotRental r " +
+           "JOIN FETCH r.gardenSlot s " +
+           "LEFT JOIN FETCH s.location l " +
+           "LEFT JOIN FETCH s.pillars p " +
+           "WHERE r.user.id = :userId " +
+           "ORDER BY r.startTime DESC")
+    List<SlotRental> findByUserIdWithSlotAndPillarAndLocation(@Param("userId") Long userId);
 
     @Query("SELECT r FROM SlotRental r WHERE r.gardenSlot.id = :slotId AND r.status = 'ACTIVE' AND r.endTime > :now")
     List<SlotRental> findActiveRentals(@Param("slotId") Long slotId, @Param("now") LocalDateTime now);
 
-    @Query("SELECT r FROM SlotRental r WHERE r.gardenSlot.id = :slotId AND r.user.username = :username AND r.status = 'ACTIVE' AND r.endTime > :now")
+    @Query("SELECT r FROM SlotRental r WHERE r.gardenSlot.id = :slotId AND (LOWER(r.user.username) = LOWER(:username) OR LOWER(r.user.email) = LOWER(:username)) AND r.status = 'ACTIVE' AND (r.endTime IS NULL OR r.endTime > :now)")
     java.util.Optional<SlotRental> findActiveRentalBySlotAndUser(@Param("slotId") Long slotId, @Param("username") String username, @Param("now") LocalDateTime now);
 
     @Query("SELECT r FROM SlotRental r WHERE r.status = 'ACTIVE' ORDER BY r.startTime DESC")

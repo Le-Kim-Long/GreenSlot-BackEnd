@@ -16,6 +16,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmail(String email);
 
+    default Optional<User> findByUsernameOrEmail(String identifier) {
+        if (identifier == null || identifier.isBlank()) return Optional.empty();
+        String trimmed = identifier.trim();
+        return findByUsername(trimmed).or(() -> findByEmail(trimmed));
+    }
+
     Optional<User> findByResetToken(String resetToken);
 
     @org.springframework.data.jpa.repository.Query("SELECT u FROM User u JOIN u.roles r WHERE r.name = :roleName")

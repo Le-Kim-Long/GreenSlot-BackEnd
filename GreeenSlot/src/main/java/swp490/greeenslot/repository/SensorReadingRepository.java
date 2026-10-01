@@ -15,6 +15,7 @@ import java.util.Optional;
 
 @Repository
 public interface SensorReadingRepository extends JpaRepository<SensorReading, Long> {
+    List<SensorReading> findTop50ByPillarIdOrderByRecordedAtDesc(Long pillarId);
     Optional<SensorReading> findFirstByPillarIdAndSensorTypeOrderByRecordedAtDesc(Long pillarId, ESensorType sensorType);
     List<SensorReading> findByPillarIdAndSensorTypeOrderByRecordedAtDesc(Long pillarId, ESensorType sensorType, Pageable pageable);
     List<SensorReading> findByPillarIdOrderByRecordedAtDesc(Long pillarId, Pageable pageable);

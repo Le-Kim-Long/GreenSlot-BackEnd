@@ -120,7 +120,7 @@ public class TreePlantingServiceImpl implements TreePlantingService {
     @Override
     @Transactional
     public TreePlantingRequestDTO createRequest(TreePlantingRequestCreateDTO dto, String username) {
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByUsernameOrEmail(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
         
         SlotRental rental = slotRentalRepository.findById(dto.getRentalId())
@@ -322,7 +322,7 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             locationContextService.validateLocationAccess(locId);
         }
         
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByUsernameOrEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
 
         LocalDateTime now = LocalDateTime.now();
@@ -494,7 +494,7 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             locationContextService.validateLocationAccess(locId);
         }
         
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByUsernameOrEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
         
         request.setStatus(EPlantingRequestStatus.REJECTED);
@@ -540,7 +540,7 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             locationContextService.validateLocationAccess(locId);
         }
         
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByUsernameOrEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
         
         request.setStatus(EPlantingRequestStatus.COMPLETED);
@@ -579,7 +579,7 @@ public class TreePlantingServiceImpl implements TreePlantingService {
 
     @Override
     public List<TreePlantingRequestDTO> getRequestsByUser(String username) {
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByUsernameOrEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
         return treePlantingRequestRepository.findByRequestedBy(user).stream()
                 .map(this::mapToDTO)

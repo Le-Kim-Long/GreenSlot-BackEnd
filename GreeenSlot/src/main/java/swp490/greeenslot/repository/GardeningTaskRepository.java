@@ -18,7 +18,7 @@ public interface GardeningTaskRepository extends JpaRepository<GardeningTask, Lo
 
     boolean existsByTargetSlotIdAndTaskNameAndStatus(Long slotId, String taskName, swp490.greeenslot.entity.ETaskStatus status);
 
-    @org.springframework.data.jpa.repository.Query("SELECT t FROM GardeningTask t WHERE t.requestedBy.username = :username ORDER BY t.createdAt DESC")
+    @org.springframework.data.jpa.repository.Query("SELECT t FROM GardeningTask t WHERE (LOWER(t.requestedBy.username) = LOWER(:username) OR LOWER(t.requestedBy.email) = LOWER(:username)) ORDER BY t.createdAt DESC")
     java.util.List<GardeningTask> findByRequestedBy_UsernameOrderByCreatedAtDesc(@org.springframework.data.repository.query.Param("username") String username);
 
     @org.springframework.data.jpa.repository.Query("SELECT t FROM GardeningTask t WHERE t.assignedStaff.id = :staffId")
