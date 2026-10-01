@@ -440,6 +440,9 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
             } catch (Exception e) {
                 throw new IllegalArgumentException("Invalid slot status. Must be AVAILABLE, RENTED, or MAINTENANCE");
             }
+            if (slot.getStatus() == ESlotStatus.AVAILABLE && slotRentalRepository.existsByGardenSlotIdAndStatus(slot.getId(), swp490.greeenslot.entity.ERentalStatus.ACTIVE)) {
+                slot.setStatus(ESlotStatus.RENTED);
+            }
         }
         
         if (dto.getPrice() != null) {

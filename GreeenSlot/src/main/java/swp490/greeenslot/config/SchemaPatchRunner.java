@@ -44,6 +44,7 @@ public class SchemaPatchRunner implements CommandLineRunner {
         }
         patchNationalizedColumns();
         patchQuantityColumns();
+        syncRentedSlotStatuses();
     }
 
     /**
@@ -180,6 +181,25 @@ public class SchemaPatchRunner implements CommandLineRunner {
             }
         } catch (Exception e) {
             logger.warn("Schema patch skipped for {}: {}", cleanTableName, e.getMessage());
+        }
+    }
+
+    /**
+     * Ensures any slot that currently has an ACTIVE rental has status = 'RENTED',
+     * preventing inconsistency where an active rental still leaves the slot as 'AVAILABLE'.
+     */
+    private void syncRentedSlotStatuses() {
+        String sql = "UPDATE garden_slots SET status = 'RENTED' " +
+                "WHERE id IN (SELECT DISTINCT garden_slot_id FROM slot_rentals WHERE status = 'ACTIVE' AND garden_slot_id IS NOT NULL);";
+
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            int updated = stmt.executeUpdate(sql);
+            if (updated > 0) {
+                logger.info("Schema patch: synchronized {} slot(s) to RENTED status.", updated);
+            }
+        } catch (Exception e) {
+            logger.warn("Schema patch skipped for slot rental status synchronization: {}", e.getMessage());
         }
     }
 }
