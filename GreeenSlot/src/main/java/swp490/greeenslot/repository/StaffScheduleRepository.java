@@ -20,6 +20,9 @@ public interface StaffScheduleRepository extends JpaRepository<StaffSchedule, Lo
     
     @Query("SELECT s FROM StaffSchedule s WHERE s.scheduleDate <= :date AND (s.endDate IS NULL OR s.endDate >= :date)")
     List<StaffSchedule> findByScheduleDate(@Param("date") LocalDate date);
+
+    @Query("SELECT s FROM StaffSchedule s WHERE (s.isActive IS NULL OR s.isActive = true) AND s.scheduleDate <= :date AND (s.endDate IS NULL OR s.endDate >= :date)")
+    List<StaffSchedule> findActiveSchedulesOnDate(@Param("date") LocalDate date);
     
     @Query("SELECT s FROM StaffSchedule s WHERE s.staff.id = :staffId AND s.scheduleDate <= :endDate AND (s.endDate IS NULL OR s.endDate >= :startDate)")
     List<StaffSchedule> findByStaffAndDateRange(@Param("staffId") Long staffId, 

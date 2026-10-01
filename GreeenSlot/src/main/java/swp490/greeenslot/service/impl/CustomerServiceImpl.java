@@ -369,6 +369,9 @@ public class CustomerServiceImpl implements CustomerService {
             targetPillarCodes = earlyTask.getPillarCodes().trim();
         }
 
+        String customerNotesText = (request != null && request.getNotes() != null && !request.getNotes().isBlank())
+                ? request.getNotes().trim() : null;
+
         if ("SELF".equals(decision)) {
             // Lưu lại lịch sử thu hoạch TRƯỚC khi xóa dữ liệu cây khỏi rental
             if (harvestHistoryService != null) {
@@ -379,6 +382,9 @@ public class CustomerServiceImpl implements CustomerService {
                 }
                 if (staffNotes == null && earlyTask != null) {
                     staffNotes = earlyTask.getStaffNotes();
+                }
+                if (customerNotesText != null) {
+                    staffNotes = (staffNotes != null ? (staffNotes + " | ") : "") + "Khách ghi chú: " + customerNotesText;
                 }
                 harvestHistoryService.recordHarvest(rental, "SELF", null, targetPillarCodes, evidenceImg, staffNotes);
             }
@@ -399,6 +405,7 @@ public class CustomerServiceImpl implements CustomerService {
 
             String effectivePillars = (targetPillarCodes != null && !targetPillarCodes.isBlank()) ? targetPillarCodes : pillarCodes;
             String pillarLabel = effectivePillars != null ? (effectivePillars.startsWith("Trụ") ? effectivePillars : ("Trụ " + effectivePillars)) : "";
+            String noteSuffix = customerNotesText != null ? (" Ghi chú của khách: " + customerNotesText + ".") : "";
 
             if ("SELF".equals(decision)) {
                 if (task != null) {
@@ -409,7 +416,7 @@ public class CustomerServiceImpl implements CustomerService {
                 // STAFF choice: create or update task to PENDING for execution
                 if (task != null) {
                     task.setTaskName("Thu hoạch: " + treeName + " - Ô " + slotNumber + (!pillarLabel.isEmpty() ? " (" + pillarLabel + ")" : ""));
-                    task.setDescription("Khách hàng đã yêu cầu nhân viên hỗ trợ thu hoạch cây " + treeName + " tại ô " + slotNumber + (!pillarLabel.isEmpty() ? " (" + pillarLabel + ")" : "") + ". Tiến hành thu hoạch và nộp ảnh bằng chứng để Quản lý duyệt.");
+                    task.setDescription("Khách hàng đã yêu cầu nhân viên hỗ trợ thu hoạch cây " + treeName + " tại ô " + slotNumber + (!pillarLabel.isEmpty() ? " (" + pillarLabel + ")" : "") + "." + noteSuffix + " Tiến hành thu hoạch và nộp ảnh bằng chứng để Quản lý duyệt.");
                     task.setStatus(ETaskStatus.PENDING);
                     if (targetPillarCodes != null && !targetPillarCodes.isBlank()) {
                         task.setPillarCodes(targetPillarCodes);
@@ -418,7 +425,7 @@ public class CustomerServiceImpl implements CustomerService {
                 } else {
                     GardeningTask execTask = new GardeningTask();
                     execTask.setTaskName("Thu hoạch: " + treeName + " - Ô " + slotNumber + (!pillarLabel.isEmpty() ? " (" + pillarLabel + ")" : ""));
-                    execTask.setDescription("Khách hàng đã yêu cầu nhân viên hỗ trợ thu hoạch cây " + treeName + " tại ô " + slotNumber + (!pillarLabel.isEmpty() ? " (" + pillarLabel + ")" : "") + ". Tiến hành thu hoạch và nộp ảnh bằng chứng để Quản lý duyệt.");
+                    execTask.setDescription("Khách hàng đã yêu cầu nhân viên hỗ trợ thu hoạch cây " + treeName + " tại ô " + slotNumber + (!pillarLabel.isEmpty() ? " (" + pillarLabel + ")" : "") + "." + noteSuffix + " Tiến hành thu hoạch và nộp ảnh bằng chứng để Quản lý duyệt.");
                     execTask.setStatus(ETaskStatus.PENDING);
                     execTask.setTaskType(ETaskType.HARVEST);
                     execTask.setTargetSlot(rental.getGardenSlot());
