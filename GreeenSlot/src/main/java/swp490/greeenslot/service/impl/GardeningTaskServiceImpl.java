@@ -726,6 +726,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             task.setStatus(ETaskStatus.REJECTED);
             task.setRejectionReason(request.getRejectionReason());
             
+            // Tự động hoàn trả thiết bị IoT về kho khi bị từ chối duyệt
+            rollbackEquipmentBindingsOnReject(task);
+
             // Notify staff
             if (task.getAssignedStaff() != null && notificationService != null) {
                 notificationService.createNotification(
@@ -742,6 +745,69 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         }
 
         return gardeningTaskRepository.save(task);
+    }
+
+    private void rollbackEquipmentBindingsOnReject(GardeningTask task) {
+        if (task == null) return;
+        String tName = task.getTaskName() != null ? task.getTaskName().toLowerCase() : "";
+        String tDesc = task.getDescription() != null ? task.getDescription().toLowerCase() : "";
+        boolean isPillarSetupTask = (task.getPillarCodes() != null && !task.getPillarCodes().isBlank()) && (
+                tName.contains("lắp") || tName.contains("lap") ||
+                tName.contains("bổ sung") || tName.contains("bo sung") ||
+                tName.contains("thiết bị") || tName.contains("thiet bi") ||
+                tName.contains("iot") || tName.contains("cảm biến") ||
+                tName.contains("gắn") || tName.contains("gán") ||
+                tName.contains("install") || tName.contains("setup") ||
+                tDesc.contains("lắp") || tDesc.contains("thiết bị") || tDesc.contains("iot") ||
+                tDesc.contains("install") || tDesc.contains("setup")
+        );
+        if (!isPillarSetupTask) {
+            return;
+        }
+
+        String[] pCodes = task.getPillarCodes().split(",");
+        for (String codeRaw : pCodes) {
+            String pCode = codeRaw.trim();
+            if (pCode.isEmpty()) continue;
+            Pillar pillar = pillarRepository.findByPillarCode(pCode).orElse(null);
+            if (pillar == null) continue;
+
+            List<Equipment> attachedEquipments = equipmentRepository.findByPillar(pillar);
+            if (attachedEquipments == null || attachedEquipments.isEmpty()) continue;
+
+            for (Equipment eq : attachedEquipments) {
+                String eqName = eq.getEquipmentName();
+                Long locId = eq.getLocation() != null ? eq.getLocation().getId() : null;
+                int returnQty = eq.getQuantity() != null ? eq.getQuantity() : 1;
+
+                List<Equipment> warehouseItems = equipmentRepository.findByPillarIsNull();
+                Equipment targetWarehouseItem = null;
+                for (Equipment whItem : warehouseItems) {
+                    if (whItem.getStatus() == EEquipmentStatus.AVAILABLE
+                            && whItem.getEquipmentName() != null
+                            && whItem.getEquipmentName().trim().equalsIgnoreCase(eqName != null ? eqName.trim() : "")) {
+                        Long whLocId = whItem.getLocation() != null ? whItem.getLocation().getId() : null;
+                        if ((locId == null && whLocId == null) || (locId != null && locId.equals(whLocId))) {
+                            targetWarehouseItem = whItem;
+                            break;
+                        }
+                    }
+                }
+
+                if (targetWarehouseItem != null && !targetWarehouseItem.getId().equals(eq.getId())) {
+                    // Trả số lượng về lô hàng tồn trong kho và xoá bản ghi đã gắn vào trụ
+                    int currentWhQty = targetWarehouseItem.getQuantity() != null ? targetWarehouseItem.getQuantity() : 1;
+                    targetWarehouseItem.setQuantity(currentWhQty + returnQty);
+                    equipmentRepository.save(targetWarehouseItem);
+                    equipmentRepository.delete(eq);
+                } else {
+                    // Trả lại thiết bị về kho dạng AVAILABLE, ngắt liên kết với trụ
+                    eq.setPillar(null);
+                    eq.setStatus(EEquipmentStatus.AVAILABLE);
+                    equipmentRepository.save(eq);
+                }
+            }
+        }
     }
 
     private void notifyCustomerHarvestChoiceAfterApproval(GardeningTask task) {

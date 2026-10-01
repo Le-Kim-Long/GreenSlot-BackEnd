@@ -331,19 +331,6 @@ public class GardeningTaskController {
                 if (pCode.isEmpty()) continue;
 
                 Pillar p = pillarRepository.findByPillarCode(pCode).orElse(null);
-                Long eqId = null;
-                String eqName = null;
-                String eqSn = null;
-                if (p != null) {
-                    List<Equipment> pEqs = equipmentRepository.findByPillar(p);
-                    if (pEqs != null && !pEqs.isEmpty()) {
-                        Equipment eq = pEqs.get(0);
-                        eqId = eq.getId();
-                        eqName = eq.getEquipmentName();
-                        eqSn = eq.getSerialNumber();
-                    }
-                }
-
                 String pImg = null;
                 if (i < evImages.length && !evImages[i].trim().isEmpty()) {
                     pImg = evImages[i].trim();
@@ -363,11 +350,30 @@ public class GardeningTaskController {
                     pNote = notesContent.trim();
                 }
 
+                if (p != null) {
+                    List<Equipment> pEqs = equipmentRepository.findByPillar(p);
+                    if (pEqs != null && !pEqs.isEmpty()) {
+                        for (Equipment eq : pEqs) {
+                            bindings.add(swp490.greeenslot.dto.PillarEquipmentBindingDTO.builder()
+                                    .pillarCode(pCode)
+                                    .equipmentId(eq.getId())
+                                    .newEquipmentName(eq.getEquipmentName())
+                                    .newSerialNumber(eq.getSerialNumber())
+                                    .quantity(eq.getQuantity() != null ? eq.getQuantity() : 1)
+                                    .evidenceImageUrl(pImg)
+                                    .notes(pNote)
+                                    .build());
+                        }
+                        continue;
+                    }
+                }
+
                 bindings.add(swp490.greeenslot.dto.PillarEquipmentBindingDTO.builder()
                         .pillarCode(pCode)
-                        .equipmentId(eqId)
-                        .newEquipmentName(eqName)
-                        .newSerialNumber(eqSn)
+                        .equipmentId(null)
+                        .newEquipmentName(null)
+                        .newSerialNumber(null)
+                        .quantity(1)
                         .evidenceImageUrl(pImg)
                         .notes(pNote)
                         .build());

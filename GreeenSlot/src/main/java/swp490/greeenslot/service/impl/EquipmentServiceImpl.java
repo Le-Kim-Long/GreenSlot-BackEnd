@@ -54,57 +54,9 @@ public class EquipmentServiceImpl implements EquipmentService {
         return locId == null || locId.equals(locationId);
     }
 
-    @Transactional
-    public void normalizeDeployedEquipments() {
-        try {
-            List<Equipment> deployedWithExcess = equipmentRepository.findByPillarIsNotNull().stream()
-                    .filter(e -> e.getQuantity() != null && e.getQuantity() > 1)
-                    .collect(Collectors.toList());
-
-            for (Equipment eq : deployedWithExcess) {
-                int excess = eq.getQuantity() - 1;
-                eq.setQuantity(1);
-                equipmentRepository.save(eq);
-
-                Location loc = eq.getLocation() != null ? eq.getLocation() : (eq.getPillar() != null ? eq.getPillar().getLocation() : null);
-                Equipment warehouseEq = equipmentRepository.findByPillarIsNull().stream()
-                        .filter(w -> w.getEquipmentName().equalsIgnoreCase(eq.getEquipmentName())
-                                && (loc == null || (w.getLocation() != null && w.getLocation().getId().equals(loc.getId()))))
-                        .findFirst()
-                        .orElse(null);
-
-                if (warehouseEq != null) {
-                    int cur = warehouseEq.getQuantity() != null ? warehouseEq.getQuantity() : 0;
-                    warehouseEq.setQuantity(cur + excess);
-                    warehouseEq.setStatus(EEquipmentStatus.AVAILABLE);
-                    equipmentRepository.save(warehouseEq);
-                } else {
-                    Equipment newW = new Equipment();
-                    newW.setEquipmentName(eq.getEquipmentName());
-                    String prefix = eq.getSerialNumber() != null && !eq.getSerialNumber().isBlank()
-                            ? eq.getSerialNumber().replaceAll("-\\d+$", "")
-                            : eq.getEquipmentName().replaceAll("\\s+", "-").toUpperCase();
-                    newW.setSerialNumber(prefix + "-KHO-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase());
-                    newW.setDescription(eq.getDescription());
-                    newW.setStatus(EEquipmentStatus.AVAILABLE);
-                    newW.setPillar(null);
-                    newW.setLocation(loc);
-                    newW.setQuantity(excess);
-                    newW.setPurchaseDate(eq.getPurchaseDate() != null ? eq.getPurchaseDate() : LocalDateTime.now());
-                    newW.setLastMaintenanceDate(LocalDateTime.now());
-                    newW.setImageUrl(eq.getImageUrl());
-                    equipmentRepository.save(newW);
-                }
-            }
-        } catch (Exception e) {
-            log.error("Lỗi chuẩn hóa thiết bị phân bổ dư thừa: {}", e.getMessage(), e);
-        }
-    }
-
     @Override
     @Transactional
     public List<EquipmentDTO> getAllEquipment() {
-        normalizeDeployedEquipments();
         Long targetLocationId = locationContextService.resolveTargetLocationId(null);
         return equipmentRepository.findAll().stream()
                 .filter(e -> isEquipmentAccessible(e, targetLocationId))
@@ -284,8 +236,7 @@ public class EquipmentServiceImpl implements EquipmentService {
         }
 
         // Trường hợp 2: Thiết bị đã gắn vào trụ (pillar != null)
-        // Trụ chỉ giữ đúng 1 thiết bị đang dùng, số lượng nhập thêm (+N) phải được đưa vào KHO sẵn sàng của cơ sở
-        equipment.setQuantity(1);
+        // Thiết bị trên trụ giữ nguyên số lượng đang sử dụng, số lượng nhập thêm (+N) được đưa vào KHO sẵn sàng của cơ sở
         equipment.setStatus(EEquipmentStatus.IN_USE);
         equipmentRepository.save(equipment);
 
