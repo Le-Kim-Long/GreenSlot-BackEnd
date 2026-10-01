@@ -277,6 +277,7 @@ public class IoTSensorController {
             dto.setPillarCode(pillar.getPillarCode());
             dto.setDescription(e.getDescription());
             dto.setImageUrl(e.getImageUrl());
+            dto.setQuantity(e.getQuantity() != null ? e.getQuantity() : 1);
             return dto;
         }).toList();
 
