@@ -82,6 +82,24 @@ public class AlertController {
         return ResponseEntity.ok(alertService.processAlert(request, principal.getName()));
     }
 
+    @PostMapping("/batch-process")
+    @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
+    @Operation(summary = "Batch process alerts")
+    public ResponseEntity<?> batchProcessAlerts(
+            @RequestBody swp490.greeenslot.dto.BatchProcessAlertsRequestDTO request,
+            Principal principal) {
+        int count = alertService.batchProcessAlerts(
+                request.getAlertIds(),
+                request.getStatus(),
+                request.getComment(),
+                principal.getName()
+        );
+        return ResponseEntity.ok(java.util.Map.of(
+                "message", "Đã xử lý thành công " + count + " cảnh báo",
+                "count", count
+        ));
+    }
+
     @GetMapping("/{alertId}/logs")
     @PreAuthorize("hasRole('ROLE_GARDEN_STAFF') or hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER')")
     @Operation(summary = "Get alert processing logs")
