@@ -438,10 +438,10 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             GardeningTask careTask = new GardeningTask();
             careTask.setTaskName(String.format("Gieo trồng & chăm sóc: %s - Ô %s (%s)", treeName, slotNumber, pillarDesc));
             careTask.setDescription(String.format(
-                    "Giống %s vừa được duyệt trồng tại ô %s (%s%s, Cơ sở: %s). Vui lòng gieo đúng số lượng %s cây giống theo đúng trụ được chỉ định và kiểm tra hệ thống cảm biến/tưới.",
+                    "Giống %s vừa được duyệt trồng tại ô %s (%s%s, Cơ sở: %s). Vui lòng gieo đúng số lượng %s cây giống theo đúng trụ được chỉ định và theo dõi sinh trưởng định kỳ.",
                     treeName, slotNumber, pillarDesc, holesText, locName != null ? locName : "N/A", holes != null ? (holes + " ") : ""));
             careTask.setStatus(ETaskStatus.PENDING);
-            careTask.setTaskType(ETaskType.MAINTENANCE);
+            careTask.setTaskType(ETaskType.PLANTING);
             careTask.setTargetSlot(targetSlot);
             careTask.setRequestedBy(request.getRequestedBy());
             careTask.setAssignedStaff(null);
