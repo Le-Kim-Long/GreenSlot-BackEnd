@@ -11,6 +11,9 @@ import swp490.greeenslot.service.GardeningTaskService;
 import jakarta.annotation.PostConstruct;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -57,6 +60,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
     @Autowired
     private swp490.greeenslot.service.HarvestHistoryService harvestHistoryService;
+
+    @Autowired
+    private swp490.greeenslot.repository.HarvestHistoryRepository harvestHistoryRepository;
 
     @Autowired(required = false)
     private AlertRepository alertRepository;
@@ -964,17 +970,68 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         // Lưu lại lịch sử thu hoạch TRƯỚC khi xóa dữ liệu cây khỏi rental
         harvestHistoryService.recordHarvest(rental, "STAFF", task.getAssignedStaff(), task.getPillarCodes(), task.getEvidenceImageUrl(), task.getStaffNotes());
 
-        // Thu hoạch xong -> ô đất trở lại trạng thái "chưa trồng", sẵn sàng cho yêu cầu trồng cây mới
-        rental.setTree(null);
-        rental.setTreeStatus(null);
-        rental.setTreeNotes(null);
-        rental.setPlantedAt(null);
-        rental.setHarvestReminderSent(false);
-        rental.setHarvestNotifiedAt(null);
-        rental.setHarvestDecision(null);
-        rental.setHarvestPillarCode(null);
-        rental.setHarvestEvidenceImageUrl(null);
-        rental.setHarvestStaffNotes(null);
+        // Dọn dẹp defaultTree trên từng Pillar vừa thu hoạch
+        List<Pillar> rentedPillars = rental.getRentedPillars() != null && !rental.getRentedPillars().isEmpty()
+                ? rental.getRentedPillars()
+                : (rental.getGardenSlot() != null && rental.getGardenSlot().getPillars() != null
+                    ? rental.getGardenSlot().getPillars()
+                    : (rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null ? List.of(rental.getGardenSlot().getPillar()) : List.of()));
+
+        Set<String> newlyHarvestedCodes = (task.getPillarCodes() != null && !task.getPillarCodes().isBlank())
+                ? Arrays.stream(task.getPillarCodes().split(",")).map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet())
+                : Collections.emptySet();
+
+        for (Pillar p : rentedPillars) {
+            String code = p.getPillarCode() != null ? p.getPillarCode() : ("Trụ " + p.getId());
+            if (newlyHarvestedCodes.isEmpty() || newlyHarvestedCodes.contains(code)) {
+                p.setDefaultTree(null);
+                pillarRepository.save(p);
+            }
+        }
+
+        // Kiểm tra xem sau đợt này còn trụ nào chưa thu hoạch không
+        LocalDateTime plantTime = rental.getPlantedAt() != null ? rental.getPlantedAt() : rental.getStartTime();
+        List<HarvestHistory> pastHistories = harvestHistoryRepository.findByRentalId(rental.getId());
+        Set<String> allHarvestedPillars = new HashSet<>();
+        if (plantTime != null && pastHistories != null) {
+            for (HarvestHistory h : pastHistories) {
+                if (h.getHarvestedAt() != null && (h.getHarvestedAt().isAfter(plantTime.minusMinutes(2)) || h.getHarvestedAt().isEqual(plantTime))) {
+                    if (h.getPillarCodes() != null) {
+                        for (String c : h.getPillarCodes().split(",")) {
+                            if (!c.trim().isEmpty()) {
+                                allHarvestedPillars.add(c.trim());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Set<String> allPillarsInRental = rentedPillars.stream()
+                .map(p -> p.getPillarCode() != null ? p.getPillarCode() : ("Trụ " + p.getId()))
+                .collect(Collectors.toSet());
+
+        boolean allHarvested = allPillarsInRental.isEmpty() || allHarvestedPillars.containsAll(allPillarsInRental);
+        if (allHarvested) {
+            // Toàn bộ các trụ đã được thu hoạch xong -> Giải phóng ô đất hoàn toàn để gieo lứa mới
+            rental.setTree(null);
+            rental.setTreeStatus(null);
+            rental.setTreeNotes(null);
+            rental.setPlantedAt(null);
+            rental.setHarvestReminderSent(false);
+            rental.setHarvestNotifiedAt(null);
+            rental.setHarvestDecision(null);
+            rental.setHarvestPillarCode(null);
+            rental.setHarvestEvidenceImageUrl(null);
+            rental.setHarvestStaffNotes(null);
+        } else {
+            // Vẫn còn trụ khác đang có cây -> Giữ lại cây trên rental, chỉ giải tỏa trạng thái quyết định thu hoạch tạm thời
+            rental.setHarvestDecision(null);
+            rental.setHarvestPillarCode(null);
+            rental.setHarvestNotifiedAt(null);
+            rental.setHarvestEvidenceImageUrl(null);
+            rental.setHarvestStaffNotes(null);
+        }
         slotRentalRepository.save(rental);
     }
 

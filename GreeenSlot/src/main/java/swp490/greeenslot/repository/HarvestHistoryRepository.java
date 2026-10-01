@@ -13,6 +13,8 @@ public interface HarvestHistoryRepository extends JpaRepository<HarvestHistory, 
 
     List<HarvestHistory> findByLocationIdOrderByHarvestedAtDesc(Long locationId);
 
+    List<HarvestHistory> findByRentalId(Long rentalId);
+
     List<HarvestHistory> findAllByOrderByHarvestedAtDesc();
 
     @org.springframework.data.jpa.repository.Query("SELECT COUNT(h) FROM HarvestHistory h WHERE h.rentalId = :rentalId AND (h.pillarCodes = :pillarCode OR h.pillarCodes LIKE CONCAT('%, ', :pillarCode) OR h.pillarCodes LIKE CONCAT(:pillarCode, ',%') OR h.pillarCodes LIKE CONCAT('%, ', :pillarCode, ',%'))")
