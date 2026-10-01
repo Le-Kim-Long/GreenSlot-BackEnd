@@ -35,6 +35,8 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
     
     List<Alert> findByStatusOrderByCreatedAtDesc(EAlertStatus status);
 
+    List<Alert> findByStatusInOrderByCreatedAtDesc(java.util.List<EAlertStatus> statuses);
+
     @Query("SELECT a FROM Alert a WHERE ((:pillarId IS NOT NULL AND a.pillar.id = :pillarId) OR (:slotId IS NOT NULL AND a.gardenSlot.id = :slotId)) " +
            "AND a.sensorType = :sensorType " +
            "AND a.status IN :statuses " +
