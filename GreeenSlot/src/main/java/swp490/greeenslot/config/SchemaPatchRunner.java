@@ -29,11 +29,19 @@ public class SchemaPatchRunner implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        dropAllCheckConstraints("dbo.gardening_tasks");
-        // Pillar status is persisted from EPillarStatus (ACTIVE, RENTED, MAINTENANCE).
-        // Remove legacy constraints created from an older enum so payment activation
-        // cannot be rolled back by SQL Server when a pillar becomes RENTED.
-        dropAllCheckConstraints("dbo.pillars");
+        String[] tablesWithEnums = {
+                "gardening_tasks",
+                "pillars",
+                "slot_rentals",
+                "tree_planting_requests",
+                "equipment",
+                "service_requests",
+                "contracts",
+                "transactions"
+        };
+        for (String table : tablesWithEnums) {
+            dropAllCheckConstraints(table);
+        }
         patchNationalizedColumns();
         patchQuantityColumns();
     }
@@ -108,6 +116,11 @@ public class SchemaPatchRunner implements CommandLineRunner {
 
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
+            String dbProductName = conn.getMetaData().getDatabaseProductName().toLowerCase();
+            if (dbProductName.contains("postgres")) {
+                // PostgreSQL varchar/text natively supports full Unicode (UTF-8), no NVARCHAR patch needed
+                return;
+            }
             stmt.execute(sql);
             logger.info("Schema patch checked: NVARCHAR Unicode support ensured for notifications & global_contents.");
         } catch (Exception e) {
@@ -122,16 +135,34 @@ public class SchemaPatchRunner implements CommandLineRunner {
      * whenever a new enum value is added (blocking inserts/updates with a cryptic SQL error).
      */
     private void dropAllCheckConstraints(String qualifiedTable) {
-        String sql =
+        String cleanTableName = qualifiedTable.replace("dbo.", "").trim();
+
+        String sqlPostgres =
+                "DO $$ \n" +
+                "DECLARE \n" +
+                "    r RECORD;\n" +
+                "BEGIN \n" +
+                "    FOR r IN (\n" +
+                "        SELECT con.conname, rel.relname \n" +
+                "        FROM pg_constraint con \n" +
+                "        INNER JOIN pg_class rel ON rel.oid = con.conrelid \n" +
+                "        WHERE con.contype = 'c' \n" +
+                "          AND rel.relname = '" + cleanTableName + "'\n" +
+                "    ) LOOP \n" +
+                "        EXECUTE 'ALTER TABLE ' || quote_ident(r.relname) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.conname); \n" +
+                "    END LOOP; \n" +
+                "END $$;";
+
+        String sqlSqlServer =
                 "DECLARE @constraintName NVARCHAR(200);\n" +
                 "DECLARE constraint_cursor CURSOR FOR\n" +
                 "    SELECT cc.name FROM sys.check_constraints cc\n" +
-                "    WHERE cc.parent_object_id = OBJECT_ID('" + qualifiedTable + "');\n" +
+                "    WHERE cc.parent_object_id = OBJECT_ID('dbo." + cleanTableName + "');\n" +
                 "OPEN constraint_cursor;\n" +
                 "FETCH NEXT FROM constraint_cursor INTO @constraintName;\n" +
                 "WHILE @@FETCH_STATUS = 0\n" +
                 "BEGIN\n" +
-                "    EXEC('ALTER TABLE " + qualifiedTable + " DROP CONSTRAINT [' + @constraintName + ']');\n" +
+                "    EXEC('ALTER TABLE dbo." + cleanTableName + " DROP CONSTRAINT [' + @constraintName + ']');\n" +
                 "    FETCH NEXT FROM constraint_cursor INTO @constraintName;\n" +
                 "END\n" +
                 "CLOSE constraint_cursor;\n" +
@@ -139,10 +170,16 @@ public class SchemaPatchRunner implements CommandLineRunner {
 
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
-            stmt.execute(sql);
-            logger.info("Schema patch checked: stale CHECK constraints on {} (if any) removed.", qualifiedTable);
+            String dbProductName = conn.getMetaData().getDatabaseProductName().toLowerCase();
+            if (dbProductName.contains("postgres")) {
+                stmt.execute(sqlPostgres);
+                logger.info("Schema patch checked (PostgreSQL): stale CHECK constraints on {} (if any) removed.", cleanTableName);
+            } else {
+                stmt.execute(sqlSqlServer);
+                logger.info("Schema patch checked (SQL Server): stale CHECK constraints on {} (if any) removed.", cleanTableName);
+            }
         } catch (Exception e) {
-            logger.warn("Schema patch skipped for {}: {}", qualifiedTable, e.getMessage());
+            logger.warn("Schema patch skipped for {}: {}", cleanTableName, e.getMessage());
         }
     }
 }
