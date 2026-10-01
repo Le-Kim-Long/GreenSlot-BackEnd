@@ -111,7 +111,9 @@ public class AlertServiceImpl implements AlertService {
     @Override
     public List<AlertDTO> getPendingAlerts() {
         Long targetLocationId = locationContextService != null ? locationContextService.resolveTargetLocationId(null) : null;
-        return alertRepository.findByStatusOrderByCreatedAtDesc(EAlertStatus.PENDING).stream()
+        return alertRepository.findByStatusInOrderByCreatedAtDesc(
+                List.of(EAlertStatus.PENDING, EAlertStatus.IN_PROGRESS, EAlertStatus.ESCALATED)
+        ).stream()
                 .filter(a -> isAlertAccessible(a, targetLocationId))
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
@@ -167,6 +169,34 @@ public class AlertServiceImpl implements AlertService {
         }
         alertRepository.save(alert);
 
+        // Gửi thông báo đến Manager / Location Manager khi Garden Staff gửi báo cáo khắc phục
+        boolean isStaff = user.getRoles() != null && user.getRoles().stream().anyMatch(r -> r.getName() == ERole.ROLE_GARDEN_STAFF);
+        if (isStaff && newAlertStatus == EAlertStatus.IN_PROGRESS && notificationService != null) {
+            Long locId = getAlertLocationId(alert);
+            String pillarCode = (alert.getPillar() != null && alert.getPillar().getPillarCode() != null)
+                    ? alert.getPillar().getPillarCode() : ("#" + alert.getId());
+            String title = "Báo cáo xử lý sự cố Trụ " + pillarCode;
+            String message = user.getFullName() + " đã gửi báo cáo khắc phục cảnh báo Trụ " + pillarCode + ": \""
+                    + (request.getComment() != null ? request.getComment() : "") + "\". Vui lòng kiểm tra và nghiệm thu.";
+
+            java.util.Set<User> managersToNotify = new java.util.LinkedHashSet<>();
+            if (locId != null) {
+                managersToNotify.addAll(userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId));
+            }
+            managersToNotify.addAll(userRepository.findByRoleName(ERole.ROLE_MANAGER));
+            for (User mgr : managersToNotify) {
+                notificationService.createNotification(
+                        mgr.getId(),
+                        title,
+                        message,
+                        "ALERT_PROCESSED_BY_STAFF",
+                        alert.getId(),
+                        "/dashboard/staff/alert-processing",
+                        request.getEvidenceImageUrl()
+                );
+            }
+        }
+
         return mapToLogDTO(savedLog);
     }
 
@@ -189,7 +219,9 @@ public class AlertServiceImpl implements AlertService {
                     .filter(a -> isAlertAccessible(a, targetLocationId))
                     .toList();
         } else {
-            targets = alertRepository.findByStatusOrderByCreatedAtDesc(EAlertStatus.PENDING).stream()
+            targets = alertRepository.findByStatusInOrderByCreatedAtDesc(
+                    List.of(EAlertStatus.PENDING, EAlertStatus.IN_PROGRESS)
+            ).stream()
                     .filter(a -> isAlertAccessible(a, targetLocationId))
                     .toList();
         }
