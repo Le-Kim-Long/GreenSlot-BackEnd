@@ -37,7 +37,8 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
 
     @Query("SELECT a FROM Alert a WHERE ((:pillarId IS NOT NULL AND a.pillar.id = :pillarId) OR (:slotId IS NOT NULL AND a.gardenSlot.id = :slotId)) " +
            "AND a.sensorType = :sensorType " +
-           "AND (a.status IN :statuses OR a.createdAt >= :cutoffTime) " +
+           "AND a.status IN :statuses " +
+           "AND a.createdAt >= :cutoffTime " +
            "ORDER BY a.createdAt DESC")
     List<Alert> findActiveOrRecentAlerts(
             @Param("pillarId") Long pillarId,

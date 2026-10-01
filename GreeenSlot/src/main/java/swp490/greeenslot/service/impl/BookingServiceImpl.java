@@ -111,7 +111,8 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public BookingResponseDTO createBooking(BookingRequestDTO request, String username, String ipAddress) {
-        User user = userRepository.findByUsernameOrEmail(username)
+        User user = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
 
         GardenSlot slot = gardenSlotRepository.findByIdForUpdate(request.getSlotId())
@@ -457,7 +458,8 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public BookingResponseDTO extendRental(ExtensionRequestDTO request, String username, String ipAddress) {
-        User user = userRepository.findByUsernameOrEmail(username)
+        User user = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
 
         SlotRental rental = slotRentalRepository.findById(request.getRentalId())
@@ -519,7 +521,8 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional(readOnly = true)
     public AddPillarsPreviewDTO previewAddPillars(Long rentalId, int smallCount, int mediumCount, int largeCount, String username) {
-        User user = userRepository.findByUsernameOrEmail(username)
+        User user = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
 
         SlotRental rental = slotRentalRepository.findById(rentalId)
@@ -598,7 +601,8 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public BookingResponseDTO addPillars(Long rentalId, AddPillarsRequestDTO request, String username, String ipAddress) {
-        User user = userRepository.findByUsernameOrEmail(username)
+        User user = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
 
         SlotRental rental = slotRentalRepository.findById(rentalId)
@@ -1044,7 +1048,9 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional(readOnly = true)
     public List<RentalHistoryDTO> getRentalHistory(String username) {
-        User currentUser = userRepository.findByUsernameOrEmail(username).orElse(null);
+        User currentUser = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
+                .orElse(null);
 
         List<SlotRental> rentals;
         List<PaymentTransaction> allTxns;

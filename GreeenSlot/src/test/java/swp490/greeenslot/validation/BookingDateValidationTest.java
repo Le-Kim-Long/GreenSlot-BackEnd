@@ -47,6 +47,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class BookingDateValidationTest {
@@ -398,7 +399,7 @@ class BookingDateValidationTest {
 
         when(userRepository.findByRoleNameAndLocation(swp490.greeenslot.entity.ERole.ROLE_LOCATION_MANAGER, 5L))
                 .thenReturn(List.of(manager));
-        when(userRepository.findByRoleNameAndLocation(swp490.greeenslot.entity.ERole.ROLE_GARDEN_STAFF, 5L))
+        lenient().when(userRepository.findByRoleNameAndLocation(swp490.greeenslot.entity.ERole.ROLE_GARDEN_STAFF, 5L))
                 .thenReturn(Collections.emptyList());
 
         SlotRental savedRental = new SlotRental();

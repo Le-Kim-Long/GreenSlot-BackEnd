@@ -272,14 +272,17 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
     @Override
     public List<GardeningTask> getMyTasks(String username) {
-        List<GardeningTask> myTasks = gardeningTaskRepository.findByAssignedStaffUsernameOrderByCreatedAtDesc(username);
+        User staff = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
+                .orElse(null);
+        if (staff == null) {
+            return Collections.emptyList();
+        }
+        List<GardeningTask> myTasks = gardeningTaskRepository.findByAssignedStaffIdOrderByCreatedAtDesc(staff.getId());
         if (staffScheduleRepository == null) {
             return myTasks;
         }
-        User staff = userRepository.findByUsername(username).orElse(null);
-        if (staff == null) {
-            return myTasks;
-        }
+
         java.time.LocalDate today = java.time.LocalDate.now();
         List<StaffSchedule> staffTodaySchedules = staffScheduleRepository.findActiveSchedulesOnDate(today).stream()
                 .filter(s -> s.getStaff() != null && s.getStaff().getId().equals(staff.getId()))
@@ -298,11 +301,15 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             }
             Long slotId = task.getTargetSlot().getId();
             Long locId = getSlotLocationId(task.getTargetSlot());
-            // Chỉ hiển thị task cảnh báo cảm biến nếu hôm nay staff có lịch trực tại đúng ô này hoặc trực cơ sở này
-            return staffTodaySchedules.stream().anyMatch(sch ->
-                    (sch.getGardenSlot() != null && sch.getGardenSlot().getId().equals(slotId)) ||
-                    (sch.getGardenSlot() == null && sch.getLocation() != null && sch.getLocation().getId().equals(locId))
-            );
+            // Nếu hôm nay staff có lịch trực ca: kiểm tra ca trực trùng ô hoặc thuộc cơ sở này
+            if (!staffTodaySchedules.isEmpty()) {
+                return staffTodaySchedules.stream().anyMatch(sch ->
+                        (sch.getGardenSlot() != null && sch.getGardenSlot().getId().equals(slotId)) ||
+                        (sch.getLocation() != null && sch.getLocation().getId().equals(locId))
+                );
+            }
+            // Nếu không có cấu hình lịch trực ca riêng hôm nay, nhưng task đã được hệ thống đích danh phân công cho staff: hiển thị để staff xử lý
+            return true;
         }).collect(Collectors.toList());
     }
 
