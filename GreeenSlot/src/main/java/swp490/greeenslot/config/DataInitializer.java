@@ -490,6 +490,16 @@ public class DataInitializer {
                 User staffUser = userRepository.findByUsername("garden_staff").orElse(null);
 
                 if (location1 != null && staffUser != null) {
+                    StaffSchedule scheduleToday = new StaffSchedule();
+                    scheduleToday.setStaff(staffUser);
+                    scheduleToday.setLocation(location1);
+                    scheduleToday.setScheduleDate(LocalDate.now());
+                    scheduleToday.setStartTime(LocalTime.of(7, 0));
+                    scheduleToday.setEndTime(LocalTime.of(19, 0));
+                    scheduleToday.setNotes("Trực ca hôm nay tại Cơ sở Quận 1");
+                    scheduleToday.setIsActive(true);
+                    staffScheduleRepository.save(scheduleToday);
+
                     StaffSchedule schedule1 = new StaffSchedule();
                     schedule1.setStaff(staffUser);
                     schedule1.setLocation(location1);

@@ -25,6 +25,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional(readOnly = true)
     public List<Notification> getUserNotifications(String username) {
         User user = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
                 .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
         return notificationRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
     }
@@ -33,6 +34,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     public Notification markAsRead(Long notificationId, String username) {
         User user = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
                 .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
 
         Notification notification = notificationRepository.findById(notificationId)
@@ -94,6 +96,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional(readOnly = true)
     public long getUnreadCount(String username) {
         User user = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
                 .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
         return getUnreadCount(user.getId());
     }
@@ -111,6 +114,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     public int markAllAsRead(String username) {
         User user = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
                 .orElseThrow(() -> new IllegalArgumentException("User not found with username: " + username));
         return markAllAsRead(user.getId());
     }
