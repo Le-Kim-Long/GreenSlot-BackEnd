@@ -253,14 +253,21 @@ class TreePlantingServiceImplTest {
     }
 
     @Test
-    @DisplayName("Should throw IllegalArgumentException when tree is not found")
-    void testCreateRequest_ThrowsException_WhenTreeNotFound() {
+    @DisplayName("Should throw IllegalArgumentException when rental still has an unharvested tree")
+    void testCreateRequest_ThrowsException_WhenRentalStillHasUnharvestedTree() {
+        Tree currentTree = new Tree();
+        currentTree.setId(99L);
+        currentTree.setTreeName("Cải ngọt");
+        activeRental.setTree(currentTree);
+
         when(userRepository.findByUsername("customer1")).thenReturn(Optional.of(user));
         when(slotRentalRepository.findById(100L)).thenReturn(Optional.of(activeRental));
-        when(treeRepository.findById(200L)).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () ->
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
                 treePlantingService.createRequest(validCreateDTO, "customer1")
         );
+
+        assertTrue(ex.getMessage().contains("chưa thu hoạch xong"));
+        verify(treePlantingRequestRepository, never()).save(any(TreePlantingRequest.class));
     }
 }

@@ -353,6 +353,11 @@ public class CustomerServiceImpl implements CustomerService {
                 .findFirst()
                 .orElse(null);
 
+        GardeningTask earlyTask = harvestTasks.stream()
+                .filter(t -> Boolean.TRUE.equals(t.getIsEarlyHarvest()) || (t.getTaskName() != null && t.getTaskName().contains("thu hoạch sớm")))
+                .findFirst()
+                .orElse(null);
+
         String targetPillarCodes = null;
         if (request != null && request.getPillarCode() != null && !request.getPillarCode().isBlank()) {
             targetPillarCodes = request.getPillarCode().trim();
@@ -360,20 +365,22 @@ public class CustomerServiceImpl implements CustomerService {
             targetPillarCodes = task.getPillarCodes().trim();
         } else if (rental.getHarvestPillarCode() != null && !rental.getHarvestPillarCode().isBlank()) {
             targetPillarCodes = rental.getHarvestPillarCode().trim();
-        } else {
-            GardeningTask earlyTask = harvestTasks.stream()
-                    .filter(t -> Boolean.TRUE.equals(t.getIsEarlyHarvest()) || (t.getTaskName() != null && t.getTaskName().contains("thu hoạch sớm")))
-                    .findFirst()
-                    .orElse(null);
-            if (earlyTask != null && earlyTask.getPillarCodes() != null && !earlyTask.getPillarCodes().isBlank()) {
-                targetPillarCodes = earlyTask.getPillarCodes().trim();
-            }
+        } else if (earlyTask != null && earlyTask.getPillarCodes() != null && !earlyTask.getPillarCodes().isBlank()) {
+            targetPillarCodes = earlyTask.getPillarCodes().trim();
         }
 
         if ("SELF".equals(decision)) {
             // Lưu lại lịch sử thu hoạch TRƯỚC khi xóa dữ liệu cây khỏi rental
             if (harvestHistoryService != null) {
-                harvestHistoryService.recordHarvest(rental, "SELF", null, targetPillarCodes);
+                String evidenceImg = rental.getHarvestEvidenceImageUrl();
+                String staffNotes = rental.getHarvestStaffNotes();
+                if (evidenceImg == null && earlyTask != null) {
+                    evidenceImg = earlyTask.getEvidenceImageUrl();
+                }
+                if (staffNotes == null && earlyTask != null) {
+                    staffNotes = earlyTask.getStaffNotes();
+                }
+                harvestHistoryService.recordHarvest(rental, "SELF", null, targetPillarCodes, evidenceImg, staffNotes);
             }
             // Khách tự thu hoạch -> reset cây trên ô đất
             resetHarvestedTree(rental);

@@ -34,4 +34,16 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
     List<Alert> findByCreatedAtBetween(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
     
     List<Alert> findByStatusOrderByCreatedAtDesc(EAlertStatus status);
+
+    @Query("SELECT a FROM Alert a WHERE ((:pillarId IS NOT NULL AND a.pillar.id = :pillarId) OR (:slotId IS NOT NULL AND a.gardenSlot.id = :slotId)) " +
+           "AND a.sensorType = :sensorType " +
+           "AND (a.status IN :statuses OR a.createdAt >= :cutoffTime) " +
+           "ORDER BY a.createdAt DESC")
+    List<Alert> findActiveOrRecentAlerts(
+            @Param("pillarId") Long pillarId,
+            @Param("slotId") Long slotId,
+            @Param("sensorType") String sensorType,
+            @Param("statuses") List<EAlertStatus> statuses,
+            @Param("cutoffTime") LocalDateTime cutoffTime
+    );
 }

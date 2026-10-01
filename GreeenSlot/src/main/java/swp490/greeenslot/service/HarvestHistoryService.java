@@ -19,6 +19,8 @@ public interface HarvestHistoryService {
 
     void recordHarvest(SlotRental rental, String method, User staff, String pillarCodes);
 
+    void recordHarvest(SlotRental rental, String method, User staff, String pillarCodes, String evidenceImageUrl, String staffNotes);
+
     List<HarvestHistory> getMyHistory(String username);
 
     List<HarvestHistory> getHistoryForManager(String username);

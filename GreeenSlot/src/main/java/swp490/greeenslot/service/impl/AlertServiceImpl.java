@@ -44,6 +44,9 @@ public class AlertServiceImpl implements AlertService {
     private FirebaseMessagingService firebaseMessagingService;
 
     @Autowired(required = false)
+    private GardeningTaskRepository gardeningTaskRepository;
+
+    @Autowired(required = false)
     private swp490.greeenslot.service.LocationContextService locationContextService;
 
     private Long getAlertLocationId(Alert alert) {
@@ -141,6 +144,25 @@ public class AlertServiceImpl implements AlertService {
         alert.setStatus(newAlertStatus);
         if (newAlertStatus == EAlertStatus.RESOLVED) {
             alert.setResolvedAt(LocalDateTime.now());
+            // Tự động hoàn thành các GardeningTask khẩn cấp tương ứng cho ô đất này
+            if (alert.getGardenSlot() != null && gardeningTaskRepository != null) {
+                List<GardeningTask> pendingAlertTasks = gardeningTaskRepository.findByTargetSlotIdAndTaskTypeOrderByCreatedAtDesc(
+                        alert.getGardenSlot().getId(), ETaskType.MAINTENANCE);
+                for (GardeningTask t : pendingAlertTasks) {
+                    if (t.getStatus() != ETaskStatus.COMPLETED && t.getStatus() != ETaskStatus.CANCELLED) {
+                        if (t.getTaskName() != null && (t.getTaskName().contains("cảnh báo") || t.getTaskName().contains("Cảnh báo"))) {
+                            t.setStatus(ETaskStatus.COMPLETED);
+                            if (t.getStaffNotes() == null || t.getStaffNotes().isBlank()) {
+                                t.setStaffNotes("Đã xử lý cảnh báo IoT: " + (request.getComment() != null ? request.getComment() : "Hoàn tất"));
+                            }
+                            if (t.getEvidenceImageUrl() == null && request.getEvidenceImageUrl() != null) {
+                                t.setEvidenceImageUrl(request.getEvidenceImageUrl());
+                            }
+                            gardeningTaskRepository.save(t);
+                        }
+                    }
+                }
+            }
         }
         alertRepository.save(alert);
 
