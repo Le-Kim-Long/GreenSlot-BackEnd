@@ -262,7 +262,38 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
     @Override
     public List<GardeningTask> getMyTasks(String username) {
-        return gardeningTaskRepository.findByAssignedStaffUsernameOrderByCreatedAtDesc(username);
+        List<GardeningTask> myTasks = gardeningTaskRepository.findByAssignedStaffUsernameOrderByCreatedAtDesc(username);
+        if (staffScheduleRepository == null) {
+            return myTasks;
+        }
+        User staff = userRepository.findByUsername(username).orElse(null);
+        if (staff == null) {
+            return myTasks;
+        }
+        java.time.LocalDate today = java.time.LocalDate.now();
+        List<StaffSchedule> staffTodaySchedules = staffScheduleRepository.findActiveSchedulesOnDate(today).stream()
+                .filter(s -> s.getStaff() != null && s.getStaff().getId().equals(staff.getId()))
+                .collect(Collectors.toList());
+
+        return myTasks.stream().filter(task -> {
+            boolean isSensorAlertTask = task.getTaskName() != null && (
+                    task.getTaskName().startsWith("Khẩn cấp: Xử lý cảnh báo") ||
+                    task.getTaskName().contains("cảnh báo") ||
+                    task.getTaskName().contains("Cảnh báo"));
+            if (!isSensorAlertTask) {
+                return true;
+            }
+            if (task.getTargetSlot() == null) {
+                return true;
+            }
+            Long slotId = task.getTargetSlot().getId();
+            Long locId = getSlotLocationId(task.getTargetSlot());
+            // Chỉ hiển thị task cảnh báo cảm biến nếu hôm nay staff có lịch trực tại đúng ô này hoặc trực cơ sở này
+            return staffTodaySchedules.stream().anyMatch(sch ->
+                    (sch.getGardenSlot() != null && sch.getGardenSlot().getId().equals(slotId)) ||
+                    (sch.getGardenSlot() == null && sch.getLocation() != null && sch.getLocation().getId().equals(locId))
+            );
+        }).collect(Collectors.toList());
     }
 
     @Override

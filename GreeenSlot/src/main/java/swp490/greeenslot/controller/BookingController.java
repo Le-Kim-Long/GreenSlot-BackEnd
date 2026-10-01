@@ -176,7 +176,8 @@ public class BookingController {
             Principal principal) {
         String decision = body.get("decision");
         String pillarCode = body.get("pillarCode");
-        bookingService.recordHarvestDecision(rentalId, decision, pillarCode, principal.getName());
+        String notes = body.get("notes");
+        bookingService.recordHarvestDecision(rentalId, decision, pillarCode, notes, principal.getName());
         java.util.Map<String, String> response = new java.util.HashMap<>();
         response.put("message", "Harvest decision recorded");
         return ResponseEntity.ok(response);

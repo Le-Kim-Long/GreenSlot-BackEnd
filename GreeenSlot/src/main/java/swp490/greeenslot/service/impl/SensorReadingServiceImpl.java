@@ -269,36 +269,34 @@ public class SensorReadingServiceImpl implements SensorReadingService {
                     alert.setCreatedAt(LocalDateTime.now());
                     Alert savedAlert = alertService.createAlert(alert);
 
-                    // 2. Xác định nhân viên trực ca / phụ trách để giao Task và gửi thông báo
+                    // 2. Xác định nhân viên trực ca / phụ trách theo lịch trực trong ngày để giao Task và gửi thông báo
                     java.util.Map<Long, User> targetStaffMap = new java.util.HashMap<>();
-                    gardeningTaskRepository.findAssignedStaffBySlotId(slot.getId()).forEach(s -> targetStaffMap.put(s.getId(), s));
                     User assignedStaff = null;
                     if (staffScheduleRepository != null) {
-                        List<StaffSchedule> todaySchedules = staffScheduleRepository.findByScheduleDate(java.time.LocalDate.now());
-                        for (StaffSchedule sch : todaySchedules) {
+                        List<StaffSchedule> activeToday = staffScheduleRepository.findActiveSchedulesOnDate(java.time.LocalDate.now());
+                        // Ưu tiên 1: Nhân viên có ca trực hôm nay được gán đúng ô vườn này
+                        for (StaffSchedule sch : activeToday) {
                             if (sch.getGardenSlot() != null && sch.getGardenSlot().getId().equals(slot.getId()) && sch.getStaff() != null) {
                                 targetStaffMap.put(sch.getStaff().getId(), sch.getStaff());
-                                if (assignedStaff == null) assignedStaff = sch.getStaff();
+                                if (assignedStaff == null) {
+                                    assignedStaff = sch.getStaff();
+                                }
                             }
                         }
+                        // Ưu tiên 2: Nếu chưa có ai trực riêng ô này, tìm nhân viên trực chung toàn cơ sở hôm nay (slotId is null)
                         if (assignedStaff == null && slot.getLocation() != null) {
                             Long locId = slot.getLocation().getId();
-                            assignedStaff = todaySchedules.stream()
-                                    .filter(sch -> sch.getLocation() != null && sch.getLocation().getId().equals(locId) && sch.getStaff() != null)
-                                    .map(StaffSchedule::getStaff)
-                                    .findFirst()
-                                    .orElse(null);
+                            for (StaffSchedule sch : activeToday) {
+                                if (sch.getLocation() != null && sch.getLocation().getId().equals(locId) && sch.getGardenSlot() == null && sch.getStaff() != null) {
+                                    targetStaffMap.put(sch.getStaff().getId(), sch.getStaff());
+                                    if (assignedStaff == null) {
+                                        assignedStaff = sch.getStaff();
+                                    }
+                                }
+                            }
                         }
                     }
-                    if (assignedStaff == null && !targetStaffMap.isEmpty()) {
-                        assignedStaff = targetStaffMap.values().iterator().next();
-                    }
-                    if (assignedStaff == null && slot.getLocation() != null) {
-                        List<User> locationStaff = userRepository.findByRoleNameAndLocation(ERole.ROLE_GARDEN_STAFF, slot.getLocation().getId());
-                        if (!locationStaff.isEmpty()) {
-                            assignedStaff = locationStaff.get(0);
-                        }
-                    }
+                    // Nếu hôm nay KHÔNG CÓ nhân viên nào trực ở ô/cơ sở này: assignedStaff = null (chờ Manager phân công, không gán bừa)
                     if (assignedStaff != null) {
                         targetStaffMap.put(assignedStaff.getId(), assignedStaff);
                     }

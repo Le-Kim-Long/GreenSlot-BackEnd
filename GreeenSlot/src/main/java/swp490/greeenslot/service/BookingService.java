@@ -21,6 +21,7 @@ public interface BookingService {
     BookingResponseDTO getOrRegeneratePaymentUrl(Long rentalId, String username, String ipAddress, boolean isMobile, String mobileRedirectUrl);
     void recordHarvestDecision(Long rentalId, String decision, String username);
     void recordHarvestDecision(Long rentalId, String decision, String pillarCode, String username);
+    void recordHarvestDecision(Long rentalId, String decision, String pillarCode, String notes, String username);
     void confirmPayment(Long rentalId, String username);
     swp490.greeenslot.dto.AddPillarsPreviewDTO previewAddPillars(Long rentalId, int smallCount, int mediumCount, int largeCount, String username);
     BookingResponseDTO addPillars(Long rentalId, swp490.greeenslot.dto.AddPillarsRequestDTO request, String username, String ipAddress);
