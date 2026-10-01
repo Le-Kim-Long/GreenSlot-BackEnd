@@ -111,7 +111,7 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public BookingResponseDTO createBooking(BookingRequestDTO request, String username, String ipAddress) {
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByUsernameOrEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
 
         GardenSlot slot = gardenSlotRepository.findByIdForUpdate(request.getSlotId())
@@ -451,7 +451,7 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public BookingResponseDTO extendRental(ExtensionRequestDTO request, String username, String ipAddress) {
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByUsernameOrEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
 
         SlotRental rental = slotRentalRepository.findById(request.getRentalId())
@@ -513,7 +513,7 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional(readOnly = true)
     public AddPillarsPreviewDTO previewAddPillars(Long rentalId, int smallCount, int mediumCount, int largeCount, String username) {
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByUsernameOrEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
 
         SlotRental rental = slotRentalRepository.findById(rentalId)
@@ -592,7 +592,7 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public BookingResponseDTO addPillars(Long rentalId, AddPillarsRequestDTO request, String username, String ipAddress) {
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByUsernameOrEmail(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
 
         SlotRental rental = slotRentalRepository.findById(rentalId)
@@ -1038,10 +1038,20 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional(readOnly = true)
     public List<RentalHistoryDTO> getRentalHistory(String username) {
-        List<SlotRental> rentals = slotRentalRepository.findByUserUsernameWithSlotAndPillarAndLocation(username);
-        
+        User currentUser = userRepository.findByUsernameOrEmail(username).orElse(null);
+
+        List<SlotRental> rentals;
+        List<PaymentTransaction> allTxns;
+
+        if (currentUser != null) {
+            rentals = slotRentalRepository.findByUserIdWithSlotAndPillarAndLocation(currentUser.getId());
+            allTxns = paymentTransactionRepository.findAllTransactionsByUserId(currentUser.getId());
+        } else {
+            rentals = slotRentalRepository.findByUserUsernameWithSlotAndPillarAndLocation(username);
+            allTxns = paymentTransactionRepository.findAllTransactionsForUser(username);
+        }
+
         // Fetch all transactions for this user's rentals in one query and group them by rental ID
-        List<PaymentTransaction> allTxns = paymentTransactionRepository.findAllTransactionsForUser(username);
         Map<Long, List<PaymentTransaction>> txnsByRentalId = allTxns.stream()
                 .filter(t -> t.getRental() != null)
                 .collect(Collectors.groupingBy(t -> t.getRental().getId()));

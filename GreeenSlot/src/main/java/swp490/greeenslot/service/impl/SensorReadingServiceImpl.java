@@ -21,7 +21,9 @@ import java.time.LocalDateTime;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -494,10 +496,27 @@ public class SensorReadingServiceImpl implements SensorReadingService {
 
         Long pillarId = pillarOpt.get().getId();
 
-        return Arrays.stream(ESensorType.values())
-                .map(type -> sensorReadingRepository.findFirstByPillarIdAndSensorTypeOrderByRecordedAtDesc(pillarId, type))
-                .filter(Optional::isPresent)
-                .map(latest -> SensorReadingResponseDTO.fromEntity(latest.get()))
+        // 1-query optimization: Lay toi da 50 ban ghi moi nhat cua tru va gom nhom theo loai cam bien
+        List<SensorReading> recent = sensorReadingRepository.findTop50ByPillarIdOrderByRecordedAtDesc(pillarId);
+        Map<ESensorType, SensorReading> latestByType = new LinkedHashMap<>();
+        for (SensorReading r : recent) {
+            if (r.getSensorType() != null) {
+                latestByType.putIfAbsent(r.getSensorType(), r);
+            }
+        }
+
+        // Neu van con loai cam bien chua xuat hien trong 50 ban ghi gan nhat, fallback rieng cho loai do
+        if (latestByType.size() < ESensorType.values().length) {
+            for (ESensorType type : ESensorType.values()) {
+                if (!latestByType.containsKey(type)) {
+                    sensorReadingRepository.findFirstByPillarIdAndSensorTypeOrderByRecordedAtDesc(pillarId, type)
+                            .ifPresent(r -> latestByType.put(type, r));
+                }
+            }
+        }
+
+        return latestByType.values().stream()
+                .map(SensorReadingResponseDTO::fromEntity)
                 .toList();
     }
 

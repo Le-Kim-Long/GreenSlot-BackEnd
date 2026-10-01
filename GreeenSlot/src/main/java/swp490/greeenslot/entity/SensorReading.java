@@ -7,7 +7,10 @@ import java.time.Instant;
 @Table(name = "sensor_readings", indexes = {
         @Index(name = "idx_sensor_device", columnList = "device_id"),
         @Index(name = "idx_sensor_type", columnList = "sensor_type"),
-        @Index(name = "idx_sensor_recorded_at", columnList = "recorded_at")
+        @Index(name = "idx_sensor_recorded_at", columnList = "recorded_at"),
+        @Index(name = "idx_sensor_pillar_id", columnList = "pillar_id"),
+        @Index(name = "idx_sensor_pillar_recorded_at", columnList = "pillar_id, recorded_at"),
+        @Index(name = "idx_sensor_pillar_type_time", columnList = "pillar_id, sensor_type, recorded_at")
 })
 public class SensorReading {
 
