@@ -60,6 +60,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<MessageResponseDTO> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         logger.error("Database constraint violation: {}", ex.getMessage(), ex);
+        String msg = ex.getMessage();
+        if (msg != null) {
+            String lower = msg.toLowerCase();
+            if (lower.contains("check constraint") || lower.contains("check_constraint")) {
+                return ResponseEntity.badRequest().body(new MessageResponseDTO(
+                        "Dữ liệu không đáp ứng ràng buộc kiểm tra của hệ thống."
+                ));
+            }
+            if (lower.contains("duplicate key") || lower.contains("unique") || lower.contains("trùng lặp")) {
+                return ResponseEntity.badRequest().body(new MessageResponseDTO(
+                        "Dữ liệu bị trùng lặp hoặc đã tồn tại trong hệ thống."
+                ));
+            }
+        }
         return ResponseEntity.badRequest().body(new MessageResponseDTO(
                 "Không thể thực hiện thao tác vì dữ liệu đang được liên kết với các bản ghi khác trong hệ thống."
         ));
