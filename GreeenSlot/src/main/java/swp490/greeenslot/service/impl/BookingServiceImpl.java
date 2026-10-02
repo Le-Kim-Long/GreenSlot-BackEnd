@@ -1466,11 +1466,17 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
+        Set<String> alreadyHarvestedPillarsNorm = alreadyHarvestedPillars.stream()
+                .map(this::normalizePillarCode)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+
         String targetPillarCodes = null;
         if (pillarCode != null && !pillarCode.isBlank()) {
             for (String p : pillarCode.split(",")) {
                 String trimmed = p.trim();
-                if (!trimmed.isEmpty() && alreadyHarvestedPillars.contains(trimmed)) {
+                String norm = normalizePillarCode(trimmed);
+                if (!norm.isEmpty() && alreadyHarvestedPillarsNorm.contains(norm)) {
                     throw new IllegalArgumentException("Trụ " + trimmed + " đã được thu hoạch trước đó trong vụ mùa này rồi.");
                 }
             }
@@ -1480,12 +1486,16 @@ public class BookingServiceImpl implements BookingService {
             List<String> unharvestedPillars = new ArrayList<>();
             for (Pillar p : rentedPillars) {
                 String c = p.getPillarCode() != null ? p.getPillarCode() : ("Trụ " + p.getId());
-                if (!alreadyHarvestedPillars.contains(c)) {
+                String cNorm = normalizePillarCode(c);
+                if (!alreadyHarvestedPillarsNorm.contains(cNorm)) {
                     unharvestedPillars.add(c);
                 }
             }
             if (unharvestedPillars.isEmpty()) {
-                throw new IllegalArgumentException("Tất cả các trụ trong ô vườn này đều đã được thu hoạch xong. Bạn có thể tiến hành đăng ký gieo trồng lứa cây mới.");
+                // Toàn bộ các trụ đã được thu hoạch xong trong vụ mùa này -> Tự động giải phóng ô đất hoàn toàn để gieo lứa mới
+                resetHarvestedTree(rental);
+                slotRentalRepository.save(rental);
+                return;
             }
             targetPillarCodes = String.join(", ", unharvestedPillars);
         }
@@ -1515,21 +1525,28 @@ public class BookingServiceImpl implements BookingService {
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
                     .collect(Collectors.toSet());
+            Set<String> newlyHarvestedNorm = newlyHarvestedCodes.stream()
+                    .map(this::normalizePillarCode)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toSet());
+
             for (Pillar p : rentedPillars) {
                 String code = p.getPillarCode() != null ? p.getPillarCode() : ("Trụ " + p.getId());
-                if (newlyHarvestedCodes.contains(code)) {
+                String codeNorm = normalizePillarCode(code);
+                if (newlyHarvestedNorm.contains(codeNorm)) {
                     p.setDefaultTree(null);
                     pillarRepository.save(p);
                 }
             }
 
             // 3. Kiểm tra xem sau đợt này còn trụ nào chưa thu hoạch không
-            alreadyHarvestedPillars.addAll(newlyHarvestedCodes);
-            Set<String> allPillarCodesInRental = rentedPillars.stream()
-                    .map(p -> p.getPillarCode() != null ? p.getPillarCode() : ("Trụ " + p.getId()))
+            alreadyHarvestedPillarsNorm.addAll(newlyHarvestedNorm);
+            Set<String> allPillarCodesInRentalNorm = rentedPillars.stream()
+                    .map(p -> normalizePillarCode(p.getPillarCode() != null ? p.getPillarCode() : ("Trụ " + p.getId())))
+                    .filter(s -> !s.isEmpty())
                     .collect(Collectors.toSet());
 
-            boolean allHarvested = allPillarCodesInRental.isEmpty() || alreadyHarvestedPillars.containsAll(allPillarCodesInRental);
+            boolean allHarvested = allPillarCodesInRentalNorm.isEmpty() || alreadyHarvestedPillarsNorm.containsAll(allPillarCodesInRentalNorm);
             if (allHarvested) {
                 // Toàn bộ các trụ đã được thu hoạch xong -> Giải phóng ô đất hoàn toàn để gieo lứa mới
                 resetHarvestedTree(rental);
@@ -1684,6 +1701,11 @@ public class BookingServiceImpl implements BookingService {
         rental.setHarvestPillarCode(null);
         rental.setHarvestEvidenceImageUrl(null);
         rental.setHarvestStaffNotes(null);
+    }
+
+    private String normalizePillarCode(String code) {
+        if (code == null) return "";
+        return code.trim().replaceAll("^(?i)trụ\\s*", "").trim();
     }
 
     private void activateAddPillars(String txnRef) {

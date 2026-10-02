@@ -898,9 +898,37 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             return;
         }
 
+        // Tự động duyệt hàng loạt tất cả các task đề xuất thu hoạch sớm còn lại của cùng ô vườn này
+        Set<String> allEarlyPillarCodes = new java.util.LinkedHashSet<>();
+        if (task.getPillarCodes() != null && !task.getPillarCodes().isBlank()) {
+            Arrays.stream(task.getPillarCodes().split(",")).map(String::trim).filter(s -> !s.isEmpty()).forEach(allEarlyPillarCodes::add);
+        }
+
+        if (task.getTargetSlot() != null && task.getTargetSlot().getId() != null) {
+            List<GardeningTask> siblingHarvestTasks = gardeningTaskRepository.findByTargetSlotIdAndTaskTypeOrderByCreatedAtDesc(
+                    task.getTargetSlot().getId(), ETaskType.HARVEST
+            );
+            for (GardeningTask sibling : siblingHarvestTasks) {
+                if (!sibling.getId().equals(task.getId()) && sibling.getStatus() == ETaskStatus.PENDING_APPROVAL) {
+                    boolean isSiblingEarly = Boolean.TRUE.equals(sibling.getIsEarlyHarvest())
+                            || (sibling.getTaskName() != null && sibling.getTaskName().contains("thu hoạch sớm"));
+                    if (isSiblingEarly) {
+                        sibling.setStatus(ETaskStatus.COMPLETED);
+                        sibling.setRejectionReason(null);
+                        gardeningTaskRepository.save(sibling);
+                        if (sibling.getPillarCodes() != null && !sibling.getPillarCodes().isBlank()) {
+                            Arrays.stream(sibling.getPillarCodes().split(",")).map(String::trim).filter(s -> !s.isEmpty()).forEach(allEarlyPillarCodes::add);
+                        }
+                    }
+                }
+            }
+        }
+
+        String finalPillarCodes = allEarlyPillarCodes.isEmpty() ? task.getPillarCodes() : String.join(", ", allEarlyPillarCodes);
+
         rental.setHarvestNotifiedAt(LocalDateTime.now());
         rental.setHarvestDecision(null);
-        rental.setHarvestPillarCode(task.getPillarCodes());
+        rental.setHarvestPillarCode(finalPillarCodes);
         rental.setHarvestEvidenceImageUrl(task.getEvidenceImageUrl());
         rental.setHarvestStaffNotes(task.getStaffNotes());
         slotRentalRepository.save(rental);
@@ -908,7 +936,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         String staffName = task.getAssignedStaff() != null ? task.getAssignedStaff().getFullName() : "Nhân viên làm vườn";
         String slotNumber = task.getTargetSlot().getSlotNumber();
         String treeName = task.getTreeName() != null && !task.getTreeName().isBlank() ? task.getTreeName() : (rental.getTree() != null ? rental.getTree().getTreeName() : "cây trồng");
-        String pillarText = task.getPillarCodes() != null && !task.getPillarCodes().isBlank() ? ("Trụ " + task.getPillarCodes()) : "Toàn bộ trụ";
+        String pillarText = finalPillarCodes != null && !finalPillarCodes.isBlank() ? (finalPillarCodes.startsWith("Trụ") ? finalPillarCodes : ("Trụ " + finalPillarCodes)) : "Toàn bộ trụ";
 
         String message = String.format(
                 "Quản lý đã phê duyệt đề xuất thu hoạch sớm: Cây %s tại ô đất %s (%s) đã sẵn sàng thu hoạch. Bạn muốn tự thu hoạch hay nhờ nhân viên thu hoạch giúp?",
@@ -1014,11 +1042,17 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             }
         }
 
-        Set<String> allPillarsInRental = rentedPillars.stream()
-                .map(p -> p.getPillarCode() != null ? p.getPillarCode() : ("Trụ " + p.getId()))
+        Set<String> allPillarsInRentalNorm = rentedPillars.stream()
+                .map(p -> normalizePillarCode(p.getPillarCode() != null ? p.getPillarCode() : ("Trụ " + p.getId())))
+                .filter(s -> !s.isEmpty())
                 .collect(Collectors.toSet());
 
-        boolean allHarvested = allPillarsInRental.isEmpty() || allHarvestedPillars.containsAll(allPillarsInRental);
+        Set<String> allHarvestedNorm = allHarvestedPillars.stream()
+                .map(this::normalizePillarCode)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+
+        boolean allHarvested = allPillarsInRentalNorm.isEmpty() || allHarvestedNorm.containsAll(allPillarsInRentalNorm);
         if (allHarvested) {
             // Toàn bộ các trụ đã được thu hoạch xong -> Giải phóng ô đất hoàn toàn để gieo lứa mới
             rental.setTree(null);
@@ -1416,5 +1450,10 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         }
 
         return savedTask;
+    }
+
+    private String normalizePillarCode(String code) {
+        if (code == null) return "";
+        return code.trim().replaceAll("^(?i)trụ\\s*", "").trim();
     }
 }
