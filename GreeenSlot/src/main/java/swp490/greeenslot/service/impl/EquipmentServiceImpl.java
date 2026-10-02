@@ -89,7 +89,8 @@ public class EquipmentServiceImpl implements EquipmentService {
         }
 
         Pillar pillar = null;
-        if (dto.getPillarId() != null && dto.getPillarId() > 0) {
+        EEquipmentStatus status = dto.getStatus() != null ? EEquipmentStatus.valueOf(dto.getStatus().toUpperCase()) : EEquipmentStatus.AVAILABLE;
+        if (dto.getPillarId() != null && dto.getPillarId() > 0 && status != EEquipmentStatus.MAINTENANCE && status != EEquipmentStatus.BROKEN) {
             pillar = pillarRepository.findById(dto.getPillarId())
                     .orElseThrow(() -> new RuntimeException("Pillar not found with id: " + dto.getPillarId()));
             if (pillar.getLocation() != null) {
@@ -100,9 +101,13 @@ public class EquipmentServiceImpl implements EquipmentService {
                     throw new IllegalArgumentException("Trụ đã chọn không thuộc cơ sở này.");
                 }
             }
+            status = EEquipmentStatus.IN_USE;
+        } else {
+            pillar = null;
         }
 
         Equipment equipment = mapToEntity(dto);
+        equipment.setStatus(status);
         equipment.setPillar(pillar);
         equipment.setLocation(location);
 
@@ -138,7 +143,12 @@ public class EquipmentServiceImpl implements EquipmentService {
         }
 
         Pillar newPillar = null;
-        if (dto.getPillarId() != null && dto.getPillarId() > 0) {
+        EEquipmentStatus newStatus = dto.getStatus() != null ? EEquipmentStatus.valueOf(dto.getStatus().toUpperCase()) : existingEquipment.getStatus();
+
+        if (newStatus == EEquipmentStatus.AVAILABLE || newStatus == EEquipmentStatus.MAINTENANCE || newStatus == EEquipmentStatus.BROKEN) {
+            // Thiết bị trong kho, bảo trì hoặc hỏng -> Bắt buộc ngắt kết nối với trụ
+            newPillar = null;
+        } else if (dto.getPillarId() != null && dto.getPillarId() > 0) {
             newPillar = pillarRepository.findById(dto.getPillarId())
                     .orElseThrow(() -> new RuntimeException("Pillar not found with id: " + dto.getPillarId()));
             if (newPillar.getLocation() != null) {
@@ -149,9 +159,11 @@ public class EquipmentServiceImpl implements EquipmentService {
                     throw new IllegalArgumentException("Trụ đã chọn không thuộc cơ sở này.");
                 }
             }
+            newStatus = EEquipmentStatus.IN_USE;
         }
 
         updateEntityFromDTO(existingEquipment, dto);
+        existingEquipment.setStatus(newStatus);
         existingEquipment.setPillar(newPillar);
         if (location != null) {
             existingEquipment.setLocation(location);
@@ -293,8 +305,13 @@ public class EquipmentServiceImpl implements EquipmentService {
         dto.setSerialNumber(equipment.getSerialNumber());
         dto.setDescription(equipment.getDescription());
         dto.setStatus(equipment.getStatus() != null ? equipment.getStatus().name() : null);
-        dto.setPillarId(equipment.getPillar() != null ? equipment.getPillar().getId() : null);
-        dto.setPillarCode(equipment.getPillar() != null ? equipment.getPillar().getPillarCode() : null);
+        if (equipment.getStatus() == EEquipmentStatus.IN_USE) {
+            dto.setPillarId(equipment.getPillar() != null ? equipment.getPillar().getId() : null);
+            dto.setPillarCode(equipment.getPillar() != null ? equipment.getPillar().getPillarCode() : null);
+        } else {
+            dto.setPillarId(null);
+            dto.setPillarCode(null);
+        }
         dto.setLocationId(locId);
         dto.setLocationName(locName);
         dto.setPurchaseDate(equipment.getPurchaseDate());

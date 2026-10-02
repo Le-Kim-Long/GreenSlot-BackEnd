@@ -59,6 +59,9 @@ public class TreePlantingServiceImpl implements TreePlantingService {
     @Autowired(required = false)
     private swp490.greeenslot.service.LocationContextService locationContextService;
 
+    @Autowired(required = false)
+    private swp490.greeenslot.service.FirebaseMessagingService firebaseMessagingService;
+
     private Long getRequestLocationId(TreePlantingRequest request) {
         if (request != null && request.getRental() != null && request.getRental().getGardenSlot() != null) {
             GardenSlot slot = request.getRental().getGardenSlot();
@@ -500,7 +503,7 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         
         TreePlantingRequest updatedRequest = treePlantingRequestRepository.save(request);
 
-        // Notify customer about rejected planting request
+        // Notify customer about rejected planting request with refund details
         if (notificationService != null && updatedRequest.getRequestedBy() != null) {
             String slotNumber = (updatedRequest.getRental() != null && updatedRequest.getRental().getGardenSlot() != null)
                     ? updatedRequest.getRental().getGardenSlot().getSlotNumber() : "N/A";
@@ -508,8 +511,17 @@ public class TreePlantingServiceImpl implements TreePlantingService {
             String pillarDesc = updatedRequest.getTargetPillar() != null ? ("Trụ " + updatedRequest.getTargetPillar().getPillarCode()) : "Toàn bộ các trụ";
             String locName = getRequestLocationName(updatedRequest);
             String title = "Yêu cầu trồng cây bị từ chối: Ô " + slotNumber;
-            String message = String.format("Yêu cầu trồng giống %s tại ô %s (%s, Cơ sở: %s) đã bị từ chối. Lý do: %s",
-                    treeName, slotNumber, pillarDesc, locName != null ? locName : "N/A", reason != null ? reason : "Không có lý do cụ thể");
+
+            String refundMsg = "";
+            java.math.BigDecimal reqAmount = updatedRequest.getAmount();
+            if (reqAmount != null && reqAmount.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                refundMsg = String.format(" Số tiền mua phôi giống (%,d đ) đã thanh toán sẽ được hoàn trả lại cho bạn. Ban quản lý cơ sở sẽ liên hệ hoàn tiền qua STK ngân hàng trong vòng 24h làm việc.",
+                        reqAmount.longValue());
+            }
+
+            String message = String.format("Yêu cầu trồng giống %s tại ô %s (%s, Cơ sở: %s) đã bị từ chối. Lý do: %s.%s",
+                    treeName, slotNumber, pillarDesc, locName != null ? locName : "N/A",
+                    reason != null ? reason : "Không có lý do cụ thể", refundMsg);
 
             notificationService.createNotification(
                     updatedRequest.getRequestedBy().getId(),
@@ -519,6 +531,38 @@ public class TreePlantingServiceImpl implements TreePlantingService {
                     updatedRequest.getId(),
                     "/dashboard/customer/tree-planting"
             );
+
+            if (firebaseMessagingService != null) {
+                firebaseMessagingService.sendPushNotification(
+                        updatedRequest.getRequestedBy().getId(),
+                        title,
+                        message
+                );
+            }
+
+            // Gửi thông báo nhắc việc cho Quản lý cơ sở để xử lý hoàn tiền thực tế cho khách
+            if (reqAmount != null && reqAmount.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                Long locId = getRequestLocationId(updatedRequest);
+                List<User> managers = locId != null
+                        ? userRepository.findByRoleNameAndLocation(ERole.ROLE_LOCATION_MANAGER, locId)
+                        : List.of();
+                if (managers.isEmpty()) {
+                    managers = userRepository.findByRoleName(ERole.ROLE_MANAGER);
+                }
+                String custName = updatedRequest.getRequestedBy().getFullName() != null
+                        ? updatedRequest.getRequestedBy().getFullName() : updatedRequest.getRequestedBy().getUsername();
+                for (User m : managers) {
+                    notificationService.createNotification(
+                            m.getId(),
+                            "Cần hoàn tiền cho khách: Ô " + slotNumber,
+                            String.format("Yêu cầu trồng cây #%d của khách hàng %s tại ô %s đã bị từ chối. Cần hoàn trả số tiền %,d đ cho khách qua STK ngân hàng trong vòng 24h làm việc.",
+                                    updatedRequest.getId(), custName, slotNumber, reqAmount.longValue()),
+                            "REFUND_REQUIRED",
+                            updatedRequest.getId(),
+                            "/dashboard/manager/tree-planting"
+                    );
+                }
+            }
         }
 
         return mapToDTO(updatedRequest);
