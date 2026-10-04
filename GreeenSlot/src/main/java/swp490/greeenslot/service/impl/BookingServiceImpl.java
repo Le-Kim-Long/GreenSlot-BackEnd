@@ -1402,7 +1402,7 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     @Transactional
-    public void recordHarvestDecision(Long rentalId, String decision, String pillarCode, String notes, String username) {
+    public boolean recordHarvestDecision(Long rentalId, String decision, String pillarCode, String notes, String username) {
         if (!"SELF".equals(decision) && !"STAFF".equals(decision)) {
             throw new IllegalArgumentException("Decision must be either SELF or STAFF");
         }
@@ -1486,7 +1486,7 @@ public class BookingServiceImpl implements BookingService {
                 boolean taskForSamePillar = task != null && task.getPillarCodes() != null
                         && normalizePillarCode(task.getPillarCodes()).equals(normalizePillarCode(pillarCode));
                 clearStaleHarvestNotice(rental, taskForSamePillar ? task : null);
-                return;
+                return false;
             }
             targetPillarCodes = String.join(", ", remainingPillars);
         } else {
@@ -1503,7 +1503,7 @@ public class BookingServiceImpl implements BookingService {
                 // Toàn bộ các trụ đã được thu hoạch xong trong vụ mùa này -> Tự động giải phóng ô đất hoàn toàn để gieo lứa mới
                 resetHarvestedTree(rental);
                 slotRentalRepository.save(rental);
-                return;
+                return false;
             }
             targetPillarCodes = String.join(", ", unharvestedPillars);
         }
@@ -1692,6 +1692,7 @@ public class BookingServiceImpl implements BookingService {
                 }
             }
         }
+        return true;
     }
 
     /**
