@@ -21,4 +21,7 @@ public interface EquipmentService {
     List<EquipmentDTO> getEquipmentByStatus(String status);
     
     EquipmentDTO updateStock(Long id, Integer additionalQuantity);
+
+    // Gán nhiều thiết bị IoT (lấy từ kho hoặc khai báo mới) vào 1 trụ trong cùng 1 transaction
+    List<EquipmentDTO> bindEquipmentsToPillar(Long pillarId, List<swp490.greeenslot.dto.PillarEquipmentBindingDTO> bindings);
 }

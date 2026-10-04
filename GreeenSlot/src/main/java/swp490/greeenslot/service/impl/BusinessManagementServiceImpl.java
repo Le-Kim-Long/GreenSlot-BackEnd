@@ -131,6 +131,10 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         Location location = locationRepository.findById(dto.getLocationId())
                 .orElseThrow(() -> new IllegalArgumentException("Location not found with ID " + dto.getLocationId()));
 
+        if (dto.getPillarCode() != null && pillarRepository.findByPillarCode(dto.getPillarCode().trim()).isPresent()) {
+            throw new IllegalArgumentException("Mã trụ '" + dto.getPillarCode().trim() + "' đã tồn tại. Vui lòng dùng mã khác.");
+        }
+
         Pillar pillar = new Pillar();
         pillar.setPillarCode(dto.getPillarCode());
         
@@ -200,6 +204,13 @@ public class BusinessManagementServiceImpl implements BusinessManagementService 
         Location location = locationRepository.findById(dto.getLocationId())
                 .orElseThrow(() -> new IllegalArgumentException("Location not found with ID " + dto.getLocationId()));
 
+        if (dto.getPillarCode() != null) {
+            pillarRepository.findByPillarCode(dto.getPillarCode().trim())
+                    .filter(other -> !other.getId().equals(id))
+                    .ifPresent(other -> {
+                        throw new IllegalArgumentException("Mã trụ '" + dto.getPillarCode().trim() + "' đã tồn tại. Vui lòng dùng mã khác.");
+                    });
+        }
         pillar.setPillarCode(dto.getPillarCode());
         if (dto.getStatus() != null) {
             try {

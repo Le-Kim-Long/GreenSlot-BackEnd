@@ -72,6 +72,15 @@ public class EquipmentController {
         return ResponseEntity.ok(equipmentService.updateStock(id, additionalQuantity));
     }
 
+    @PostMapping("/pillar/{pillarId}/bind")
+    @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
+    @Operation(summary = "Bind multiple IoT devices (from stock or newly declared) to a pillar")
+    public ResponseEntity<List<EquipmentDTO>> bindEquipmentsToPillar(
+            @PathVariable Long pillarId,
+            @RequestBody List<swp490.greeenslot.dto.PillarEquipmentBindingDTO> bindings) {
+        return ResponseEntity.ok(equipmentService.bindEquipmentsToPillar(pillarId, bindings));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_LOCATION_MANAGER') or hasRole('ROLE_MANAGER') or hasRole('ROLE_ADMIN')")
     @Operation(summary = "Delete equipment")

@@ -288,6 +288,102 @@ public class EquipmentServiceImpl implements EquipmentService {
         }
     }
 
+    @Override
+    @Transactional
+    public List<EquipmentDTO> bindEquipmentsToPillar(Long pillarId, List<swp490.greeenslot.dto.PillarEquipmentBindingDTO> bindings) {
+        if (bindings == null || bindings.isEmpty()) {
+            throw new IllegalArgumentException("Vui lòng chọn ít nhất 1 thiết bị để gắn vào trụ.");
+        }
+        Pillar pillar = pillarRepository.findById(pillarId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy trụ ID: " + pillarId));
+        Location pillarLocation = pillar.getLocation();
+        if (pillarLocation != null) {
+            locationContextService.validateLocationAccess(pillarLocation.getId());
+        }
+
+        List<Equipment> boundEquipments = new java.util.ArrayList<>();
+        for (swp490.greeenslot.dto.PillarEquipmentBindingDTO binding : bindings) {
+            int qty = (binding.getQuantity() != null && binding.getQuantity() > 0) ? binding.getQuantity() : 1;
+            boolean fromStock = binding.getEquipmentId() != null && binding.getEquipmentId() > 0;
+            boundEquipments.add(fromStock
+                    ? takeFromStock(binding.getEquipmentId(), qty, pillar)
+                    : declareNewDevice(binding, qty, pillar));
+        }
+        return boundEquipments.stream().map(this::mapToDTO).collect(Collectors.toList());
+    }
+
+    // Lấy thiết bị từ kho: đủ số lượng thì chuyển nguyên lô, còn dư thì tách lô (giữ phần còn lại trong kho)
+    private Equipment takeFromStock(Long equipmentId, int qty, Pillar pillar) {
+        Equipment stockEq = equipmentRepository.findById(equipmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thiết bị ID: " + equipmentId));
+        if (stockEq.getPillar() != null || stockEq.getStatus() != EEquipmentStatus.AVAILABLE) {
+            throw new IllegalArgumentException("Thiết bị '" + stockEq.getEquipmentName() + "' không còn trong kho sẵn sàng.");
+        }
+        // Chỉ được lấy thiết bị của chính cơ sở trụ hoặc kho chung "Tất cả cơ sở" (không gắn cơ sở)
+        Long stockLocId = stockEq.getLocation() != null ? stockEq.getLocation().getId() : null;
+        Long pillarLocId = pillar.getLocation() != null ? pillar.getLocation().getId() : null;
+        if (stockLocId != null && !stockLocId.equals(pillarLocId)) {
+            throw new IllegalArgumentException("Thiết bị '" + stockEq.getEquipmentName()
+                    + "' thuộc kho của cơ sở khác, không thể lắp vào trụ " + pillar.getPillarCode() + ".");
+        }
+        int stock = stockEq.getQuantity() != null ? stockEq.getQuantity() : 1;
+        if (stock < qty) {
+            throw new IllegalArgumentException(String.format(
+                    "Thiết bị '%s' trong kho chỉ còn %d cái, không đủ %d cái.", stockEq.getEquipmentName(), stock, qty));
+        }
+
+        if (stock == qty) {
+            stockEq.setPillar(pillar);
+            stockEq.setStatus(EEquipmentStatus.IN_USE);
+            if (pillar.getLocation() != null) stockEq.setLocation(pillar.getLocation());
+            return equipmentRepository.save(stockEq);
+        }
+
+        stockEq.setQuantity(stock - qty);
+        equipmentRepository.save(stockEq);
+
+        String baseSerial = stockEq.getSerialNumber() != null ? stockEq.getSerialNumber() : "EQ";
+        String deployedSerial = baseSerial + "-" + pillar.getPillarCode();
+        if (equipmentRepository.findBySerialNumber(deployedSerial).isPresent()) {
+            deployedSerial = deployedSerial + "-" + UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+        }
+        Equipment deployedEq = new Equipment();
+        deployedEq.setEquipmentName(stockEq.getEquipmentName());
+        deployedEq.setSerialNumber(deployedSerial);
+        deployedEq.setDescription(stockEq.getDescription());
+        deployedEq.setStatus(EEquipmentStatus.IN_USE);
+        deployedEq.setPillar(pillar);
+        deployedEq.setLocation(pillar.getLocation() != null ? pillar.getLocation() : stockEq.getLocation());
+        deployedEq.setQuantity(qty);
+        deployedEq.setPurchaseDate(stockEq.getPurchaseDate());
+        deployedEq.setLastMaintenanceDate(LocalDateTime.now());
+        deployedEq.setImageUrl(stockEq.getImageUrl());
+        return equipmentRepository.save(deployedEq);
+    }
+
+    // Khai báo thiết bị mới (kho chưa có) và gắn thẳng vào trụ
+    private Equipment declareNewDevice(swp490.greeenslot.dto.PillarEquipmentBindingDTO binding, int qty, Pillar pillar) {
+        String serial = binding.getNewSerialNumber() != null ? binding.getNewSerialNumber().trim().toUpperCase() : "";
+        if (serial.isEmpty()) {
+            throw new IllegalArgumentException("Thiết bị mới bắt buộc phải có Mã Serial.");
+        }
+        if (equipmentRepository.findBySerialNumber(serial).isPresent()) {
+            throw new IllegalArgumentException("Mã Serial '" + serial + "' đã tồn tại. Hãy chọn thiết bị từ kho hoặc dùng mã khác.");
+        }
+        String name = binding.getNewEquipmentName() != null && !binding.getNewEquipmentName().isBlank()
+                ? binding.getNewEquipmentName().trim()
+                : "Mạch điều khiển ESP32";
+        Equipment eq = new Equipment();
+        eq.setEquipmentName(name);
+        eq.setSerialNumber(serial);
+        eq.setStatus(EEquipmentStatus.IN_USE);
+        eq.setPillar(pillar);
+        eq.setLocation(pillar.getLocation());
+        eq.setQuantity(qty);
+        eq.setPurchaseDate(LocalDateTime.now());
+        return equipmentRepository.save(eq);
+    }
+
     private EquipmentDTO mapToDTO(Equipment equipment) {
         Long locId = null;
         String locName = null;
