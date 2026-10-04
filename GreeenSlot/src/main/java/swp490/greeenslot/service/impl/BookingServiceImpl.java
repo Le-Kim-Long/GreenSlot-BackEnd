@@ -1442,19 +1442,24 @@ public class BookingServiceImpl implements BookingService {
                     ? rental.getGardenSlot().getPillars()
                     : (rental.getGardenSlot() != null && rental.getGardenSlot().getPillar() != null ? List.of(rental.getGardenSlot().getPillar()) : List.of()));
 
-        // Xác định các trụ ĐÃ THU HOẠCH trong vụ mùa hiện tại
+        // Xác định các trụ ĐÃ THU HOẠCH trong vụ mùa hiện tại (mốc vụ mùa tính riêng cho từng trụ)
         LocalDateTime plantTime = rental.getPlantedAt() != null ? rental.getPlantedAt() : rental.getStartTime();
+        Map<String, LocalDateTime> pillarPlantTimes = buildPillarPlantTimes(rental);
         List<HarvestHistory> pastHistories = harvestHistoryRepository.findByRentalId(rental.getId());
         Set<String> alreadyHarvestedPillars = new HashSet<>();
-        if (plantTime != null && pastHistories != null) {
+        if (pastHistories != null) {
             for (HarvestHistory h : pastHistories) {
-                if (h.getHarvestedAt() != null && (h.getHarvestedAt().isAfter(plantTime.minusMinutes(2)) || h.getHarvestedAt().isEqual(plantTime))) {
-                    if (h.getPillarCodes() != null) {
-                        for (String c : h.getPillarCodes().split(",")) {
-                            if (!c.trim().isEmpty()) {
-                                alreadyHarvestedPillars.add(c.trim());
-                            }
-                        }
+                if (h.getHarvestedAt() == null || h.getPillarCodes() == null) {
+                    continue;
+                }
+                for (String c : h.getPillarCodes().split(",")) {
+                    String code = c.trim();
+                    if (code.isEmpty()) {
+                        continue;
+                    }
+                    LocalDateTime baseline = resolvePillarPlantTime(normalizePillarCode(code), plantTime, pillarPlantTimes);
+                    if (baseline != null && !h.getHarvestedAt().isBefore(baseline.minusMinutes(2))) {
+                        alreadyHarvestedPillars.add(code);
                     }
                 }
             }
@@ -1467,14 +1472,23 @@ public class BookingServiceImpl implements BookingService {
 
         String targetPillarCodes = null;
         if (pillarCode != null && !pillarCode.isBlank()) {
+            // Bỏ qua các trụ đã thu hoạch sau lần trồng gần nhất (không ghi trùng lịch sử)
+            List<String> remainingPillars = new ArrayList<>();
             for (String p : pillarCode.split(",")) {
                 String trimmed = p.trim();
                 String norm = normalizePillarCode(trimmed);
-                if (!norm.isEmpty() && alreadyHarvestedPillarsNorm.contains(norm)) {
-                    throw new IllegalArgumentException("Trụ " + trimmed + " đã được thu hoạch trước đó trong vụ mùa này rồi.");
+                if (!norm.isEmpty() && !alreadyHarvestedPillarsNorm.contains(norm)) {
+                    remainingPillars.add(trimmed);
                 }
             }
-            targetPillarCodes = pillarCode.trim();
+            if (remainingPillars.isEmpty()) {
+                // Thông báo thu hoạch đang treo cho trụ đã thu hoạch xong -> gỡ thông báo, hủy task treo thay vì báo lỗi
+                boolean taskForSamePillar = task != null && task.getPillarCodes() != null
+                        && normalizePillarCode(task.getPillarCodes()).equals(normalizePillarCode(pillarCode));
+                clearStaleHarvestNotice(rental, taskForSamePillar ? task : null);
+                return;
+            }
+            targetPillarCodes = String.join(", ", remainingPillars);
         } else {
             // Khách chọn "Tất cả các trụ" -> Lọc thông minh chỉ lấy các trụ THỰC SỰ ĐANG CÓ CÂY (chưa thu hoạch)
             List<String> unharvestedPillars = new ArrayList<>();
@@ -1700,6 +1714,47 @@ public class BookingServiceImpl implements BookingService {
     private String normalizePillarCode(String code) {
         if (code == null) return "";
         return code.trim().replaceAll("^(?i)trụ\\s*", "").trim();
+    }
+
+    private static final String ALL_PILLARS_KEY = "*";
+
+    // Thời điểm duyệt trồng gần nhất theo từng trụ (key "*" = yêu cầu trồng cho toàn bộ trụ)
+    private Map<String, LocalDateTime> buildPillarPlantTimes(SlotRental rental) {
+        Map<String, LocalDateTime> result = new HashMap<>();
+        for (TreePlantingRequest req : treePlantingRequestRepository.findByRental(rental)) {
+            boolean planted = req.getStatus() == EPlantingRequestStatus.APPROVED || req.getStatus() == EPlantingRequestStatus.COMPLETED;
+            if (!planted || req.getProcessedAt() == null) {
+                continue;
+            }
+            String key = req.getTargetPillar() != null
+                    ? normalizePillarCode(req.getTargetPillar().getPillarCode())
+                    : ALL_PILLARS_KEY;
+            result.merge(key, req.getProcessedAt(), (a, b) -> a.isAfter(b) ? a : b);
+        }
+        return result;
+    }
+
+    private LocalDateTime resolvePillarPlantTime(String pillarCodeNorm, LocalDateTime rentalPlantTime, Map<String, LocalDateTime> pillarPlantTimes) {
+        LocalDateTime baseline = rentalPlantTime;
+        for (LocalDateTime candidate : new LocalDateTime[]{pillarPlantTimes.get(pillarCodeNorm), pillarPlantTimes.get(ALL_PILLARS_KEY)}) {
+            if (candidate != null && (baseline == null || candidate.isAfter(baseline))) {
+                baseline = candidate;
+            }
+        }
+        return baseline;
+    }
+
+    private void clearStaleHarvestNotice(SlotRental rental, GardeningTask pendingTask) {
+        rental.setHarvestDecision(null);
+        rental.setHarvestPillarCode(null);
+        rental.setHarvestNotifiedAt(null);
+        rental.setHarvestEvidenceImageUrl(null);
+        rental.setHarvestStaffNotes(null);
+        slotRentalRepository.save(rental);
+        if (pendingTask != null) {
+            pendingTask.setStatus(ETaskStatus.CANCELLED);
+            gardeningTaskRepository.save(pendingTask);
+        }
     }
 
     private void activateAddPillars(String txnRef) {
