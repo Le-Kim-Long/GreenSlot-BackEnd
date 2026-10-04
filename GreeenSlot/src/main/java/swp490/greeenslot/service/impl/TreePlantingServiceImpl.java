@@ -494,6 +494,8 @@ public class TreePlantingServiceImpl implements TreePlantingService {
                 .or(() -> userRepository.findByEmail(username))
                 .orElseThrow(() -> new RuntimeException("User not found with username: " + username));
         
+        reason = normalizeReason(reason);
+
         request.setStatus(EPlantingRequestStatus.REJECTED);
         request.setProcessedBy(user);
         request.setProcessedAt(LocalDateTime.now());
@@ -566,6 +568,18 @@ public class TreePlantingServiceImpl implements TreePlantingService {
         }
 
         return mapToDTO(updatedRequest);
+    }
+
+    // Raw String @RequestBody may arrive JSON-encoded (e.g. "\"\"" or "\"text\""); strip quotes and blank values
+    private String normalizeReason(String reason) {
+        if (reason == null) {
+            return null;
+        }
+        String trimmed = reason.trim();
+        if (trimmed.length() >= 2 && trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
+            trimmed = trimmed.substring(1, trimmed.length() - 1).trim();
+        }
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     @Override
