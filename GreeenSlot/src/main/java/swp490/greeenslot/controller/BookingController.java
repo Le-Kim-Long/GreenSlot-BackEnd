@@ -177,9 +177,10 @@ public class BookingController {
         String decision = body.get("decision");
         String pillarCode = body.get("pillarCode");
         String notes = body.get("notes");
-        bookingService.recordHarvestDecision(rentalId, decision, pillarCode, notes, principal.getName());
+        boolean recorded = bookingService.recordHarvestDecision(rentalId, decision, pillarCode, notes, principal.getName());
         java.util.Map<String, String> response = new java.util.HashMap<>();
-        response.put("message", "Harvest decision recorded");
+        response.put("status", recorded ? "RECORDED" : "ALREADY_HARVESTED");
+        response.put("message", recorded ? "Harvest decision recorded" : "Trụ này đã được thu hoạch trước đó, không cần xác nhận thêm.");
         return ResponseEntity.ok(response);
     }
 

@@ -1189,6 +1189,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                     if (hasActiveHarvestTaskForPillar(r, pCode, plantedDate)) {
                         continue; // Trụ này đang được thu hoạch hoặc đã gửi đề xuất -> ẩn khỏi dropdown
                     }
+                    if (isPillarHarvestedSinceLastPlanting(r, p)) {
+                        continue; // Trụ đã thu hoạch sau lần trồng gần nhất -> đang trống, không thể đề xuất
+                    }
 
                     Integer harvestDays = tree.getHarvestDays();
                     Integer daysGrown = plantedDate != null
@@ -1323,7 +1326,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                         .map(TreePlantingRequest::getNewTree)
                         .orElse(p.getDefaultTree() != null ? p.getDefaultTree() : rental.getTree());
 
-                if (targetTree == null) {
+                if (targetTree == null || isPillarHarvestedSinceLastPlanting(rental, p)) {
                     continue;
                 }
 
@@ -1347,7 +1350,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             }
 
             if (createdTasks.isEmpty()) {
-                throw new IllegalArgumentException("Tất cả các trụ tại ô này đều đã có đề xuất thu hoạch đang chờ duyệt hoặc xử lý.");
+                throw new IllegalArgumentException("Không có trụ nào tại ô này có thể đề xuất thu hoạch sớm (đã có đề xuất đang xử lý, hoặc trụ đã thu hoạch và chưa trồng cây mới).");
             }
 
             // Gửi thông báo cho Location Managers
@@ -1382,6 +1385,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
         if (hasActiveHarvestTaskForPillar(rental, effectivePillarCode, plantedDateCutoff)) {
             throw new IllegalArgumentException("Trụ " + (effectivePillarCode != null ? effectivePillarCode : "") + " đã có đề xuất thu hoạch sớm đang chờ duyệt hoặc đang được xử lý.");
+        }
+        if (targetPillar != null && isPillarHarvestedSinceLastPlanting(rental, targetPillar)) {
+            throw new IllegalArgumentException("Trụ " + effectivePillarCode + " đã được thu hoạch và chưa trồng cây mới, không thể đề xuất thu hoạch sớm.");
         }
 
         Tree targetTree = null;
@@ -1451,5 +1457,32 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
     private String normalizePillarCode(String code) {
         if (code == null) return "";
         return code.trim().replaceAll("^(?i)trụ\\s*", "").trim();
+    }
+
+    // Trụ đã được thu hoạch sau lần trồng gần nhất -> hiện đang trống, không còn cây để thu hoạch
+    private boolean isPillarHarvestedSinceLastPlanting(SlotRental rental, Pillar pillar) {
+        if (pillar == null || pillar.getPillarCode() == null) {
+            return false;
+        }
+        String pillarNorm = normalizePillarCode(pillar.getPillarCode());
+        LocalDateTime lastPlanted = rental.getPlantedAt() != null ? rental.getPlantedAt() : rental.getStartTime();
+        for (TreePlantingRequest req : treePlantingRequestRepository.findByRental(rental)) {
+            boolean planted = req.getStatus() == EPlantingRequestStatus.APPROVED || req.getStatus() == EPlantingRequestStatus.COMPLETED;
+            boolean samePillar = req.getTargetPillar() == null
+                    || normalizePillarCode(req.getTargetPillar().getPillarCode()).equals(pillarNorm);
+            if (planted && samePillar && req.getProcessedAt() != null
+                    && (lastPlanted == null || req.getProcessedAt().isAfter(lastPlanted))) {
+                lastPlanted = req.getProcessedAt();
+            }
+        }
+        if (lastPlanted == null) {
+            return false;
+        }
+        LocalDateTime cutoff = lastPlanted.minusMinutes(2);
+        return harvestHistoryRepository.findByRentalId(rental.getId()).stream()
+                .filter(h -> h.getHarvestedAt() != null && h.getPillarCodes() != null && !h.getHarvestedAt().isBefore(cutoff))
+                .flatMap(h -> java.util.Arrays.stream(h.getPillarCodes().split(",")))
+                .map(this::normalizePillarCode)
+                .anyMatch(pillarNorm::equals);
     }
 }
