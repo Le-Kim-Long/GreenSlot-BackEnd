@@ -18,6 +18,8 @@ public class DashboardMetricsDTO {
     private Long totalSlots;
     private Long availableSlots;
     private Long activeRentals;
+    // Số ô có ít nhất 1 hợp đồng ACTIVE (1 ô nhiều trụ có thể được nhiều khách thuê cùng lúc)
+    private Long rentedSlots;
     private Long pendingAlerts;
     private BigDecimal totalRevenue;
     private List<AlertDTO> recentAlerts;
