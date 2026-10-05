@@ -119,7 +119,9 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         task.setStatus(ETaskStatus.PENDING);
         task.setTaskType(ETaskType.SERVICE_REQUEST);
         task.setTargetSlot(slot);
-        task.setRequestedBy(userRepository.findByUsername(username).orElse(null));
+        task.setRequestedBy(userRepository.findByUsername(username)
+                .or(() -> userRepository.findByEmail(username))
+                .orElse(null));
         task.setAssignedStaff(null); // Unassigned initially
         task.setCreatedAt(now);
 
@@ -179,6 +181,12 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         task.setStatus(ETaskStatus.PENDING);
         task.setTaskType(type);
         task.setTargetSlot(slot);
+        if (slotRentalRepository != null) {
+            List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(slot.getId(), LocalDateTime.now());
+            if (!activeRentals.isEmpty() && activeRentals.get(0).getUser() != null) {
+                task.setRequestedBy(activeRentals.get(0).getUser());
+            }
+        }
         task.setAssignedStaff(null); // Unassigned initially
         if (request.getEvidenceImageUrl() != null && !request.getEvidenceImageUrl().trim().isEmpty()) {
             task.setEvidenceImageUrl(request.getEvidenceImageUrl().trim());
@@ -679,6 +687,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
         issueTask.setStatus(ETaskStatus.PENDING);
         issueTask.setTaskType(ETaskType.MAINTENANCE);
         issueTask.setTargetSlot(originalTask.getTargetSlot());
+        issueTask.setRequestedBy(originalTask.getRequestedBy());
         issueTask.setEvidenceImageUrl(request.getEvidenceImageUrl()); // Can be optional or populated
         issueTask.setAssignedStaff(null); // Left unassigned for manager review
         issueTask.setCreatedAt(LocalDateTime.now());
@@ -740,16 +749,39 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                 );
             }
 
-            // If requested by customer and not a harvest task, notify customer
-            if (task.getRequestedBy() != null && notificationService != null && task.getTaskType() != ETaskType.HARVEST) {
+            // Notify customer who owns/rented this slot or requested this task
+            User customer = resolveCustomerForSlotTask(task);
+            if (customer != null && notificationService != null && task.getTaskType() != ETaskType.HARVEST) {
+                String taskName = task.getTaskName() != null ? task.getTaskName() : "Chăm sóc ô đất";
+                String message = task.getTaskType() == ETaskType.SERVICE_REQUEST
+                        ? String.format("Yêu cầu dịch vụ '%s' tại ô đất %s đã được hoàn thành và nghiệm thu.", taskName, slotNumber)
+                        : String.format("Nhiệm vụ chăm sóc '%s' tại ô đất %s đã được hoàn thành và nghiệm thu.", taskName, slotNumber);
+
+                String evidenceImg = task.getEvidenceImageUrl();
+                if (evidenceImg != null && evidenceImg.contains(",")) {
+                    evidenceImg = evidenceImg.split(",")[0].trim();
+                }
+                if (evidenceImg != null && evidenceImg.length() > 1000) {
+                    evidenceImg = evidenceImg.substring(0, 1000);
+                }
+
                 notificationService.createNotification(
-                        task.getRequestedBy().getId(),
+                        customer.getId(),
                         "Yêu cầu chăm sóc hoàn tất",
-                        String.format("Yêu cầu dịch vụ '%s' tại ô đất %s đã được hoàn thành và nghiệm thu.", task.getTaskName(), slotNumber),
+                        message,
                         "TASK_COMPLETED",
                         task.getId(),
-                        "/dashboard/customer/rentals"
+                        "/dashboard/customer/rentals",
+                        evidenceImg
                 );
+
+                if (firebaseMessagingService != null) {
+                    firebaseMessagingService.sendPushNotification(
+                            customer.getId(),
+                            "Yêu cầu chăm sóc hoàn tất",
+                            message
+                    );
+                }
             }
 
             // Xử lý công việc thu hoạch
@@ -879,6 +911,39 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
                 }
             }
         }
+    }
+
+    private User resolveCustomerForSlotTask(GardeningTask task) {
+        if (task == null) return null;
+        if (task.getRequestedBy() != null && task.getRequestedBy().getRoles() != null
+                && task.getRequestedBy().getRoles().stream().anyMatch(r -> r.getName() == ERole.ROLE_CUSTOMER)) {
+            return task.getRequestedBy();
+        }
+        if (task.getTargetSlot() != null && task.getTargetSlot().getId() != null && slotRentalRepository != null) {
+            LocalDateTime now = LocalDateTime.now();
+            List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(task.getTargetSlot().getId(), now);
+            if (!activeRentals.isEmpty()) {
+                if (task.getRequestedBy() != null) {
+                    for (SlotRental r : activeRentals) {
+                        if (r.getUser() != null && r.getUser().getId().equals(task.getRequestedBy().getId())) {
+                            return r.getUser();
+                        }
+                    }
+                }
+                if (activeRentals.get(0).getUser() != null) {
+                    return activeRentals.get(0).getUser();
+                }
+            }
+            List<SlotRental> allActive = slotRentalRepository.findAllActiveRentals();
+            if (allActive != null) {
+                for (SlotRental r : allActive) {
+                    if (r.getGardenSlot() != null && r.getGardenSlot().getId().equals(task.getTargetSlot().getId()) && r.getUser() != null) {
+                        return r.getUser();
+                    }
+                }
+            }
+        }
+        return task.getRequestedBy();
     }
 
     private void notifyCustomerHarvestChoiceAfterApproval(GardeningTask task) {

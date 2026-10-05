@@ -603,6 +603,12 @@ public class SensorReadingServiceImpl implements SensorReadingService {
         emergencyTask.setTargetSlot(slot);
         emergencyTask.setPillarCodes(pillarCodeStr);
         emergencyTask.setAssignedStaff(assignedStaff);
+        if (slot != null && slot.getId() != null && slotRentalRepository != null) {
+            List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(slot.getId(), LocalDateTime.now());
+            if (!activeRentals.isEmpty() && activeRentals.get(0).getUser() != null) {
+                emergencyTask.setRequestedBy(activeRentals.get(0).getUser());
+            }
+        }
         emergencyTask.setCreatedAt(LocalDateTime.now());
         return gardeningTaskRepository.save(emergencyTask);
     }

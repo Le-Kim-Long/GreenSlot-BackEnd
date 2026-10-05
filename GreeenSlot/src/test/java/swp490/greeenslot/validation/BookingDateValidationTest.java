@@ -397,7 +397,9 @@ class BookingDateValidationTest {
             return p;
         });
 
-        when(userRepository.findByRoleNameAndLocation(swp490.greeenslot.entity.ERole.ROLE_LOCATION_MANAGER, 5L))
+        lenient().when(userRepository.findByRoleNameAndLocation(swp490.greeenslot.entity.ERole.ROLE_LOCATION_MANAGER, 5L))
+                .thenReturn(List.of(manager));
+        lenient().when(userRepository.findManagersForLocation(any(), any(Long.class)))
                 .thenReturn(List.of(manager));
         lenient().when(userRepository.findByRoleNameAndLocation(swp490.greeenslot.entity.ERole.ROLE_GARDEN_STAFF, 5L))
                 .thenReturn(Collections.emptyList());
