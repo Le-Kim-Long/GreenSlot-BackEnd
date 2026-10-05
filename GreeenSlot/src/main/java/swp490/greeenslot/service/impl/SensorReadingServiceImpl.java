@@ -603,11 +603,19 @@ public class SensorReadingServiceImpl implements SensorReadingService {
         emergencyTask.setTargetSlot(slot);
         emergencyTask.setPillarCodes(pillarCodeStr);
         emergencyTask.setAssignedStaff(assignedStaff);
-        if (slot != null && slot.getId() != null && slotRentalRepository != null) {
-            List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(slot.getId(), LocalDateTime.now());
-            if (!activeRentals.isEmpty() && activeRentals.get(0).getUser() != null) {
-                emergencyTask.setRequestedBy(activeRentals.get(0).getUser());
+        if (slotRentalRepository != null) {
+            LocalDateTime nowTs = LocalDateTime.now();
+            List<SlotRental> activeRentals = new java.util.ArrayList<>();
+            if (pillar != null && pillar.getId() != null) {
+                activeRentals.addAll(slotRentalRepository.findActiveRentalsByPillarIds(List.of(pillar.getId()), nowTs));
             }
+            if (activeRentals.isEmpty() && slot != null && slot.getId() != null) {
+                activeRentals.addAll(slotRentalRepository.findActiveRentals(slot.getId(), nowTs));
+            }
+            activeRentals.stream()
+                    .filter(r -> r.getStatus() == ERentalStatus.ACTIVE && r.getUser() != null)
+                    .findFirst()
+                    .ifPresent(r -> emergencyTask.setRequestedBy(r.getUser()));
         }
         emergencyTask.setCreatedAt(LocalDateTime.now());
         return gardeningTaskRepository.save(emergencyTask);

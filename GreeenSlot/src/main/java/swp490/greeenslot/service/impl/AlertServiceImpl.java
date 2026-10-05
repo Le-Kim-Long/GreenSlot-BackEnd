@@ -273,16 +273,28 @@ public class AlertServiceImpl implements AlertService {
     }
 
     private void notifyCustomerAlertResolved(Alert alert, String evidenceImageUrl) {
-        if (alert == null || alert.getGardenSlot() == null || slotRentalRepository == null || notificationService == null) {
+        if (alert == null || slotRentalRepository == null || notificationService == null) {
             return;
         }
-        GardenSlot slot = alert.getGardenSlot();
-        List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(slot.getId(), LocalDateTime.now());
-        if (activeRentals.isEmpty() || activeRentals.get(0).getUser() == null) {
+        LocalDateTime now = LocalDateTime.now();
+        SlotRental rental = null;
+        if (alert.getPillar() != null) {
+            rental = slotRentalRepository.findActiveRentalsByPillarIds(List.of(alert.getPillar().getId()), now).stream()
+                    .filter(r -> r.getStatus() == ERentalStatus.ACTIVE && r.getUser() != null)
+                    .findFirst().orElse(null);
+        }
+        if (rental == null && alert.getGardenSlot() != null) {
+            rental = slotRentalRepository.findByGardenSlotId(alert.getGardenSlot().getId()).stream()
+                    .filter(r -> r.getStatus() == ERentalStatus.ACTIVE && r.getUser() != null)
+                    .filter(r -> r.getEndTime() == null || r.getEndTime().isAfter(now))
+                    .findFirst().orElse(null);
+        }
+        if (rental == null) {
             return;
         }
-        User customer = activeRentals.get(0).getUser();
-        String slotNumber = slot.getSlotNumber() != null ? slot.getSlotNumber() : ("#" + slot.getId());
+        User customer = rental.getUser();
+        GardenSlot slot = alert.getGardenSlot() != null ? alert.getGardenSlot() : rental.getGardenSlot();
+        String slotNumber = slot == null ? "N/A" : (slot.getSlotNumber() != null ? slot.getSlotNumber() : ("#" + slot.getId()));
         String pillarCode = (alert.getPillar() != null && alert.getPillar().getPillarCode() != null)
                 ? alert.getPillar().getPillarCode() : "";
         String pillarInfo = pillarCode.isEmpty() ? "" : " (Trụ " + pillarCode + ")";
@@ -317,9 +329,11 @@ public class AlertServiceImpl implements AlertService {
         if (alerts == null || alerts.isEmpty() || slotRentalRepository == null || notificationService == null) {
             return;
         }
-        java.util.Set<Long> notifiedSlotIds = new java.util.HashSet<>();
+        java.util.Set<String> notifiedKeys = new java.util.HashSet<>();
         for (Alert a : alerts) {
-            if (a.getGardenSlot() != null && notifiedSlotIds.add(a.getGardenSlot().getId())) {
+            String key = a.getPillar() != null ? "P" + a.getPillar().getId()
+                    : (a.getGardenSlot() != null ? "S" + a.getGardenSlot().getId() : null);
+            if (key != null && notifiedKeys.add(key)) {
                 notifyCustomerAlertResolved(a, null);
             }
         }
