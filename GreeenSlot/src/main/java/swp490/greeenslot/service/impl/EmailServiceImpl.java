@@ -152,7 +152,7 @@ public class EmailServiceImpl implements EmailService {
 
         String htmlContent = "<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background-color: #ffffff;\">"
                 + "<div style=\"text-align: center; margin-bottom: 24px;\">"
-                + "<h1 style=\"color: #059669; margin: 0; font-size: 26px;\">🌱 GreenSlot</h1>"
+                + "<h1 style=\"color: #059669; margin: 0; font-size: 26px;\">GreenSlot</h1>"
                 + "<p style=\"color: #6b7280; font-size: 14px; margin-top: 4px;\">Nền tảng quản lý và thuê ô vườn thông minh</p>"
                 + "</div>"
                 + "<h2 style=\"color: #111827; font-size: 18px;\">Xin chào " + recipientName + ",</h2>"

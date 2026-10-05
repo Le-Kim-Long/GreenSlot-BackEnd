@@ -3,8 +3,10 @@ package swp490.greeenslot.service.impl;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDType0Font;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import swp490.greeenslot.entity.PaymentTransaction;
 import swp490.greeenslot.entity.SlotRental;
@@ -16,10 +18,14 @@ import org.springframework.security.access.AccessDeniedException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.format.DateTimeFormatter;
 
 @Service
 public class InvoiceServiceImpl implements InvoiceService {
+
+    private static final String REGULAR_FONT_PATH = "fonts/NotoSans-Regular.ttf";
+    private static final String BOLD_FONT_PATH = "fonts/NotoSans-Bold.ttf";
 
     @Autowired
     private SlotRentalRepository slotRentalRepository;
@@ -67,19 +73,30 @@ public class InvoiceServiceImpl implements InvoiceService {
         return generatePdfInvoice(rental, payment);
     }
 
+    private PDFont loadFont(PDDocument document, String resourcePath) throws IOException {
+        try (InputStream fontStream = new ClassPathResource(resourcePath).getInputStream()) {
+            return PDType0Font.load(document, fontStream);
+        }
+    }
+
     private ByteArrayOutputStream generatePdfInvoice(SlotRental rental, PaymentTransaction payment) throws IOException {
+        if (rental == null) {
+            throw new IllegalArgumentException("Payment transaction is not linked to any rental.");
+        }
         try (PDDocument document = new PDDocument()) {
             PDPage page = new PDPage();
             document.addPage(page);
+            PDFont regularFont = loadFont(document, REGULAR_FONT_PATH);
+            PDFont boldFont = loadFont(document, BOLD_FONT_PATH);
 
             try (PDPageContentStream contentStream = new PDPageContentStream(document, page)) {
-                contentStream.setFont(PDType1Font.HELVETICA_BOLD, 12);
+                contentStream.setFont(boldFont, 12);
                 contentStream.beginText();
                 contentStream.newLineAtOffset(50, 750);
                 contentStream.showText("GREEN SLOT INVOICE");
                 contentStream.endText();
 
-                contentStream.setFont(PDType1Font.HELVETICA, 10);
+                contentStream.setFont(regularFont, 10);
                 contentStream.beginText();
                 contentStream.newLineAtOffset(50, 730);
                 contentStream.showText("Invoice ID: " + (payment != null ? payment.getVnpTxnRef() : "INV-" + rental.getId()));

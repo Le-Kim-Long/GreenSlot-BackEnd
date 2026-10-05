@@ -617,7 +617,7 @@ public class SensorReadingServiceImpl implements SensorReadingService {
         for (User staff : targetStaffMap.values()) {
             if (notificationService != null) {
                 if (isSoilMoistureLow) {
-                    String wateringTitle = String.format("💧 Yêu cầu tưới nước: Trụ %s (Ô %s)", pillarCodeStr, slotNumber);
+                    String wateringTitle = String.format("Yêu cầu tưới nước: Trụ %s (Ô %s)", pillarCodeStr, slotNumber);
                     String wateringBody = String.format("Độ ẩm đất tại Trụ %s (Ô %s - %s) giảm còn %.2f%%, dưới ngưỡng an toàn %.2f%%. Vui lòng kiểm tra và kích hoạt tưới nước.",
                             pillarCodeStr, slotNumber, treeName, value, effectiveMin);
                     String actionUrl = String.format("/dashboard/garden-staff/pump-control?slotId=%d&pillarCode=%s", slotId != null ? slotId : 0L, pillarCodeStr);
@@ -643,7 +643,7 @@ public class SensorReadingServiceImpl implements SensorReadingService {
             }
             if (firebaseMessagingService != null) {
                 String pushTitle = isSoilMoistureLow
-                        ? String.format("💧 Cần tưới nước: Trụ %s (Ô %s)", pillarCodeStr, slotNumber)
+                        ? String.format("Cần tưới nước: Trụ %s (Ô %s)", pillarCodeStr, slotNumber)
                         : "Cần kiểm tra: Cảnh báo cảm biến";
                 String pushBody = isSoilMoistureLow
                         ? String.format("Độ ẩm đất Trụ %s (Ô %s) thấp (%.2f%% < %.2f%%). Nhấn để kích hoạt bơm.", pillarCodeStr, slotNumber, value, effectiveMin)

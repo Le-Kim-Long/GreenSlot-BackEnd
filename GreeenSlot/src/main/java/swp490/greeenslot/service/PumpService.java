@@ -69,7 +69,7 @@ public class PumpService {
                     .build();
         });
 
-        logger.info("💧 [PILLAR PUMP] Trụ ID {} chuyển trạng thái máy bơm thành: {} ({})", pillarId, cleanStatus, reason);
+        logger.info("[PILLAR PUMP] Trụ ID {} chuyển trạng thái máy bơm thành: {} ({})", pillarId, cleanStatus, reason);
 
         // Nếu bật và có hẹn giờ tự ngắt (mặc định 5s)
         if ("ON".equalsIgnoreCase(cleanStatus) && autoOffSeconds > 0) {
@@ -83,7 +83,7 @@ public class PumpService {
                                 .lastTriggerReason("Tự ngắt an toàn sau " + autoOffSeconds + "s")
                                 .lastTriggerTime(LocalDateTime.now())
                                 .build());
-                        logger.info("🛑 [PILLAR PUMP AUTO-OFF] Máy bơm trụ ID {} đã tự ngắt an toàn sau {}s.", pillarId, autoOffSeconds);
+                        logger.info("[PILLAR PUMP AUTO-OFF] Máy bơm trụ ID {} đã tự ngắt an toàn sau {}s.", pillarId, autoOffSeconds);
                     }
                 } catch (Exception e) {
                     logger.error("Lỗi khi tự ngắt máy bơm trụ ID {}: {}", pillarId, e.getMessage());
@@ -142,7 +142,7 @@ public class PumpService {
                         this.currentStatus = "OFF";
                         this.lastTriggerReason = "Tự ngắt an toàn sau 5s";
                         this.lastTriggerTime = LocalDateTime.now();
-                        logger.info("🛑 [GLOBAL PUMP AUTO-OFF] Máy bơm toàn cục đã tự ngắt an toàn sau 5s.");
+                        logger.info("[GLOBAL PUMP AUTO-OFF] Máy bơm toàn cục đã tự ngắt an toàn sau 5s.");
                     }
                 }, 5, TimeUnit.SECONDS);
             }
@@ -177,7 +177,7 @@ public class PumpService {
         this.currentStatus = "ON";
         this.lastTriggerTime = now;
         this.lastTriggerReason = reason;
-        logger.warn("💧 [AUTO-SPRAY ACTIVATED] Kích hoạt máy bơm tự động: {}", reason);
+        logger.warn("[AUTO-SPRAY ACTIVATED] Kích hoạt máy bơm tự động: {}", reason);
 
         autoOffScheduler.schedule(() -> {
             if ("ON".equalsIgnoreCase(this.currentStatus)) {
