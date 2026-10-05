@@ -674,8 +674,8 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
         // Create new GardeningTask of type MAINTENANCE representing the issue
         GardeningTask issueTask = new GardeningTask();
-        issueTask.setTaskName("ISSUE REPORT: " + request.getIssueTitle());
-        issueTask.setDescription("Issue reported by Staff " + username + " on Task #" + taskId + ": " + request.getDescription());
+        issueTask.setTaskName("Báo cáo sự cố: " + request.getIssueTitle());
+        issueTask.setDescription("Nhân viên " + username + " báo cáo sự cố trên công việc #" + taskId + ": " + request.getDescription());
         issueTask.setStatus(ETaskStatus.PENDING);
         issueTask.setTaskType(ETaskType.MAINTENANCE);
         issueTask.setTargetSlot(originalTask.getTargetSlot());
@@ -687,7 +687,7 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
         // Update original task
         originalTask.setStatus(ETaskStatus.CANCELLED);
-        originalTask.setDescription(originalTask.getDescription() + "\n[BLOCKED_BY_ISSUE: " + savedIssue.getTaskName() + "]");
+        originalTask.setDescription(originalTask.getDescription() + "\n[Tạm dừng do sự cố: " + request.getIssueTitle() + "]");
         gardeningTaskRepository.save(originalTask);
 
         // Notify location managers about reported issue
