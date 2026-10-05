@@ -18,6 +18,8 @@ import java.io.ByteArrayOutputStream;
 @Tag(name = "Invoice Management", description = "APIs for generating PDF invoices")
 public class InvoiceController {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(InvoiceController.class);
+
     @Autowired
     private InvoiceService invoiceService;
 
@@ -36,6 +38,7 @@ public class InvoiceController {
                     .headers(headers)
                     .body(pdf.toByteArray());
         } catch (Exception e) {
+            log.error("Failed to generate invoice PDF", e);
             return ResponseEntity.internalServerError().build();
         }
     }
@@ -55,6 +58,7 @@ public class InvoiceController {
                     .headers(headers)
                     .body(pdf.toByteArray());
         } catch (Exception e) {
+            log.error("Failed to generate invoice PDF", e);
             return ResponseEntity.internalServerError().build();
         }
     }
