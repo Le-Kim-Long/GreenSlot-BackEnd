@@ -753,9 +753,16 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
             User customer = resolveCustomerForSlotTask(task);
             if (customer != null && notificationService != null && task.getTaskType() != ETaskType.HARVEST) {
                 String taskName = task.getTaskName() != null ? task.getTaskName() : "Chăm sóc ô đất";
-                String message = task.getTaskType() == ETaskType.SERVICE_REQUEST
-                        ? String.format("Yêu cầu dịch vụ '%s' tại ô đất %s đã được hoàn thành và nghiệm thu.", taskName, slotNumber)
-                        : String.format("Nhiệm vụ chăm sóc '%s' tại ô đất %s đã được hoàn thành và nghiệm thu.", taskName, slotNumber);
+                boolean isEmergency = taskName.startsWith("Khẩn cấp") || taskName.toLowerCase().contains("cảnh báo");
+                String title = isEmergency ? "Sự cố khẩn cấp đã được xử lý" : "Yêu cầu chăm sóc hoàn tất";
+                String message;
+                if (isEmergency) {
+                    message = String.format("Sự cố '%s' tại ô đất %s đã được nhân viên xử lý và quản lý nghiệm thu.", taskName, slotNumber);
+                } else if (task.getTaskType() == ETaskType.SERVICE_REQUEST) {
+                    message = String.format("Yêu cầu dịch vụ '%s' tại ô đất %s đã được hoàn thành và nghiệm thu.", taskName, slotNumber);
+                } else {
+                    message = String.format("Nhiệm vụ chăm sóc '%s' tại ô đất %s đã được hoàn thành và nghiệm thu.", taskName, slotNumber);
+                }
 
                 String evidenceImg = task.getEvidenceImageUrl();
                 if (evidenceImg != null && evidenceImg.contains(",")) {
@@ -767,20 +774,16 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
                 notificationService.createNotification(
                         customer.getId(),
-                        "Yêu cầu chăm sóc hoàn tất",
+                        title,
                         message,
                         "TASK_COMPLETED",
                         task.getId(),
-                        "/dashboard/customer/rentals",
+                        isEmergency ? "/dashboard/customer/monitoring" : "/dashboard/customer/rentals",
                         evidenceImg
                 );
 
                 if (firebaseMessagingService != null) {
-                    firebaseMessagingService.sendPushNotification(
-                            customer.getId(),
-                            "Yêu cầu chăm sóc hoàn tất",
-                            message
-                    );
+                    firebaseMessagingService.sendPushNotification(customer.getId(), title, message);
                 }
             }
 
@@ -915,35 +918,53 @@ public class GardeningTaskServiceImpl implements GardeningTaskService {
 
     private User resolveCustomerForSlotTask(GardeningTask task) {
         if (task == null) return null;
-        if (task.getRequestedBy() != null && task.getRequestedBy().getRoles() != null
-                && task.getRequestedBy().getRoles().stream().anyMatch(r -> r.getName() == ERole.ROLE_CUSTOMER)) {
+        if (isCustomer(task.getRequestedBy())) {
             return task.getRequestedBy();
         }
-        if (task.getTargetSlot() != null && task.getTargetSlot().getId() != null && slotRentalRepository != null) {
-            LocalDateTime now = LocalDateTime.now();
-            List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(task.getTargetSlot().getId(), now);
-            if (!activeRentals.isEmpty()) {
-                if (task.getRequestedBy() != null) {
-                    for (SlotRental r : activeRentals) {
-                        if (r.getUser() != null && r.getUser().getId().equals(task.getRequestedBy().getId())) {
-                            return r.getUser();
-                        }
-                    }
-                }
-                if (activeRentals.get(0).getUser() != null) {
-                    return activeRentals.get(0).getUser();
-                }
-            }
-            List<SlotRental> allActive = slotRentalRepository.findAllActiveRentals();
-            if (allActive != null) {
-                for (SlotRental r : allActive) {
-                    if (r.getGardenSlot() != null && r.getGardenSlot().getId().equals(task.getTargetSlot().getId()) && r.getUser() != null) {
+        if (slotRentalRepository == null) return null;
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1. Ưu tiên khách hàng thuê đúng trụ của task (ô lớn có nhiều khách thuê theo trụ)
+        if (task.getPillarCodes() != null && !task.getPillarCodes().isBlank()) {
+            List<Long> pillarIds = Arrays.stream(task.getPillarCodes().split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .map(code -> pillarRepository.findByPillarCode(code).map(Pillar::getId).orElse(null))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            if (!pillarIds.isEmpty()) {
+                for (SlotRental r : slotRentalRepository.findActiveRentalsByPillarIds(pillarIds, now)) {
+                    if (r.getStatus() == ERentalStatus.ACTIVE && isCustomer(r.getUser())) {
                         return r.getUser();
                     }
                 }
             }
         }
-        return task.getRequestedBy();
+
+        // 2. Khách hàng đang thuê ô đất (chấp nhận endTime null)
+        if (task.getTargetSlot() != null && task.getTargetSlot().getId() != null) {
+            List<SlotRental> slotRentals = slotRentalRepository.findByGardenSlotId(task.getTargetSlot().getId()).stream()
+                    .filter(r -> r.getStatus() == ERentalStatus.ACTIVE)
+                    .filter(r -> r.getEndTime() == null || r.getEndTime().isAfter(now))
+                    .filter(r -> isCustomer(r.getUser()))
+                    .collect(Collectors.toList());
+            if (task.getRequestedBy() != null) {
+                for (SlotRental r : slotRentals) {
+                    if (r.getUser().getId().equals(task.getRequestedBy().getId())) {
+                        return r.getUser();
+                    }
+                }
+            }
+            if (!slotRentals.isEmpty()) {
+                return slotRentals.get(0).getUser();
+            }
+        }
+        return null;
+    }
+
+    private boolean isCustomer(User user) {
+        return user != null && user.getRoles() != null
+                && user.getRoles().stream().anyMatch(r -> r.getName() == ERole.ROLE_CUSTOMER);
     }
 
     private void notifyCustomerHarvestChoiceAfterApproval(GardeningTask task) {
