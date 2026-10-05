@@ -419,7 +419,7 @@ class BookingDateValidationTest {
         // Verify that Notification was sent to Location Manager
         verify(notificationService).createNotification(
                 eq(99L),
-                eq("⚠️ Yêu cầu bổ sung trụ: Ô S-05"),
+                eq("Yêu cầu bổ sung trụ: Ô S-05"),
                 anyString(),
                 eq("PILLAR_SETUP_REQUIRED"),
                 eq(500L),

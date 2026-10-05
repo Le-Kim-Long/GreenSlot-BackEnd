@@ -411,7 +411,7 @@ public class BookingServiceImpl implements BookingService {
             for (User mgr : managers) {
                 notificationService.createNotification(
                     mgr.getId(),
-                    "⚠️ Yêu cầu bổ sung trụ: Ô " + slot.getSlotNumber(),
+                    "Yêu cầu bổ sung trụ: Ô " + slot.getSlotNumber(),
                     String.format(
                         "Khách hàng %s đã đặt thuê %d trụ tại Ô %s (Cơ sở cần bổ sung %d trụ: %s). Vui lòng điều phối nhân viên lắp đặt hoàn thiện trước ngày %s.",
                         user.getFullName() != null ? user.getFullName() : user.getUsername(),
