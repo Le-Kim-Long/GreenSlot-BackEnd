@@ -147,30 +147,31 @@ public class AlertServiceImpl implements AlertService {
         alert.setStatus(newAlertStatus);
         if (newAlertStatus == EAlertStatus.RESOLVED) {
             alert.setResolvedAt(LocalDateTime.now());
+            String evidenceForTask = hasText(request.getEvidenceImageUrl())
+                    ? request.getEvidenceImageUrl() : findLatestEvidenceImage(alert);
             // Tự động hoàn thành các GardeningTask khẩn cấp tương ứng cho ô đất này
-            if (alert.getGardenSlot() != null && gardeningTaskRepository != null) {
-                List<GardeningTask> pendingAlertTasks = gardeningTaskRepository.findByTargetSlotIdAndTaskTypeOrderByCreatedAtDesc(
-                        alert.getGardenSlot().getId(), ETaskType.MAINTENANCE);
-                for (GardeningTask t : pendingAlertTasks) {
-                    if (t.getStatus() != ETaskStatus.COMPLETED && t.getStatus() != ETaskStatus.CANCELLED) {
-                        if (t.getTaskName() != null && (t.getTaskName().contains("cảnh báo") || t.getTaskName().contains("Cảnh báo"))) {
-                            t.setStatus(ETaskStatus.COMPLETED);
-                            if (t.getStaffNotes() == null || t.getStaffNotes().isBlank()) {
-                                t.setStaffNotes("Đã xử lý cảnh báo IoT: " + (request.getComment() != null ? request.getComment() : "Hoàn tất"));
-                            }
-                            if (t.getEvidenceImageUrl() == null && request.getEvidenceImageUrl() != null) {
-                                t.setEvidenceImageUrl(request.getEvidenceImageUrl());
-                            }
-                            gardeningTaskRepository.save(t);
-                        }
-                    }
+            for (GardeningTask t : findOpenAlertTasks(alert)) {
+                t.setStatus(ETaskStatus.COMPLETED);
+                if (t.getStaffNotes() == null || t.getStaffNotes().isBlank()) {
+                    t.setStaffNotes("Đã xử lý cảnh báo IoT: " + (request.getComment() != null ? request.getComment() : "Hoàn tất"));
                 }
+                if (!hasText(t.getEvidenceImageUrl()) && evidenceForTask != null) {
+                    t.setEvidenceImageUrl(evidenceForTask);
+                }
+                gardeningTaskRepository.save(t);
             }
         }
         alertRepository.save(alert);
 
         // Gửi thông báo đến Manager / Location Manager khi Garden Staff gửi báo cáo khắc phục
         boolean isStaff = user.getRoles() != null && user.getRoles().stream().anyMatch(r -> r.getName() == ERole.ROLE_GARDEN_STAFF);
+        if (isStaff && newAlertStatus == EAlertStatus.IN_PROGRESS && hasText(request.getEvidenceImageUrl())) {
+            // Gắn ảnh hiện trường vào task khẩn cấp để Quản lý xem được cả ở trang Quản lý công việc
+            for (GardeningTask t : findOpenAlertTasks(alert)) {
+                t.setEvidenceImageUrl(request.getEvidenceImageUrl());
+                gardeningTaskRepository.save(t);
+            }
+        }
         if (isStaff && newAlertStatus == EAlertStatus.IN_PROGRESS && notificationService != null) {
             Long locId = getAlertLocationId(alert);
             String pillarCode = (alert.getPillar() != null && alert.getPillar().getPillarCode() != null)
@@ -240,25 +241,47 @@ public class AlertServiceImpl implements AlertService {
             alert.setStatus(newAlertStatus);
             if (newAlertStatus == EAlertStatus.RESOLVED) {
                 alert.setResolvedAt(now);
-                if (alert.getGardenSlot() != null && gardeningTaskRepository != null) {
-                    List<GardeningTask> pendingAlertTasks = gardeningTaskRepository.findByTargetSlotIdAndTaskTypeOrderByCreatedAtDesc(
-                            alert.getGardenSlot().getId(), ETaskType.MAINTENANCE);
-                    for (GardeningTask t : pendingAlertTasks) {
-                        if (t.getStatus() != ETaskStatus.COMPLETED && t.getStatus() != ETaskStatus.CANCELLED) {
-                            if (t.getTaskName() != null && (t.getTaskName().contains("cảnh báo") || t.getTaskName().contains("Cảnh báo"))) {
-                                t.setStatus(ETaskStatus.COMPLETED);
-                                if (t.getStaffNotes() == null || t.getStaffNotes().isBlank()) {
-                                    t.setStaffNotes("Đã xử lý cảnh báo IoT (Hàng loạt): " + safeComment);
-                                }
-                                gardeningTaskRepository.save(t);
-                            }
-                        }
+                String evidenceForTask = findLatestEvidenceImage(alert);
+                for (GardeningTask t : findOpenAlertTasks(alert)) {
+                    t.setStatus(ETaskStatus.COMPLETED);
+                    if (t.getStaffNotes() == null || t.getStaffNotes().isBlank()) {
+                        t.setStaffNotes("Đã xử lý cảnh báo IoT (Hàng loạt): " + safeComment);
                     }
+                    if (!hasText(t.getEvidenceImageUrl()) && evidenceForTask != null) {
+                        t.setEvidenceImageUrl(evidenceForTask);
+                    }
+                    gardeningTaskRepository.save(t);
                 }
             }
             alertRepository.save(alert);
         }
         return targets.size();
+    }
+
+    // Task khẩn cấp (MAINTENANCE, tên chứa "cảnh báo") còn mở của ô đất gắn với cảnh báo
+    private List<GardeningTask> findOpenAlertTasks(Alert alert) {
+        if (alert.getGardenSlot() == null || gardeningTaskRepository == null) {
+            return List.of();
+        }
+        return gardeningTaskRepository.findByTargetSlotIdAndTaskTypeOrderByCreatedAtDesc(
+                        alert.getGardenSlot().getId(), ETaskType.MAINTENANCE).stream()
+                .filter(t -> t.getStatus() != ETaskStatus.COMPLETED && t.getStatus() != ETaskStatus.CANCELLED)
+                .filter(t -> t.getTaskName() != null
+                        && (t.getTaskName().contains("cảnh báo") || t.getTaskName().contains("Cảnh báo")))
+                .toList();
+    }
+
+    // Ảnh hiện trường mới nhất nhân viên đã gửi cho cảnh báo này (nếu có)
+    private String findLatestEvidenceImage(Alert alert) {
+        return alertProcessingLogRepository.findByAlert(alert).stream()
+                .filter(l -> hasText(l.getEvidenceImageUrl()))
+                .max(java.util.Comparator.comparing(AlertProcessingLog::getId))
+                .map(AlertProcessingLog::getEvidenceImageUrl)
+                .orElse(null);
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     // Log xử lý (AlertProcessingLog) dùng enum riêng EAlertProcessingStatus (PROCESSED/NOT_PROCESSED/FAILED),
