@@ -38,6 +38,9 @@ public class AlertServiceImpl implements AlertService {
     private TreeRepository treeRepository;
 
     @Autowired(required = false)
+    private SlotRentalRepository slotRentalRepository;
+
+    @Autowired(required = false)
     private NotificationService notificationService;
 
     @Autowired(required = false)
@@ -160,6 +163,11 @@ public class AlertServiceImpl implements AlertService {
                 }
                 gardeningTaskRepository.save(t);
             }
+
+            // Gửi thông báo đến khách hàng sở hữu ô đất có cảnh báo được xử lý
+            if (notificationService != null) {
+                notifyCustomerAlertResolved(alert, evidenceForTask);
+            }
         }
         alertRepository.save(alert);
 
@@ -255,7 +263,66 @@ public class AlertServiceImpl implements AlertService {
             }
             alertRepository.save(alert);
         }
+
+        // Gửi thông báo đến khách hàng sở hữu ô đất có cảnh báo được xử lý
+        if (newAlertStatus == EAlertStatus.RESOLVED && notificationService != null) {
+            notifyCustomersBatchAlertResolved(targets);
+        }
+
         return targets.size();
+    }
+
+    private void notifyCustomerAlertResolved(Alert alert, String evidenceImageUrl) {
+        if (alert == null || alert.getGardenSlot() == null || slotRentalRepository == null || notificationService == null) {
+            return;
+        }
+        GardenSlot slot = alert.getGardenSlot();
+        List<SlotRental> activeRentals = slotRentalRepository.findActiveRentals(slot.getId(), LocalDateTime.now());
+        if (activeRentals.isEmpty() || activeRentals.get(0).getUser() == null) {
+            return;
+        }
+        User customer = activeRentals.get(0).getUser();
+        String slotNumber = slot.getSlotNumber() != null ? slot.getSlotNumber() : ("#" + slot.getId());
+        String pillarCode = (alert.getPillar() != null && alert.getPillar().getPillarCode() != null)
+                ? alert.getPillar().getPillarCode() : "";
+        String pillarInfo = pillarCode.isEmpty() ? "" : " (Trụ " + pillarCode + ")";
+
+        String title = "Cảnh báo cảm biến đã được xử lý";
+        String message = String.format("Sự cố cảnh báo tại ô đất %s%s đã được kiểm tra và xử lý thành công.", slotNumber, pillarInfo);
+
+        String evidenceImg = evidenceImageUrl;
+        if (evidenceImg != null && evidenceImg.contains(",")) {
+            evidenceImg = evidenceImg.split(",")[0].trim();
+        }
+        if (evidenceImg != null && evidenceImg.length() > 1000) {
+            evidenceImg = evidenceImg.substring(0, 1000);
+        }
+
+        notificationService.createNotification(
+                customer.getId(),
+                title,
+                message,
+                "ALERT_RESOLVED",
+                alert.getId(),
+                "/dashboard/customer/monitoring",
+                evidenceImg
+        );
+
+        if (firebaseMessagingService != null) {
+            firebaseMessagingService.sendPushNotification(customer.getId(), title, message);
+        }
+    }
+
+    private void notifyCustomersBatchAlertResolved(List<Alert> alerts) {
+        if (alerts == null || alerts.isEmpty() || slotRentalRepository == null || notificationService == null) {
+            return;
+        }
+        java.util.Set<Long> notifiedSlotIds = new java.util.HashSet<>();
+        for (Alert a : alerts) {
+            if (a.getGardenSlot() != null && notifiedSlotIds.add(a.getGardenSlot().getId())) {
+                notifyCustomerAlertResolved(a, null);
+            }
+        }
     }
 
     // Task khẩn cấp (MAINTENANCE, tên chứa "cảnh báo") còn mở của ô đất gắn với cảnh báo
