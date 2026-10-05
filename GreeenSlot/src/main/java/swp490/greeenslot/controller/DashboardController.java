@@ -92,16 +92,20 @@ public class DashboardController {
                 .filter(s -> (s.getLocation() != null && locationId.equals(s.getLocation().getId()))
                         || (s.getPillars() != null && s.getPillars().stream().anyMatch(p -> p.getLocation() != null && locationId.equals(p.getLocation().getId()))))
                 .toList();
-        long totalSlots = locationSlots.size();
-        long rentedSlots = locationRentals.stream()
+        java.util.Set<String> rentedSlotNumbers = locationRentals.stream()
                 .map(ActiveRentalDTO::getSlotNumber)
                 .filter(slotNumber -> slotNumber != null && !"N/A".equals(slotNumber))
+                .collect(java.util.stream.Collectors.toSet());
+        long unrentedSlots = locationSlots.stream()
+                .map(GardenSlot::getSlotNumber)
+                .filter(slotNumber -> slotNumber != null && !rentedSlotNumbers.contains(String.valueOf(slotNumber)))
+                .map(String::valueOf)
                 .distinct()
                 .count();
-        long availableSlots = Math.max(0, totalSlots - rentedSlots);
-        metrics.setTotalSlots(totalSlots);
+        long rentedSlots = rentedSlotNumbers.size();
         metrics.setRentedSlots(rentedSlots);
-        metrics.setAvailableSlots(availableSlots);
+        metrics.setAvailableSlots(unrentedSlots);
+        metrics.setTotalSlots(rentedSlots + unrentedSlots);
         
         return ResponseEntity.ok(metrics);
     }
