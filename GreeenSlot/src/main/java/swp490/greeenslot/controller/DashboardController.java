@@ -93,9 +93,14 @@ public class DashboardController {
                         || (s.getPillars() != null && s.getPillars().stream().anyMatch(p -> p.getLocation() != null && locationId.equals(p.getLocation().getId()))))
                 .toList();
         long totalSlots = locationSlots.size();
-        long activeCount = locationRentals.size();
-        long availableSlots = Math.max(0, totalSlots - activeCount);
+        long rentedSlots = locationRentals.stream()
+                .map(ActiveRentalDTO::getSlotNumber)
+                .filter(slotNumber -> slotNumber != null && !"N/A".equals(slotNumber))
+                .distinct()
+                .count();
+        long availableSlots = Math.max(0, totalSlots - rentedSlots);
         metrics.setTotalSlots(totalSlots);
+        metrics.setRentedSlots(rentedSlots);
         metrics.setAvailableSlots(availableSlots);
         
         return ResponseEntity.ok(metrics);
